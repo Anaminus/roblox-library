@@ -1,0 +1,116 @@
+-- Implements Base85 encoding similar to Ascii85.
+--
+-- The encoding is based off of RFC 1924, which is suitable for JSON strings.
+-- Sequences of particular bytes (such as \0\0\0\0\0) are not encoded
+-- exceptionally. Wrappers (such as <~ ... ~>) are neither added nor expected.
+local Base85 = {}
+
+local encodeTable = {
+	"0", "1", "2", "3", "4",
+	"5", "6", "7", "8", "9",
+	"A", "B", "C", "D", "E",
+	"F", "G", "H", "I", "J",
+	"K", "L", "M", "N", "O",
+	"P", "Q", "R", "S", "T",
+	"U", "V", "W", "X", "Y",
+	"Z", "a", "b", "c", "d",
+	"e", "f", "g", "h", "i",
+	"j", "k", "l", "m", "n",
+	"o", "p", "q", "r", "s",
+	"t", "u", "v", "w", "x",
+	"y", "z", "!", "#", "$",
+	"%", "&", "(", ")", "*",
+	"+", "-", ";", "<", "=",
+	">", "?", "@", "^", "_",
+	"`", "{", "|", "}", "~",
+}
+
+-- Encode returns the data encoded from source.
+function Base85.Encode(source)
+-- function Base85.Encode(source: string) => (data: string)
+	local i = 1
+	local j = 1
+	local data = table.create(math.modf((#source+3)/4)*5)
+	while i <= #source do
+		local a, b, c, d = source:byte(i, i+4)
+		local n = (a or 0)*16777216 + (b or 0)*65536 + (c or 0)*256 + (d or 0)
+		for k = 4, 0, -1 do
+			data[j+k] = encodeTable[math.modf(n%85)+1]
+			n = math.modf(n/85)
+		end
+		i = i + 4
+		j = j + 5
+	end
+	for i = 1, i-#source-1 do
+		data[j-i] = nil
+	end
+	return table.concat(data)
+end
+
+local decodeTable = {
+	-- Base85 characters.
+	[ 48]= 0, [ 49]= 1, [ 50]= 2, [ 51]= 3, [ 52]= 4,
+	[ 53]= 5, [ 54]= 6, [ 55]= 7, [ 56]= 8, [ 57]= 9,
+	[ 65]=10, [ 66]=11, [ 67]=12, [ 68]=13, [ 69]=14,
+	[ 70]=15, [ 71]=16, [ 72]=17, [ 73]=18, [ 74]=19,
+	[ 75]=20, [ 76]=21, [ 77]=22, [ 78]=23, [ 79]=24,
+	[ 80]=25, [ 81]=26, [ 82]=27, [ 83]=28, [ 84]=29,
+	[ 85]=30, [ 86]=31, [ 87]=32, [ 88]=33, [ 89]=34,
+	[ 90]=35, [ 97]=36, [ 98]=37, [ 99]=38, [100]=39,
+	[101]=40, [102]=41, [103]=42, [104]=43, [105]=44,
+	[106]=45, [107]=46, [108]=47, [109]=48, [110]=49,
+	[111]=50, [112]=51, [113]=52, [114]=53, [115]=54,
+	[116]=55, [117]=56, [118]=57, [119]=58, [120]=59,
+	[121]=60, [122]=61, [ 33]=62, [ 35]=63, [ 36]=64,
+	[ 37]=65, [ 38]=66, [ 40]=67, [ 41]=68, [ 42]=69,
+	[ 43]=70, [ 45]=71, [ 59]=72, [ 60]=73, [ 61]=74,
+	[ 62]=75, [ 63]=76, [ 64]=77, [ 94]=78, [ 95]=79,
+	[ 96]=80, [123]=81, [124]=82, [125]=83, [126]=84,
+	-- Skipped spacing.
+	[  9]=-1, [ 10]=-1, [ 11]=-1, [ 12]=-1, [ 13]=-1,
+	[ 32]=-1, [133]=-1, [160]=-1,
+}
+
+-- Decode returns the data decoded from source. Throws an error if the source
+-- contains invalid base85 data or invalid bytes. Bytes that are spaces are
+-- ignored.
+function Base85.Decode(source)
+-- function Base85.Decode(source: string) => (data: string)
+	local data = table.create(math.modf(#source*4/5))
+	local bytes = 0
+	local value = 0
+	for i = 1, #source do
+		local b = decodeTable[source:byte(i)]
+		if not b then
+			error("invalid byte at " .. i, 2)
+		elseif b >= 0 then
+			value = value*85 + b
+			bytes = bytes + 1
+			if bytes == 5 then
+				table.insert(data, string.char(
+					(math.modf(value/16777216%256)),
+					(math.modf(value/65536%256)),
+					(math.modf(value/256%256)),
+					(math.modf(value%256))
+				))
+				bytes = 0
+				value = 0
+			end
+		end
+	end
+	if bytes > 0 then
+		if bytes == 1 then
+			error("corrupted base85 data at byte " .. #data-1, 2)
+		end
+		for i = bytes, 4 do
+			n = n*85 + 84
+		end
+		for i = 0, bytes-2 do
+			table.insert(data, string.char((math.modf(n/16777216%256))))
+			n = n * 256
+		end
+	end
+	return table.concat(data)
+end
+
+return Base85
