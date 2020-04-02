@@ -7,9 +7,9 @@ type ErrorHandler = (thread: thread, err: string) => ()
 type Function = () => ()
 
 type Scheduler = {
-	SetErrorHandler = (handler: ErrorHandler),
-	SetMinWaitTime  = (duration: number),
-	SetBudget       = (duration: number),
+	SetErrorHandler = (handler: ErrorHandler?),
+	SetMinWaitTime  = (duration: number?),
+	SetBudget       = (duration: number?),
 	Delay           = (duration: number, func: Function),
 	DelayCancel     = (duration: number, func: Function) => Function,
 	Spawn           = (func: Function) => (),
@@ -22,7 +22,7 @@ local Heartbeat     = 0 -- local Heartbeat     : Driver = 0
 local Stepped       = 1 -- local Stepped       : Driver = 1
 local RenderStepped = 2 -- local RenderStepped : Driver = 2
 
--- Driver contains constants used to indicate a Driver.
+-- Driver contains constants used to specify a Driver.
 Sched.Driver = { -- Sched.Driver: {[string]: Driver}
 	-- Heartbeat uses RunService.Heartbeat as the driver. This is the default.
 	Heartbeat     = Heartbeat,
@@ -34,9 +34,10 @@ Sched.Driver = { -- Sched.Driver: {[string]: Driver}
 
 local Scheduler = {__index={}}
 
--- New returns a new Scheduler driven by the given driver.
+-- New returns a new Scheduler driven by the specified driver, or Heartbeat if
+-- no driver is specified.
 function Sched.New(driver)
--- function Sched.New(driver: Driver) => Scheduler
+-- function Sched.New(driver: Driver?) => (scheduler: Scheduler)
 	local self = setmetatable({
 		suspended = {},       -- Unordered list of suspended threads.
 		pending = {},         -- List of threads to be resumed, ordered by time.
@@ -158,10 +159,12 @@ function Scheduler.__index:popThread(id)
 	end
 end
 
--- SetErrorHandler sets a function that is called when a coroutine
--- returns an error. The first argument is the thread, which may be used
--- with debug.traceback to acquire a stack trace. The second argument is
--- the error message.
+-- SetErrorHandler sets a function that is called when a thread returns an
+-- error. The first argument is the thread, which may be used with
+-- debug.traceback to acquire a stack trace. The second argument is the error
+-- message.
+--
+-- By default, no function is set, causing any errors to be discarded.
 function Scheduler.__index:SetErrorHandler(handler)
 -- function Scheduler.__index:SetErrorHandler(handler: ErrorHandler?) => ()
 	self.handleError = handler
@@ -176,6 +179,9 @@ end
 
 -- SetBudget specifies the duration each iteration of the driver is allowed to
 -- run, in seconds. Defaults to infinite duration.
+--
+-- When the budget is exceeded, the driver suspends, resuming where it left
+-- off on the next iteration.
 function Scheduler.__index:SetBudget(duration)
 -- function Scheduler.__index:SetBudget(duration: number?) => ()
 	self.budget = duration or math.huge
@@ -194,7 +200,7 @@ end
 -- DelayCancel queues `func` to be called after waiting for `duration` seconds.
 -- Returns a function that, when called, cancels the delayed call.
 function Scheduler.__index:DelayCancel(duration, func)
--- function Scheduler.__index:Delay(duration: number, func: Function) => Function
+-- function Scheduler.__index:Delay(duration: number, func: Function) => (cancel: Function)
 	local t = tick()
 	if duration < self.minWaitTime then
 		duration = self.minWaitTime
