@@ -39,7 +39,7 @@ API
 
 		RenderStepped uses RunService.RenderStepped as the driver.
 
-	Sched.New(driver: Driver?) => (scheduler: Scheduler)
+	Sched.New(driver: Driver?): (scheduler: Scheduler)
 
 		New returns a new Scheduler driven by the specified driver, or Heartbeat
 		if no driver is specified.
@@ -71,7 +71,7 @@ API
 		Delay queues `func` to be called after waiting for `duration` seconds.
 		`duration` is affected by MinWaitTime.
 
-	Scheduler:DelayCancel(duration: number, func: Function) => (cancel: Function)
+	Scheduler:DelayCancel(duration: number, func: Function): (cancel: Function)
 
 		DelayCancel queues `func` to be called after waiting for `duration`
 		seconds. Returns a function that, when called, cancels the delayed call.
@@ -90,13 +90,13 @@ API
 
 		Yield queues the running thread to be resumed as soon as possible.
 
-	type ErrorHandler = (thread: thread, err: string) => ()
+	type ErrorHandler = (thread: thread, err: string) -> ()
 
 		ErrorHandler is used to handle an error that occurred within a thread.
 		`thread` is the thread that returned the error, which may be used with
 		debug.traceback to acquire a stack trace. `err` is the error message.
 
-	type Function = () => ()
+	type Function = () -> ()
 
 		Function is a generic function that receives no parameters and returns
 		no values.

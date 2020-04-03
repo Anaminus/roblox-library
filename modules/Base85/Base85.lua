@@ -27,7 +27,7 @@ local encodeTable = {
 
 -- Encode returns the data encoded from source.
 function Base85.Encode(source)
--- function Base85.Encode(source: string) => (data: string)
+-- function Base85.Encode(source: string): (data: string)
 	local i = 1
 	local j = 1
 	local data = table.create(math.modf((#source+3)/4)*5)
@@ -75,7 +75,7 @@ local decodeTable = {
 -- contains invalid base85 data or invalid bytes. Bytes that are spaces are
 -- ignored.
 function Base85.Decode(source)
--- function Base85.Decode(source: string) => (data: string)
+-- function Base85.Decode(source: string): (data: string)
 	local data = table.create(math.modf(#source*4/5))
 	local bytes = 0
 	local value = 0

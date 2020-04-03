@@ -91,9 +91,9 @@ end
 
 --[[
 type Group = {
-	Add: (delta: number?) => ()
-	Done: () => ()
-	Wait: () => ()
+	Add: (delta: number?) -> ()
+	Done: () -> ()
+	Wait: () -> ()
 }
 ]]
 
@@ -147,7 +147,7 @@ end
 -- Group returns a new Group object. *counter* is an optional initial value of
 -- the group counter, defaulting to 0.
 function Sync.Group(counter)
--- function Sync.Group(counter: number?) => Group
+-- function Sync.Group(counter: number?): Group
 	return setmetatable({
 		counter = math.modf(counter or 0),
 		blocker = nil,
@@ -159,9 +159,9 @@ end
 
 --[[
 type Mutex = {
-	Lock: () => ()
-	Unlock: () => ()
-	Wrap((func: ...any)=>(...any)) => (...any)=>(...any)
+	Lock: () -> ()
+	Unlock: () -> ()
+	Wrap((func: ...any)->(...any)) -> (...any)->(...any)
 }
 ]]
 
@@ -206,7 +206,7 @@ end
 -- called, and unlocks it after func returns. The new function receives and
 -- returns the same parameters as func.
 function Mutex.__index:Wrap(func)
--- function Mutex.__index:Wrap(func: (...any)=>(...any)) => (...any)=>(...any)
+-- function Mutex.__index:Wrap(func: (...any)->(...any)) -> (...any)->(...any)
 	return function(...)
 		self:Lock()
 		local results = table.pack(func(...))
@@ -217,7 +217,7 @@ end
 
 -- Mutex creates a new mutex.
 function Sync.Mutex()
--- function Sync.Mutex() => Mutex
+-- function Sync.Mutex() -> Mutex
 	return setmetatable({blockers = {}}, Mutex)
 end
 
@@ -226,9 +226,9 @@ end
 
 --[[
 type Connection = {
-	Disconnect: () => (),
+	Disconnect: () -> (),
 	Connected: boolean,
-	IsConnected: () => boolean,
+	IsConnected: () -> boolean,
 }
 ]]
 
@@ -262,9 +262,9 @@ function Connection.__index:IsConnected()
 end
 
 --[[
-type Listener = (...any) => ()
+type Listener = (...any) -> ()
 type Event = {
-	Connect: (Listener) => ()
+	Connect: (Listener) -> ()
 }
 ]]
 
@@ -291,10 +291,10 @@ end
 
 --[[
 type Signal = {
-	Fire: (...any) => ()
-	Destroy: () => ()
+	Fire: (...any) -> ()
+	Destroy: () -> ()
 	Event: Event
-	GetEvent: () => Event
+	GetEvent: () -> Event
 }
 ]]
 
