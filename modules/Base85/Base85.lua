@@ -32,7 +32,7 @@ function Base85.Encode(source)
 	local j = 1
 	local data = table.create(math.modf((#source+3)/4)*5)
 	while i <= #source do
-		local a, b, c, d = source:byte(i, i+4)
+		local a, b, c, d = string.byte(source, i, i+4)
 		local n = (a or 0)*16777216 + (b or 0)*65536 + (c or 0)*256 + (d or 0)
 		for k = 4, 0, -1 do
 			data[j+k] = encodeTable[math.modf(n%85)+1]
@@ -80,7 +80,7 @@ function Base85.Decode(source)
 	local bytes = 0
 	local value = 0
 	for i = 1, #source do
-		local b = decodeTable[source:byte(i)]
+		local b = decodeTable[string.byte(source, i)]
 		if not b then
 			error("invalid byte at " .. i, 2)
 		elseif b >= 0 then
