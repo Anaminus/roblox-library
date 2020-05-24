@@ -76,7 +76,7 @@ local decodeTable = {
 -- ignored.
 function Base85.Decode(source)
 -- function Base85.Decode(source: string): (data: string)
-	local data = table.create(math.modf(#source*4/5))
+	local data = table.create((math.modf(#source*4/5)))
 	local bytes = 0
 	local value = 0
 	for i = 1, #source do
@@ -103,11 +103,11 @@ function Base85.Decode(source)
 			error("corrupted base85 data at byte " .. #data-1, 2)
 		end
 		for i = bytes, 4 do
-			n = n*85 + 84
+			value = value*85 + 84
 		end
 		for i = 0, bytes-2 do
-			table.insert(data, string.char((math.modf(n/16777216%256))))
-			n = n * 256
+			table.insert(data, string.char((math.modf(value/16777216%256))))
+			value = value * 256
 		end
 	end
 	return table.concat(data)
