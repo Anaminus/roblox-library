@@ -5,7 +5,7 @@ Testing
 
 SYNOPSIS
 
-	local runner = Testing.Test({
+	local runner = Testing.Runner({
 		Modules = {
 			game.ServerScriptService.ModuleScript,
 		},
@@ -37,7 +37,7 @@ DESCRIPTION
 
 		return T
 
-	Tests are run through a test runner. The runner scans the descendants of an
+	Tests are run through a Runner. The Runner scans the descendants of an
 	instance for ModuleScripts to test. When a ModuleScript named "Foobar" has a
 	sibling ModuleScript named "Foobar.test", Foobar.test is assumed to be used
 	to test Foobar. Only the first unique name of a ModuleScript is selected as
@@ -57,13 +57,13 @@ DESCRIPTION
 			end
 		end
 
-	A test runner is created with the Testing.Test function. Test receives a
+	A Runner is created with the Testing.Runner function. Runner receives a
 	table that configures the modules to be tested. The "Scan" field contains
 	instances that will be scanned for modules. The "Modules" field contains
 	specific modules to be included directly.
 
 		local Testing = require(game.ReplicatedStorage.Testing)
-		local runner = Testing.Test({
+		local runner = Testing.Runner({
 			Modules = {
 				game.ServerScriptService.ModuleScript,
 				game.ReplicatedStorage.Foobar,
@@ -74,20 +74,20 @@ DESCRIPTION
 			},
 		})
 
-	The Run method of the runner executes all tests, returning a table
-	containing the results. This table can be inspected, or converted to a
-	string to be displayed in a human-readable format.
+	The Run method executes all tests, returning a table containing the results.
+	This table can be inspected, or converted to a string to be displayed in a
+	human-readable format.
 
 		local results = runner:Run()
 		print(results)
 
 API
 
-	-- Test returns a new TestRunner initialized with the given configuration.
-	function Testing.Test(config: TestConfig): TestRunner
+	-- Runner returns a new Runner initialized with the given configuration.
+	function Testing.Runner(config: Config): Runner
 
-	-- TestConfig configures a TestRunner.
-	type TestConfig = {
+	-- Config configures a Runner.
+	type Config = {
 
 		-- ModuleScripts to be included in the test run.
 		Modules: Array<Instance.ModuleScript>,
@@ -97,8 +97,8 @@ API
 		Scan: Array<Instance.Instance>,
 	}
 
-	-- TestRunner manages the state of a test run.
-	type TestRunner = {
+	-- Runner manages the state of a test run.
+	type Runner = {
 
 		-- Run runs tests for each module. Tests are run only once; multiple
 		-- calls return the same results.
@@ -392,9 +392,9 @@ end
 
 local T = {__index={}}
 
-local TestRunner = {__index={}}
+local Runner = {__index={}}
 
-function Testing.Test(config)
+function Testing.Runner(config)
 	local self = {
 		modules = {},
 		results = nil,
@@ -409,7 +409,7 @@ function Testing.Test(config)
 	table.sort(self.modules, function(a, b)
 		return a.Module:GetFullName() < b.Module:GetFullName()
 	end)
-	return new(TestRunner, self)
+	return new(Runner, self)
 end
 
 local ModuleResults = {__index={}}
@@ -476,8 +476,8 @@ function TestResult:__tostring()
 	return table.concat(s)
 end
 
-function TestRunner.__index:Run()
--- function TestRunner.__index:Run(): ModuleResults
+function Runner.__index:Run()
+-- function Runner.__index:Run(): ModuleResults
 	if self.results then
 		return self.results
 	end
@@ -503,8 +503,8 @@ function TestRunner.__index:Run()
 	return results
 end
 
-function TestRunner.__index:runModuleTest(module, test)
--- function TestRunner.__index:runModuleTest(module: Module, test: Module): ModuleResult
+function Runner.__index:runModuleTest(module, test)
+-- function Runner.__index:runModuleTest(module: Module, test: Module): ModuleResult
 	local moduleResult = new(ModuleResult, {
 		Module = module,
 		Duration = 0,
@@ -576,9 +576,9 @@ function TestRunner.__index:runModuleTest(module, test)
 	return moduleResult
 end
 
-function TestRunner.__index:runTest(module, test, name)
+function Runner.__index:runTest(module, test, name)
 -- type Test = (t: T, require: ()->(any)?) -> ()
--- function TestRunner.__index:runTest(module: Module, test: Test, name: string): TestResult
+-- function Runner.__index:runTest(module: Module, test: Test, name: string): TestResult
 	local result = new(TestResult, {
 		Name = name,
 		Duration = 0,
