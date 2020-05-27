@@ -114,6 +114,9 @@ API
 		-- The list of results.
 		[number]: ModuleResult,
 
+		-- Modules contains the modules that have been scanned.
+		Modules: Modules,
+
 		-- Duration is the cumulative duration of all module tests.
 		Duration: number,
 
@@ -171,6 +174,39 @@ API
 
 		-- Log is the output of the test.
 		Log: string,
+	}
+
+	-- Modules contains the categorized results of a scan.
+	type Modules = {
+
+		-- Matched contains modules and their corresponding test suites.
+		Matched: Array<ModuleTest>,
+
+		-- UnmatchedModules contains modules that have no corresponding test
+		-- suite.
+		UnmatchedModules: Array<ModuleScript>,
+
+		-- UnmatchedTests contains test suites that have no corresponding
+		-- module.
+		UnmatchedTests: Array<ModuleScript>,
+
+		-- ShadowedModules contains modules whose name is shadowed by another
+		-- module.
+		ShadowedModules: Array<ModuleScript>,
+
+		-- ShadowedTests contains test suites whose name is shadowed by another
+		-- test suite.
+		ShadowedTests: Array<ModuleScript>,
+	}
+
+	-- ModuleTest contains a module paired with a test suite.
+	type ModuleTest = {
+
+		-- Module is the module to be tested.
+		Module: ModuleScript,
+
+		-- Test is the corresponding test suite.
+		Test: ModuleScript,
 	}
 
 	-- Error describes an error with a possible underlying cause.
@@ -287,6 +323,24 @@ end
 -- haltMarker is a non-error thrown by error() to halt a test's execution.
 local haltMarker = {}
 
+--[[
+
+-- ScanResult describes a single result of a scan for module tests.
+type ScanResult = {
+
+	-- Module is the module to be tested. Subsequent entries are modules
+	-- shadowed by the first entry. Zero entries means the test suite has no
+	-- corresponding module.
+	Module: Array<ModuleScript>,
+
+	-- Test is the corresponding test suite. Subsequent entries are modules
+	-- shadowed by the first entry. Zero entries means the module has no
+	-- corresponding test.
+	Test: Array<ModuleScript>,
+}
+
+]]
+
 -- scan performs a recursive scan of instance, adding found test objects to
 -- results.
 local function scan(results, instance)
@@ -297,24 +351,31 @@ local function scan(results, instance)
 		if child:IsA("ModuleScript") then
 			local t
 			local name = child.Name
-			if name:sub(-#testModuleSuffix) == testModuleSuffix then
+			if string.sub(name, -#testModuleSuffix) == testModuleSuffix then
 				t = tests
-				name = name:sub(1, -#testModuleSuffix-1)
+				name = string.sub(name, 1, -#testModuleSuffix-1)
 			else
 				t = modules
 			end
 			if t[name] == nil then
-				t[name] = child
+				t[name] = {}
 			end
+			table.insert(t[name], child)
 		end
 	end
+	local matched = {}
 	for name, module in pairs(modules) do
 		local test = tests[name]
 		if test then
-			table.insert(results, {
-				Module = module,
-				Test = test,
-			})
+			table.insert(results, {Module = module, Test = test})
+			matched[name] = true
+		else
+			table.insert(results, {Module = module, Test = {}})
+		end
+	end
+	for name, test in pairs(tests) do
+		if not matched[name] then
+			table.insert(results, {Module = {}, Test = test})
 		end
 	end
 	for _, child in ipairs(children) do
@@ -322,25 +383,113 @@ local function scan(results, instance)
 	end
 end
 
--- scanModule scans a module's siblings for a corresponding test module.
+-- scanModule scans a module's siblings for a corresponding test module. Unlike
+-- scan, the module will be selected even if it does not have the first unique
+-- name.
 local function scanModule(results, module)
 	local instance = module.Parent
+	local modules = {module}
 	if instance == nil then
+		table.insert(results, {Module = modules, Test = {}})
 		return
 	end
+	local tests = {}
 	for _, child in ipairs(instance:GetChildren()) do
-		if child:IsA("ModuleScript") and child.Name == module.Name..testModuleSuffix then
-			table.insert(results, {
-				Module = module,
-				Test = child,
-			})
-			return
+		if child:IsA("ModuleScript") and child ~= module then
+			if child.Name == module.Name..testModuleSuffix then
+				table.insert(tests, child)
+			elseif child.Name == module.Name then
+				table.insert(modules, child)
+			end
 		end
 	end
+	table.insert(results, {Module = modules, Test = tests})
 end
 
--- cloneFull creates a copy of instance that shares the same full name as
--- instance. Each ancestor of instance is created as a Folder and given a
+-- formatScanResults categorizes modules and removes duplicates. Results are
+-- ordered by full name.
+local function formatScanResults(results)
+	local modules = {
+		Matched = {},
+		UnmatchedModules = {},
+		UnmatchedTests = {},
+		ShadowedModules = {},
+		ShadowedTests = {},
+	}
+
+	-- Whether a module has been visited. Reused to cache module names for
+	-- sorting.
+	local visited = {}
+
+	-- Visit matched modules.
+	for _, result in ipairs(results) do
+		local module = result.Module
+		local test = result.Test
+		if #module > 0 and #test > 0 then
+			if not visited[module[1]] then
+				visited[module[1]] = getFullName(module[1])
+				table.insert(modules.Matched, {Module = module[1], Test = test[1]})
+			end
+		end
+	end
+
+	-- Visit unmatched modules.
+	for _, result in ipairs(results) do
+		local module = result.Module
+		local test = result.Test
+		if #module > 0 and #test == 0 then
+			if not visited[module[1]] then
+				visited[module[1]] = getFullName(module[1])
+				table.insert(modules.UnmatchedModules, module[1])
+			end
+		elseif #module == 0 and #test > 0 then
+			if not visited[test[1]] then
+				visited[test[1]] = getFullName(test[1])
+				table.insert(modules.UnmatchedTests, test[1])
+			end
+		end
+	end
+
+	-- Visit shadowed modules.
+	for _, result in ipairs(results) do
+		local module = result.Module
+		for i = 2, #module do
+			if not visited[module[i]] then
+				visited[module[i]] = getFullName(module[i])
+				table.insert(modules.ShadowedModules, module[i])
+			end
+		end
+		local test = result.Test
+		for i = 2, #test do
+			if not visited[test[i]] then
+				visited[test[i]] = getFullName(test[i])
+				table.insert(modules.ShadowedTests, test[i])
+			end
+		end
+	end
+
+	-- Sort everything by full name.
+	table.sort(modules.Matched, function(a, b)
+		return visited[a.Module] < visited[b.Module]
+	end)
+	table.sort(modules.UnmatchedModules, function(a, b)
+		return visited[a] < visited[b]
+	end)
+	table.sort(modules.UnmatchedTests, function(a, b)
+		return visited[a] < visited[b]
+	end)
+	table.sort(modules.ShadowedModules, function(a, b)
+		return visited[a] < visited[b]
+	end)
+	table.sort(modules.ShadowedTests, function(a, b)
+		return visited[a] < visited[b]
+	end)
+
+	return modules
+end
+
+-- cloneFull creates a copy of instance such that it shares the same full name
+-- as instance. Each ancestor of instance is created as a Folder and given a
 -- matching Name.
 local function cloneFull(instance)
 	local copy = instance:Clone()
@@ -382,6 +531,30 @@ local function new(mt, t)
 	return setmetatable(t or {}, mt)
 end
 
+-- getFullName returns the full name of an instance formatted as a Lua
+-- expression.
+local function getFullName(instance)
+	local t = {}
+	while instance and instance ~= game do
+		table.insert(t, instance.Name)
+		instance = instance.Parent
+	end
+	local s = ""
+	local n = #t
+	for i = n, 1, -1 do
+		local name = t[i]
+		if string.match(name, "^[A-Za-z_][A-Za-z0-9_]*$") then
+			if i < n then
+				s = s .. "."
+			end
+			s = s .. name
+		else
+			s = s .. string.gsub(string.format("[%q]", name), "\\\n", "\\n")
+		end
+	end
+	return s
+end
+
 local Error = {}
 function Error:__tostring()
 	if self.Cause then
@@ -400,21 +573,32 @@ function Testing.Runner(config)
 		results = nil,
 	}
 	config = config or {}
+	local modules = {}
 	for _, module in ipairs(config.Modules or {}) do
-		scanModule(self.modules, module)
+		scanModule(modules, module)
 	end
 	for _, instance in ipairs(config.Scan or {}) do
-		scan(self.modules, instance)
+		scan(modules, instance)
 	end
-	table.sort(self.modules, function(a, b)
-		return a.Module:GetFullName() < b.Module:GetFullName()
-	end)
+	self.modules = formatScanResults(modules)
 	return new(Runner, self)
 end
 
 local ModuleResults = {__index={}}
 function ModuleResults:__tostring()
 	local s = {}
+	for _, module in ipairs(self.Modules.UnmatchedTests) do
+		append(s, "warn: ", getFullName(module), ": no matching module\n")
+	end
+	for _, module in ipairs(self.Modules.ShadowedModules) do
+		append(s, "warn: ", getFullName(module), ": shadowed name\n")
+	end
+	for _, module in ipairs(self.Modules.ShadowedTests) do
+		append(s, "warn: ", getFullName(module), ": shadowed name\n")
+	end
+	for _, module in ipairs(self.Modules.UnmatchedModules) do
+		append(s, "warn: ", getFullName(module), ": no tests\n")
+	end
 	for _, module in ipairs(self) do
 		append(s, tostring(module), "\n")
 	end
@@ -434,10 +618,10 @@ local ModuleResult = {}
 function ModuleResult:__tostring()
 	local s = {}
 	if not self.Failed then
-		append(s, string.format("pass: %s " .. durationFormat, self.Module:GetFullName(), self.Duration))
+		append(s, string.format("pass: %s " .. durationFormat, getFullName(self.Module), self.Duration))
 		return table.concat(s)
 	end
-	append(s, string.format("FAIL: %s " .. durationFormat, self.Module:GetFullName(), self.Duration))
+	append(s, string.format("FAIL: %s " .. durationFormat, getFullName(self.Module), self.Duration))
 	if self.Error ~= nil then
 		append(s, "\n", indent("ERROR: " .. tostring(self.Error), 1, tabSize))
 		if self.Error.Trace then
@@ -484,11 +668,12 @@ function Runner.__index:Run()
 
 	local failed = false
 	local results = {
+		Modules = self.modules,
 		Duration = 0,
 		Failed = false,
 	}
 	local epoch = tick()
-	for _, pair in ipairs(self.modules) do
+	for _, pair in ipairs(self.modules.Matched) do
 		local result = self:runModuleTest(pair.Module, pair.Test)
 		failed = failed or result.Failed
 		table.insert(results, result)
