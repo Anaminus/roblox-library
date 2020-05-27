@@ -206,53 +206,53 @@ API
 	type T = {
 
 		-- Cleanup registers a function to be called after the test completes.
-		Cleanup: (f: ()->()) -> ()
+		Cleanup: (f: ()->()) -> (),
 
 		-- Error is equivalent to Log followed by Fail.
-		Error: (args: ...any) -> ()
+		Error: (args: ...any) -> (),
 
 		-- Errorf is equivalent to Logf followed by Fail.
-		Errorf: (format: string, args: ...any) -> ()
+		Errorf: (format: string, args: ...any) -> (),
 
 		-- Fail marks the function as having failed but continues execution.
-		Fail: () -> ()
+		Fail: () -> (),
 
 		-- FailNow marks the function as having failed and stops its execution.
-		FailNow: () -> ()
+		FailNow: () -> (),
 
 		-- Failed reports whether the function has failed.
-		Failed: () -> boolean
+		Failed: () -> boolean,
 
 		-- Fatal is equivalent to Log followed by FailNow.
-		Fatal: (args: ...any) -> ()
+		Fatal: (args: ...any) -> (),
 
 		-- Fatalf is equivalent to Logf followed by FailNow.
-		Fatalf: (format: string, args: ...any) -> ()
+		Fatalf: (format: string, args: ...any) -> (),
 
 		-- Log records the given arguments in the log.
-		Log: (args: ...any) -> ()
+		Log: (args: ...any) -> (),
 
 		-- Logf formats its arguments according to the format, and records the
 		-- text in the log. A final newline is added if not provided.
-		Logf: (format: string, args: ...any) -> ()
+		Logf: (format: string, args: ...any) -> (),
 
 		-- Name returns the name of the running test.
-		Name: () -> string
+		Name: () -> string,
 
 		-- Skip is equivalent to Log followed by SkipNow.
-		Skip: (args: ...any) -> ()
+		Skip: (args: ...any) -> (),
 
 		-- SkipNow marks the test as having been skipped and stops its
 		-- execution. If a test fails (see Error, Errorf, Fail) and is then
 		-- skipped, it is still considered to have failed. Execution will
 		-- continue at the next test.
-		SkipNow: () -> ()
+		SkipNow: () -> (),
 
 		-- Skipf is equivalent to Logf followed by SkipNow.
-		Skipf: (format: string, args: ...any) -> ()
+		Skipf: (format: string, args: ...any) -> (),
 
 		-- Skipped reports whether the test was skipped.
-		Skipped: () -> boolean
+		Skipped: () -> boolean,
 	}
 
 ]]
@@ -637,7 +637,6 @@ function TestRunner.__index:runTest(module, test, name)
 	return result
 end
 
--- newT returns a new T.
 function newT(name)
 	return new(T, {
 		name = name,
@@ -676,7 +675,6 @@ function T.__index:compileLog()
 	return table.concat(self.log)
 end
 
--- Error is equivalent to Log followed by Fail.
 function T.__index:Error(...)
 	self:Log(...)
 	self:Fail()
