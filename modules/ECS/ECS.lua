@@ -9,7 +9,7 @@ SYNOPSIS
 
 	world:DefineComponent("Component", 0)
 	world:DefineEntity("Entity", {Component=true})
-	world:DefineSystem("System", {"Component"}, function(entities)
+	world:DefineSystem("System", {"Component"}, function(world, entities)
 		for _, e in ipairs(entities) do
 			e.Component = e.Component + 1
 			if e.Component >= 100 then
@@ -132,12 +132,13 @@ DESCRIPTION
 	----
 
 	DefineSystem defines a system by associating a name to a number of
-	components, and updater function. The updater receives a list of entities to
-	traverse, as well as the extra arguments passed to the Update method.
+	components, and updater function. The updater receives as arguments the
+	world, a list of entities to traverse, as well as the extra arguments passed
+	to the Update method.
 
 		world:DefineSystem("Physics",
 			{"Physics"},
-			function(entities, deltaTime)
+			function(world, entities, deltaTime)
 				for _, e in ipairs(entities) do
 					local phy = e.Physics
 
@@ -159,7 +160,7 @@ DESCRIPTION
 
 		world:DefineSystem("Input",
 			{"Physics", "PlayerInput"},
-			function(entities, deltaTime)
+			function(world, entities, deltaTime)
 				for _, e in ipairs(entities) do
 					local jump = e.PlayerInput:IsKeyDown(Enum.KeyCode.Space)
 					local canJump = e.Physics.Position.Y <= 1e6
@@ -288,11 +289,13 @@ API
 	-- Updater is passed to World.DefineSystem, and is called when the
 	-- associated system updates.
 	--
+	-- *world* is the world that ran the Updater.
+	--
 	-- *entities* is the unordered list of entities to be traversed by the
 	-- system. *entities* and its content must not be retained.
 	--
 	-- *args* are the arguments that were passed to the World.Update function.
-	type Updater = function(entities: Array<Entity>, args: ...any)
+	type Updater = function(world: World, entities: Array<Entity>, args: ...any)
 
 	-- Entity represents the state of a single entity.
 	type Entity = {
@@ -704,7 +707,7 @@ function World.__index:Update(name, ...)
 	if not system then
 		errorf("system %q is not defined", name)
 	end
-	system.update(self.iterators[name], ...)
+	system.update(self, self.iterators[name], ...)
 end
 
 function World.__index:Has(id, component)
