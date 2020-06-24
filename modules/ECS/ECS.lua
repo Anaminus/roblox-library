@@ -317,13 +317,16 @@ API
 	--
 	-- *name* is the name of the component, which must be unique.
 	--
-	-- *def* is the definition of the component's value. If the value is a
-	-- table, then it is deep-copied when initialized. Keys are not copied, and
-	-- the table is assumed to be non-circular. The metatable is also matched,
-	-- if possible.
+	-- *def* is the definition of the component's value, determining the initial
+	-- value when an entity is created. If *def* is a table that does not have a
+	-- metatable, then it is deep-copied when initialized. Otherwise, *def* is
+	-- passed directly. When copying, keys are copied by reference, and the
+	-- table is assumed to be non-circular.
 	--
 	-- *def* cannot be nil. To create a nil value, use a DynComponentDef that
-	-- returns nil.
+	-- returns nil. More generally, the returned value of DynComponentDef is not
+	-- interpreted any further, so it can be used for absolute control over the
+	-- initial value.
 	--
 	-- Throws an error after the world is initialized.
 	function World:DefineComponent(name: Name, def: DynComponentDef|ComponentDef)
@@ -467,20 +470,16 @@ local function errorf(format, ...)
 	return error(string.format(format, ...), 3)
 end
 
--- Returns a deep copy of a simple table. Keys are not copied. Assumed to be
--- non-circular. Matches the same metatable if possible.
+-- Returns a deep copy of a simple table. Assumed to be non-circular. Keys are
+-- copied by reference. Tables with metatables are copied by reference.
 local function copy(t)
 	local c = {}
 	for k, v in pairs(t) do
-		if type(v) == "table" then
+		if type(v) == "table" and getmetatable(v) == nil then
 			c[k] = copy(v)
 		else
 			c[k] = v
 		end
-	end
-	local mt = getmetatable(t)
-	if type(mt) == "table" then
-		setmetatable(c, mt)
 	end
 	return c
 end
