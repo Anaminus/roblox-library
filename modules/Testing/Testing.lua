@@ -1,7 +1,7 @@
 --[[
 Testing
 
-	Enables automated testing.
+	Enables automated testing and benchmarking.
 
 SYNOPSIS
 
@@ -12,9 +12,13 @@ SYNOPSIS
 		Scan = {
 			game.ReplicatedStorage.Modules,
 		},
+		Output = print,
+		Yield = wait,
 	})
-	local results = runner:Run()
-	print(results)
+	local testResults = runner:Test()
+	print(testResults)
+	local benchResults = runner:Benchmark()
+	print(benchResults)
 
 DESCRIPTION
 
@@ -37,7 +41,7 @@ DESCRIPTION
 
 		return T
 
-	Tests are run through a Runner. The Runner scans the descendants of an
+	A Runner is used to run tests. The Runner scans the descendants of an
 	instance for ModuleScripts to test. When a ModuleScript named "Foobar" has a
 	sibling ModuleScript named "Foobar.test", Foobar.test is assumed to be used
 	to test Foobar. Only the first unique name of a ModuleScript is selected as
@@ -74,12 +78,62 @@ DESCRIPTION
 			},
 		})
 
-	The Run method executes all tests, returning a table containing the results.
-	This table can be inspected, or converted to a string to be displayed in a
-	human-readable format.
+	The Test method of the Runner executes tests, returning a table containing
+	the results. This table can be inspected, or converted to a string to be
+	displayed in a human-readable format.
 
-		local results = runner:Run()
+		local results = runner:Test()
 		print(results)
+
+	The Test method may receive a number of string patterns that filter the
+	tests to be run. If a test name matches any of the provided patterns, then
+	it is executed. If no patterns are provided, then all tests are executed.
+
+		local results = runner:Test("TestPairs", "TestIPairs")
+		local results = runner:Test("^TestI?Pairs$")
+
+	----
+
+	The Testing module also enables benchmarking. Within a test suite, each
+	function that begins with "Benchmark" is considered a benchmark. Such
+	functions receive a B object, which facilitates the state of the benchmark.
+	A benchmark must run code B.N times. This number is adjusted during
+	execution so that the code may be timed reliably.
+
+		function T.BenchmarkPairs(b)
+			for i = 1, b.N do
+				for i, v in pairs({1,2,3}) do end
+			end
+		end
+
+		function T.BenchmarkIPairs(b)
+			for i = 1, b.N do
+				for i, v in ipairs({1,2,3}) do end
+			end
+		end
+
+	If a benchmark requires expensive setup or code that should otherwise not be
+	measured, the timer can be reset:
+
+		function T.BenchmarkAbs(b, require)
+			local Math = require()
+			b:ResetTimer()
+			for i = 1, b.N do
+				Math.Abs(-1)
+			end
+		end
+
+	The Benchmark method of the Runner executes benchmarks. Like the Test
+	method, it returns a table of results.
+
+		local results = runner:Benchmark()
+		print(results)
+
+	Also like Test, it can receive a number of string patterns that filter the
+	benchmarks to be run.
+
+		local results = runner:Benchmark("BenchmarkPairs", "BenchmarkIPairs")
+		local results = runner:Benchmark("^BenchmarkI?Pairs$")
 
 API
 
@@ -90,26 +144,50 @@ API
 	type Config = {
 
 		-- ModuleScripts to be included in the test run.
-		Modules: Array<Instance.ModuleScript>,
+		Modules: Array<Instance.ModuleScript>?,
 
 		-- Instances whose descendants will be scanned for ModuleScripts to be
 		-- included.
-		Scan: Array<Instance.Instance>,
+		Scan: Array<Instance.Instance>?,
+
+		-- BenchmarkIterations sets the exact number of iterations each
+		-- benchmark must run. If unspecified, the number of iterations is
+		-- determined by BenchmarkDuration.
+		BenchmarkIterations: number?,
+
+		-- BenchmarkDuration determines how long a benchmark should run to make
+		-- an accurate measurement. Defaults to 1 second. This value should be
+		-- somewhat smaller than the script timeout duration.
+		BenchmarkDuration: number?,
+
+		-- Yield sets a function that is called between benchmarks. This
+		-- function should yield back to the engine to prevent the runner from
+		-- timing out.
+		Yield: (() -> ())?,
 	}
 
 	-- Runner manages the state of a test run.
 	type Runner = {
 
-		-- Run runs tests for each module. Tests are run only once; multiple
-		-- calls return the same results.
-		Run(): ModuleResults,
+		-- Test runs tests for each module. If the name of a test matches any of
+		-- the given string patterns, then it is executed. If no patterns are
+		-- given, then all tests are executed.
+		Test(patterns ...string): ModuleResults,
+
+		-- Benchmark runs benchmarks for each module. If the name of a benchmark
+		-- matches any of the given string patterns, then it is executed. If no
+		-- patterns are given, then all benchmarks are executed.
+		Benchmark(patterns ...string): ModuleResults,
 	}
 
-	-- ModuleResults describes the results of a full test run.
+	-- ModuleResults describes the results of a test or benchmark run.
 	type ModuleResults = {
 
 		-- Formats the results as a human-readable string.
 		__meta: {__tostring: (ModuleResults) -> string},
+
+		-- Benchmark indicates whether the result is from a benchmark run.
+		Benchmark: boolean,
 
 		-- The list of results.
 		[number]: ModuleResult,
@@ -128,13 +206,16 @@ API
 		ResultOf: (Instance.ModuleScript) -> ModuleResult?,
 	}
 
-	-- ModuleResult describes the test results of a single module.
+	-- ModuleResult describes the test or benchmark results of a single module.
 	type ModuleResult = {
 
 		-- Formats the results as a human-readable string.
 		__meta: {__tostring: (ModuleResult) -> string},
 
-		-- The module being tested.
+		-- Benchmark indicates whether the result is from a benchmark run.
+		Benchmark: boolean,
+
+		-- Module is the module being tested.
 		Module: Instance.ModuleScript,
 
 		-- Duration is the cumulative duration of all tests.
@@ -147,8 +228,8 @@ API
 		-- module.
 		Error: Error?,
 
-		-- Results contains the Results of each test.
-		Results: Array<TestResult>,
+		-- Results contains the Results of each test or benchmark.
+		Results: Array<TestResult>|Array<BenchmarkResult>,
 	}
 
 	-- TestResult describes the result of a single test.
@@ -160,7 +241,7 @@ API
 		-- Name is the name of the test.
 		Name: string,
 
-		-- Duration is the duration of the test.
+		-- Duration is how long the test took to run, in seconds.
 		Duration: number,
 
 		-- Failed indicates whether the test failed, or if an error occurred.
@@ -173,6 +254,36 @@ API
 		Error: Error?,
 
 		-- Log is the output of the test.
+		Log: string,
+	}
+
+	-- BenchmarkResult describes the result of a single benchmark.
+	type BenchmarkResult = {
+
+		-- Formats the result as a human-readable string.
+		__meta: {__tostring: (TestResult) -> string},
+
+		-- Name is the name of the benchmark.
+		Name: string,
+
+		-- Iterations is the number of times the benchmark ran.
+		Iterations: number,
+
+		-- Duration is how long the benchmark took to run, in seconds.
+		Duration: number,
+
+		-- Failed indicates whether the benchmark failed, or if an error
+		-- occurred.
+		Failed: boolean,
+
+		-- Skipped indicates whether the benchmark was skipped.
+		Skipped: boolean,
+
+		-- Error indicates whether a hard error occurred while running the
+		-- benchmark.
+		Error: Error?,
+
+		-- Log is the output of the benchmark.
 		Log: string,
 	}
 
@@ -190,12 +301,12 @@ API
 		-- module.
 		UnmatchedTests: Array<ModuleScript>,
 
-		-- ShadowedModules contains modules whose name is shadowed by another
-		-- module.
+		-- ShadowedModules contains modules whose names are shadowed by other
+		-- modules.
 		ShadowedModules: Array<ModuleScript>,
 
-		-- ShadowedTests contains test suites whose name is shadowed by another
-		-- test suite.
+		-- ShadowedTests contains test suites whose names are shadowed by other
+		-- test suites.
 		ShadowedTests: Array<ModuleScript>,
 	}
 
@@ -238,8 +349,8 @@ API
 	-- Require returns the results of a required module.
 	type Require = () -> any
 
-	-- T is passed to a Test function to manage the state of the test.
-	type T = {
+	-- TB is the interface common to T and B.
+	interface TB = {
 
 		-- Cleanup registers a function to be called after the test completes.
 		Cleanup: (f: ()->()) -> (),
@@ -291,14 +402,42 @@ API
 		Skipped: () -> boolean,
 	}
 
+	-- T is passed to a Test function to manage the state of the test.
+	type T implements TB = {}
+
+	-- B is passed to a Benchmark function to manage the state of the benchmark.
+	type B implements TB = {
+
+		-- N is the number of iterations the benchmark should run. This is
+		-- adjusted during execution so that the benchmark can be timed
+		-- reliably.
+		N: number,
+
+		-- ResetTimer resets measurements of the benchmark. It does not affect
+		-- whether the timer is running.
+		ResetTimer: () -> (),
+
+		-- StartTimer begins or resumes the timing of the benchmark. This is
+		-- called automatically before running the benchmark.
+		StartTimer: () -> (),
+
+		-- StopTimer pauses the timing of the benchmark.
+		StopTimer: () -> (),
+	}
+
 ]]
 
 local Testing = {}
+
+-- Suppress analysis warnings.
+local debug_loadmodule = debug["loadmodule"]
 
 -- Expected suffix of test modules.
 local testModuleSuffix = ".test"
 -- Expected prefix of test functions.
 local testFuncPrefix = "Test"
+-- Expected prefix of benchmark functions.
+local benchFuncPrefix = "Benchmark"
 -- Length of indentation in formatted results. <0 uses tabs instead.
 local tabSize = -1
 -- Format of durations in formatted results.
@@ -315,7 +454,7 @@ do
 	end)
 	if not ok then
 		useLoadModule = pcall(function()
-			debug.loadmodule(Instance.new("ModuleScript"))
+			debug_loadmodule(Instance.new("ModuleScript"))
 		end)
 	end
 end
@@ -404,6 +543,30 @@ local function scanModule(results, module)
 		end
 	end
 	table.insert(results, {Module = modules, Test = tests})
+end
+
+-- getFullName returns the full name of an instance formatted as a Lua
+-- expression.
+local function getFullName(instance)
+	local t = {}
+	while instance and instance ~= game do
+		table.insert(t, instance.Name)
+		instance = instance.Parent
+	end
+	local s = ""
+	local n = #t
+	for i = n, 1, -1 do
+		local name = t[i]
+		if string.match(name, "^[A-Za-z_][A-Za-z0-9_]*$") then
+			if i < n then
+				s = s .. "."
+			end
+			s = s .. name
+		else
+			s = s .. string.gsub(string.format("[%q]", name), "\\\n", "\\n")
+		end
+	end
+	return s
 end
 
 -- formatScanResults categorizes modules and removes duplicates. Results are
@@ -531,28 +694,65 @@ local function new(mt, t)
 	return setmetatable(t or {}, mt)
 end
 
--- getFullName returns the full name of an instance formatted as a Lua
--- expression.
-local function getFullName(instance)
-	local t = {}
-	while instance and instance ~= game do
-		table.insert(t, instance.Name)
-		instance = instance.Parent
+-- validateMatchers validates test and benchmark pattern matchers.
+local function validateMatchers(...)
+	local patterns = {...}
+	if #patterns == 0 then
+		return true, nil
 	end
-	local s = ""
-	local n = #t
-	for i = n, 1, -1 do
-		local name = t[i]
-		if string.match(name, "^[A-Za-z_][A-Za-z0-9_]*$") then
-			if i < n then
-				s = s .. "."
-			end
-			s = s .. name
-		else
-			s = s .. string.gsub(string.format("[%q]", name), "\\\n", "\\n")
+	for i, pattern in ipairs(patterns) do
+		local ok, err = pcall(string.match, "", pattern)
+		if not ok then
+			return false, "pattern " .. i .. ": " .. err
 		end
 	end
-	return s
+	return true, patterns
+end
+
+-- matchPatterns returns true if name matches any patterns.
+local function matchPatterns(patterns, name)
+	if not patterns then
+		return true
+	end
+	for _, pattern in ipairs(patterns) do
+		if string.match(name, pattern) then
+			return true
+		end
+	end
+	return false
+end
+
+-- formatRows formats a list of rows in columns.
+local function formatRows(rows)
+	local width = {}
+	for _, row in ipairs(rows) do
+		for i, cell in ipairs(row) do
+			local n = #tostring(cell)
+			local w = width[i]
+			if w == nil or n > w then
+				width[i] = n
+			end
+		end
+	end
+
+	local s = {}
+	for i, row in ipairs(rows) do
+		for i, cell in ipairs(row) do
+			local v = tostring(cell)
+			if type(cell) == "string" then
+				append(s, v, string.rep(" ", width[i] - #v))
+			elseif type(cell) == "number" then
+				append(s, string.rep(" ", width[i] - #v), v)
+			end
+			if i < #row then
+				append(s, "\t")
+			end
+		end
+		if i < #rows then
+			append(s, "\n")
+		end
+	end
+	return table.concat(s)
 end
 
 local Error = {}
@@ -565,24 +765,227 @@ end
 
 local T = {__index={}}
 
-local Runner = {__index={}}
-
-function Testing.Runner(config)
-	local self = {
-		modules = {},
-		results = nil,
-	}
-	config = config or {}
-	local modules = {}
-	for _, module in ipairs(config.Modules or {}) do
-		scanModule(modules, module)
-	end
-	for _, instance in ipairs(config.Scan or {}) do
-		scan(modules, instance)
-	end
-	self.modules = formatScanResults(modules)
-	return new(Runner, self)
+local function newT(name)
+	return new(T, {
+		name = name,
+		failed = false,
+		skipped = false,
+		log = {},
+		deferred = {},
+	})
 end
+
+local B = {__index={}}
+
+local function newB(name, n, d)
+	return new(B, {
+		N = 0,
+
+		name = name,
+		failed = false,
+		skipped = false,
+		log = {},
+		deferred = {},
+
+		n = n or 0,
+		d = d or 1,
+		timing = false,
+		startTime = 0,
+		duration = 0,
+		result = nil,
+		benchFunc = nil,
+		errHandler = nil,
+		require = nil,
+		epoch = 0,
+	})
+end
+
+local TB = {__index={}}
+
+function TB.__index:Cleanup(f)
+	table.insert(self.deferred, f)
+end
+
+function TB.__index:cleanup()
+	while true do
+		local f = table.remove(self.deferred)
+		if not f then
+			break
+		end
+		local trace
+		local ok, err = xpcall(f, function(err)
+			trace = debug.traceback(nil, 2)
+		end)
+		if not ok then
+			return false, err, trace
+		end
+	end
+	return true, nil, nil
+end
+
+function TB.__index:compileLog()
+	return table.concat(self.log)
+end
+
+function TB.__index:Error(...)
+	self:Log(...)
+	self:Fail()
+end
+
+function TB.__index:Errorf(format, ...)
+	self:Logf(format, ...)
+	self:Fail()
+end
+
+function TB.__index:Fail()
+	self.failed = true
+end
+
+function TB.__index:FailNow()
+	self.failed = true
+	error(haltMarker)
+end
+
+function TB.__index:Failed()
+	return self.failed
+end
+
+function TB.__index:Fatal(...)
+	self:Log(...)
+	self:FailNow()
+end
+
+function TB.__index:Fatalf(format, ...)
+	self:Logf(format, ...)
+	self:FailNow()
+end
+
+function TB.__index:Log(...)
+	local args = table.pack(...)
+	for i = 1, args.n do
+		table.insert(self.log, tostring(args[i]))
+		table.insert(self.log, " ")
+	end
+	table.insert(self.log, "\n")
+end
+
+function TB.__index:Logf(format, ...)
+	local s = string.format(format, ...)
+	table.insert(self.log, s)
+	if string.sub(s, -1, -1) ~= "\n" then
+		table.insert(self.log, "\n")
+	end
+end
+
+function TB.__index:Name()
+	return self.name
+end
+
+function TB.__index:Skip(...)
+	self:Log(...)
+	self:SkipNow()
+end
+
+function TB.__index:SkipNow()
+	self.skipped = true
+	error(haltMarker)
+end
+
+function TB.__index:Skipf(format, ...)
+	self:Logf(format, ...)
+	self:SkipNow()
+end
+
+function TB.__index:Skipped()
+	return self.skipped
+end
+
+for name, method in pairs(TB.__index) do
+	T.__index[name] = method
+end
+
+for name, method in pairs(TB.__index) do
+	B.__index[name] = method
+end
+
+function B.__index:ResetTimer()
+	if not self.timing then
+		return
+	end
+	self.duration = 0
+	self.startTime = os.clock()
+end
+
+function B.__index:StartTimer()
+	if self.timing then
+		return
+	end
+	self.timing = true
+	self.startTime = os.clock()
+end
+
+function B.__index:StopTimer()
+	if not self.timing then
+		return
+	end
+	self.duration = self.duration + (os.clock() - self.startTime)
+	self.timing = false
+end
+
+function B.__index:runN(n)
+	self.N = n
+	self:ResetTimer()
+	self:StartTimer()
+	self.benchFunc(self, self.require)
+	self:StopTimer()
+end
+
+function B.__index:run1()
+	local ok, err = xpcall(self.benchFunc, self.errHandler, self, self.require)
+	self.result.Duration = os.clock() - self.epoch
+	self.result.Failed = self.failed
+	self.result.Skipped = self.skipped
+
+	if not ok and err.Cause ~= haltMarker then
+		self.result.Failed = true
+		self.result.Error = new(Error, {
+			Message = "an error occurred",
+			Cause = err.Cause,
+			Trace = err.Trace,
+		})
+	end
+
+	return not self.result.Failed and not self.result.Skipped
+end
+
+function B.__index:run()
+	if self.n > 0 then
+		self:runN(self.n)
+	else
+		local d = self.d
+		local n = 1
+		while not self.failed and self.duration < d and n < 1e9 do
+			local last = n
+			local goalS = d
+			local prevIt = self.N
+			local prevS = self.duration
+			if prevS <= 0 then
+				prevS = 1
+			end
+			n = math.floor(goalS * prevIt / prevS)
+			n = math.floor(n + n/5)
+			n = math.min(n, 100*last)
+			n = math.max(n, last+1)
+			n = math.min(n, 1e9)
+			self:runN(n)
+		end
+	end
+	self.result.Iterations = self.N
+	self.result.Duration = self.duration
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local ModuleResults = {__index={}}
 function ModuleResults:__tostring()
@@ -599,8 +1002,15 @@ function ModuleResults:__tostring()
 	for _, module in ipairs(self.Modules.UnmatchedModules) do
 		append(s, "warn: ", getFullName(module), ": no tests\n")
 	end
-	for _, module in ipairs(self) do
-		append(s, tostring(module), "\n")
+	if #self == 0 then
+		append(s, "no tests")
+	else
+		for i, module in ipairs(self) do
+			append(s, tostring(module))
+			if i < #self then
+				append(s, "\n")
+			end
+		end
 	end
 	return table.concat(s)
 end
@@ -614,25 +1024,43 @@ function ModuleResults.__index:ResultOf(module)
 	return nil
 end
 
-local ModuleResult = {}
+local ModuleResult = {__index={}}
 function ModuleResult:__tostring()
 	local s = {}
 	if not self.Failed then
 		append(s, string.format("pass: %s " .. durationFormat, getFullName(self.Module), self.Duration))
-		return table.concat(s)
-	end
-	append(s, string.format("FAIL: %s " .. durationFormat, getFullName(self.Module), self.Duration))
-	if self.Error ~= nil then
-		append(s, "\n", indent("ERROR: " .. tostring(self.Error), 1, tabSize))
-		if self.Error.Trace then
-			append(s, "\n", indent(self.Error.Trace, 2, tabSize))
+		if not self.Benchmark then
+			return table.concat(s)
 		end
-		return table.concat(s)
+	else
+		append(s, string.format("FAIL: %s " .. durationFormat, getFullName(self.Module), self.Duration))
+		if self.Error ~= nil then
+			append(s, "\n", indent("ERROR: " .. tostring(self.Error), 1, tabSize))
+			if self.Error.Trace then
+				append(s, "\n", indent(self.Error.Trace, 2, tabSize))
+			end
+			return table.concat(s)
+		end
 	end
-	for _, test in ipairs(self.Results) do
-		append(s, "\n", indent(tostring(test), 1, tabSize))
+	if self.Benchmark then
+		append(s, "\n", indent(self:BenchmarkResults(), 1, tabSize))
+	else
+		for _, test in ipairs(self.Results) do
+			append(s, "\n", indent(tostring(test), 1, tabSize))
+		end
 	end
 	return table.concat(s)
+end
+
+function ModuleResult.__index:BenchmarkResults()
+	if not self.Benchmark then
+		return ""
+	end
+	local rows = {}
+	for _, test in ipairs(self.Results) do
+		append(rows, {test.Name, test.Iterations, math.floor(test.Duration/test.Iterations*1e9), "ns/op"})
+	end
+	return formatRows(rows)
 end
 
 local TestResult = {}
@@ -646,7 +1074,7 @@ function TestResult:__tostring()
 	if self.Skipped then
 		append(s, " (skipped)")
 	end
-	append(s, string.format(" " .. durationFormat, self.Duration))
+	append(s, " ", string.format(durationFormat, self.Duration))
 	if self.Log ~= "" then
 		append(s, "\n")
 		append(s, indent(self.Log, 1, tabSize))
@@ -660,41 +1088,144 @@ function TestResult:__tostring()
 	return table.concat(s)
 end
 
-function Runner.__index:Run()
--- function Runner.__index:Run(): ModuleResults
-	if self.results then
-		return self.results
+local BenchmarkResult = {}
+function BenchmarkResult:__tostring()
+	local s = {}
+	if self.Failed or self.Skipped then
+		if self.Failed then
+			append(s, "FAIL: ", self.Name)
+		end
+		if self.Skipped then
+			append(s, " (skipped)")
+		end
+		append(s, " ", string.format(durationFormat, self.Duration))
+		if self.Log ~= "" then
+			append(s, "\n")
+			append(s, indent(self.Log, 1, tabSize))
+		end
+		if self.Error ~= nil then
+			append(s, "\n", indent("ERROR: " .. tostring(self.Error), 1, tabSize))
+			if self.Error.Trace then
+				append(s, "\n", indent(self.Error.Trace, 2, tabSize))
+			end
+		end
+		return table.concat(s)
+	end
+	append(s,
+		self.Name,
+		"\t", self.Iterations,
+		string.format("\t%d ns/op", self.Duration/self.Iterations*1e9)
+	)
+	return table.concat(s)
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+local Runner = {__index={}}
+
+function Testing.Runner(config)
+	local self = {
+		benchN = 0,
+		benchD = 1,
+		yield = nil,
+		modules = nil,
+	}
+	config = config or {}
+
+	if type(config.BenchmarkIterations) == "number" then
+		self.benchN = config.BenchmarkIterations
+	end
+	if type(config.BenchmarkDuration) == "number" then
+		self.benchD = config.BenchmarkDuration
+	end
+	if type(config.Yield) == "function" then
+		self.yield = config.Yield
 	end
 
-	local failed = false
+	local modules = {}
+	if type(config.Modules) == "table" then
+		for _, module in ipairs(config.Modules) do
+			scanModule(modules, module)
+		end
+	end
+	if type(config.Scan) == "table" then
+		for _, instance in ipairs(config.Scan) do
+			scan(modules, instance)
+		end
+	end
+	self.modules = formatScanResults(modules)
+
+	return new(Runner, self)
+end
+
+function Runner.__index:Test(...)
+	local ok, patterns = validateMatchers(...)
+	if not ok then
+		error("Test: " .. patterns, 2)
+	end
+	return self:run(
+		patterns,
+		testFuncPrefix,
+		self.runTest
+	)
+end
+
+function Runner.__index:Benchmark(...)
+	local ok, patterns = validateMatchers(...)
+	if not ok then
+		error("Benchmark: " .. patterns, 2)
+	end
+	return self:run(
+		patterns,
+		benchFuncPrefix,
+		self.runBench
+	)
+end
+
+function Runner.__index:run(patterns, funcPrefix, method)
+	local modulesFailed = false
 	local results = {
 		Modules = self.modules,
 		Duration = 0,
 		Failed = false,
+		Benchmark = method == self.runBench,
 	}
-	local epoch = tick()
+
+	local epoch = os.clock()
 	for _, pair in ipairs(self.modules.Matched) do
-		local result = self:runModuleTest(pair.Module, pair.Test)
-		failed = failed or result.Failed
-		table.insert(results, result)
+		local moduleResult, funcs = self:loadModuleTest(pair.Module, pair.Test, patterns, funcPrefix)
+		local moduleFailed = false
+		local epoch = os.clock()
+		for i, func in ipairs(funcs) do
+			local result = method(self, pair.Module, func.Func, func.Name)
+			moduleFailed = moduleFailed or result.Failed
+			table.insert(moduleResult.Results, result)
+			if self.yield and i < #funcs then
+				self.yield()
+			end
+		end
+		moduleResult.Duration = os.clock() - epoch
+		moduleResult.Failed = moduleFailed
+		modulesFailed = modulesFailed or moduleFailed
+		table.insert(results, moduleResult)
 	end
 
 	-- TODO: Exclude overhead by adding duration of each result?
-	results.Duration = tick() - epoch
-	results.Failed = failed
+	results.Duration = os.clock() - epoch
+	results.Failed = modulesFailed
 
-	results = new(ModuleResults, results)
-	self.results = results
-	return results
+	return new(ModuleResults, results)
 end
 
-function Runner.__index:runModuleTest(module, test)
--- function Runner.__index:runModuleTest(module: Module, test: Module): ModuleResult
+function Runner.__index:loadModuleTest(module, test, patterns, funcPrefix)
+-- function Runner.__index:loadModuleTest(module: Module, test: Module): ModuleResult
 	local moduleResult = new(ModuleResult, {
 		Module = module,
 		Duration = 0,
 		Okay = false,
 		Error = nil,
+		Benchmark = funcPrefix == benchFuncPrefix,
 		Results = {},
 	})
 
@@ -710,18 +1241,18 @@ function Runner.__index:runModuleTest(module, test)
 	if useLoadModule then
 		-- loadmodule does not cache results, but it's only ever used once
 		-- anyway.
-		local require = debug.loadmodule(cloneFull(test))
-		epoch = tick()
+		local require = debug_loadmodule(cloneFull(test))
+		epoch = os.clock()
 		ok, tests = xpcall(require, errHandler)
 	else
 		-- If the module throws an error, it is emitted to output separately,
 		-- and require throws a separate generic module error. Prefer loadmodule
 		-- if possible.
-		epoch = tick()
+		epoch = os.clock()
 		ok, tests = xpcall(require, errHandler, cloneFull(test))
 	end
 	if not ok then
-		moduleResult.Duration = tick() - epoch
+		moduleResult.Duration = os.clock() - epoch
 		moduleResult.Okay = false
 		moduleResult.Error = new(Error, {
 			Message = "test module errored while loading",
@@ -731,7 +1262,7 @@ function Runner.__index:runModuleTest(module, test)
 		return moduleResult
 	end
 	if type(tests) ~= "table" then
-		moduleResult.Duration = tick() - epoch
+		moduleResult.Duration = os.clock() - epoch
 		moduleResult.Okay = false
 		moduleResult.Error = new(Error, {
 			Message = "test module returned non-table",
@@ -739,26 +1270,17 @@ function Runner.__index:runModuleTest(module, test)
 		return moduleResult
 	end
 
-	local testNames = {}
-	for name in pairs(tests) do
-		table.insert(testNames, name)
-	end
-	table.sort(testNames)
-
-	local failed = false
-	epoch = tick()
-	for _, name in ipairs(testNames) do
-		if string.sub(name, 1, 4) == testFuncPrefix then
-			local testResult = self:runTest(module, tests[name], name)
-			failed = failed or testResult.Failed
-			table.insert(moduleResult.Results, testResult)
+	local testFuncs = {}
+	for name, func in pairs(tests) do
+		if string.sub(name, 1, #funcPrefix) == funcPrefix and matchPatterns(patterns, name) then
+			table.insert(testFuncs, {Name = name, Func = func})
 		end
 	end
+	table.sort(testFuncs, function(a, b)
+		return a.Name < b.Name
+	end)
 
-	moduleResult.Duration = tick() - epoch
-	moduleResult.Failed = failed
-
-	return moduleResult
+	return moduleResult, testFuncs
 end
 
 function Runner.__index:runTest(module, test, name)
@@ -774,12 +1296,12 @@ function Runner.__index:runTest(module, test, name)
 	})
 
 	local cache = nil
-	local function require()
+	local function req()
 		if cache ~= nil then
 			return cache
 		end
 		if useLoadModule then
-			cache = debug.loadmodule(cloneFull(module))()
+			cache = debug_loadmodule(cloneFull(module))()
 		else
 			cache = require(cloneFull(module))
 		end
@@ -791,9 +1313,9 @@ function Runner.__index:runTest(module, test, name)
 	end
 
 	local t = newT(name)
-	local epoch = tick()
-	local ok, err = xpcall(test, errHandler, t, require)
-	result.Duration = tick() - epoch
+	local epoch = os.clock()
+	local ok, err = xpcall(test, errHandler, t, req)
+	result.Duration = os.clock() - epoch
 	result.Failed = t.failed
 	result.Skipped = t.skipped
 
@@ -822,115 +1344,55 @@ function Runner.__index:runTest(module, test, name)
 	return result
 end
 
-function newT(name)
-	return new(T, {
-		name = name,
-		ran = false,
-		failed = false,
-		skipped = false,
-		done = false,
-		log = {},
-		deferred = {},
+function Runner.__index:runBench(module, benchmark, name)
+	local b = newB(name, self.benchN, self.benchD)
+	b.benchFunc = benchmark
+	b.result = new(BenchmarkResult, {
+		Name = name,
+		Iterations = 0,
+		Duration = 0,
+		Failed = false,
+		Skipped = false,
+		Error = nil,
+		Log = nil,
 	})
-end
 
-function T.__index:Cleanup(f)
---function T.__index:Cleanup(f: ()->())
-	table.insert(self.deferred, f)
-end
-
-function T.__index:cleanup()
-	while true do
-		local f = table.remove(self.deferred)
-		if not f then
-			break
+	local cache = nil
+	function b.require()
+		if cache ~= nil then
+			return cache
 		end
-		local trace
-		local ok, err = xpcall(f, function(err)
-			trace = debug.traceback(nil, 2)
-		end)
-		if not ok then
-			return false, err, trace
+		if useLoadModule then
+			cache = debug_loadmodule(cloneFull(module))()
+		else
+			cache = require(cloneFull(module))
+		end
+		return cache
+	end
+
+	function b.errHandler(err)
+		return {Cause = err, Trace = debug.traceback(nil, 2)}
+	end
+
+	b.epoch = os.clock()
+	if b:run1() then
+		b:run()
+	end
+
+	local ok, err, trace = b:cleanup()
+	if not ok and b.result.Error == nil then
+		if err ~= haltMarker then
+			b.result.Failed = true
+			b.result.Error = new(Error, {
+				Message = "error during cleanup",
+				Cause = err,
+				Trace = trace,
+			})
 		end
 	end
-	return true, nil, nil
-end
 
-function T.__index:compileLog()
-	return table.concat(self.log)
-end
-
-function T.__index:Error(...)
-	self:Log(...)
-	self:Fail()
-end
-
-function T.__index:Errorf(format, ...)
-	self:Logf(format, ...)
-	self:Fail()
-end
-
-function T.__index:Fail()
-	self.failed = true
-end
-
-function T.__index:FailNow()
-	self.failed = true
-	error(haltMarker)
-end
-
-function T.__index:Failed()
-	return self.failed
-end
-
-function T.__index:Fatal(...)
-	self:Log(...)
-	self:FailNow()
-end
-
-function T.__index:Fatalf(format, ...)
-	self:Logf(format, ...)
-	self:FailNow()
-end
-
-function T.__index:Log(...)
-	local args = table.pack(...)
-	for i = 1, args.n do
-		table.insert(self.log, tostring(args[i]))
-		table.insert(self.log, " ")
-	end
-	table.insert(self.log, "\n")
-end
-
-function T.__index:Logf(format, ...)
-	local s = string.format(format, ...)
-	table.insert(self.log, s)
-	if string.sub(s, -1, -1) ~= "\n" then
-		table.insert(self.log, "\n")
-	end
-end
-
-function T.__index:Name()
-	return self.name
-end
-
-function T.__index:Skip(...)
-	self:Log(...)
-	self:SkipNow()
-end
-
-function T.__index:SkipNow()
-	self.skipped = true
-	error(haltMarker)
-end
-
-function T.__index:Skipf(format, ...)
-	self:Logf(format, ...)
-	self:SkipNow()
-end
-
-function T.__index:Skipped()
-	return self.skipped
+	b.result.Log = b:compileLog()
+	return b.result
 end
 
 return Testing
