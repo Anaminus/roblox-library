@@ -67,4 +67,22 @@ function T.TestDecode(t, require)
 	end
 end
 
+function T.BenchmarkEncode(b, require)
+	local Base85 = require()
+	local source = testData.large[2]
+	b:ResetTimer()
+	for i = 1, b.N do
+		Base85.Encode(source)
+	end
+end
+
+function T.BenchmarkDecode(b, require)
+	local Base85 = require()
+	local source = testData.large[3]
+	b:ResetTimer()
+	for i = 1, b.N do
+		Base85.Decode(source)
+	end
+end
+
 return T
