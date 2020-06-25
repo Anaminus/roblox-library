@@ -569,6 +569,22 @@ function World.__index:DefineEntity(name, def)
 	if self.entityTypes[name] ~= nil then
 		errorf("entity %q already defined", name)
 	end
+	if type(def) ~= "table" and type(def) ~= "function" then
+		errorf("definition must be a table or function")
+	end
+	local checkDef = def
+	if type(def) == "function" then
+		checkDef = def()
+	end
+	if type(checkDef) ~= "table" then
+		errorf("entity definition for %q is not a table", name)
+	end
+	for component, ok in pairs(checkDef) do
+		if ok and not isname(component) then
+			errorf("key %q is not a valid component name", tostring(component))
+		end
+	end
+
 	self.entityTypes[name] = {
 		def = def,
 		-- List of systems that see this entity type.
@@ -594,18 +610,15 @@ function World.__index:Init()
 		end
 	end
 
+	local defs = {}
 	for name, entity in pairs(self.entityTypes) do
-		-- Verify that entity definition is correct.
 		local def = entity.def
 		if type(def) == "function" then
 			def = def()
 		end
-		if type(def) ~= "table" then
-			table.insert(errors, string.format("entity definition for %q is not a table", name))
-		end
 		-- Make sure components are defined.
 		for component, ok in pairs(def) do
-			if isname(component) and ok then
+			if ok then
 				if self.components[component] then
 					entity.components[component] = true
 				else
@@ -613,7 +626,17 @@ function World.__index:Init()
 				end
 			end
 		end
-		-- Find systems that match the entity type.
+		defs[name] = def
+	end
+
+	-- Throw all errors at once.
+	if #errors > 0 then
+		error(table.concat(errors, "\n"), 2)
+	end
+
+	-- Find systems that match the entity type.
+	for name, entity in pairs(self.entityTypes) do
+		local def = defs[name]
 		for name, system in pairs(self.systems) do
 			local okay = true
 			for _, component in ipairs(system.components) do
@@ -626,11 +649,6 @@ function World.__index:Init()
 				table.insert(entity.systems, name)
 			end
 		end
-	end
-
-	-- Throw all errors at once.
-	if #errors > 0 then
-		error(table.concat(errors, "\n"), 2)
 	end
 
 	-- Mark world as initialized.
