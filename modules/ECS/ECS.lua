@@ -461,7 +461,7 @@ API
 
 ]]
 
--- Returns whether s is a string that is an identifer.
+-- Returns whether s is a string that is an identifier.
 local function isname(s)
 	return type(s) == "string" and string.match(s, "^[A-Za-z_][0-9A-Za-z_]*$")
 end
@@ -529,7 +529,7 @@ function World.__index:DefineSystem(name, components, update)
 	end
 	for i, component in ipairs(components) do
 		if not isname(component) then
-			errorf("component #%d of argument #2 must is not a valid name", i)
+			errorf("component #%d of argument #2 is not a valid name", i)
 		end
 	end
 	local comps = table.create(#components)
