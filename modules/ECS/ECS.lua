@@ -715,6 +715,9 @@ function World.__index:DestroyEntity(entity)
 end
 
 function World.__index:Upkeep()
+	if not self.nextID then
+		errorf("cannot upkeep before world is initialized")
+	end
 	local marked = self.marked
 	for i, id in ipairs(self.marked) do
 		marked[i] = nil
@@ -727,6 +730,9 @@ function World.__index:Upkeep()
 end
 
 function World.__index:Update(name, ...)
+	if not self.nextID then
+		errorf("cannot update before world is initialized")
+	end
 	local system = self.systems[name]
 	if not system then
 		errorf("system %q is not defined", name)
