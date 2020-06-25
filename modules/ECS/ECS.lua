@@ -793,15 +793,15 @@ function World.__index:Handle(id)
 end
 
 function Handle:__call(component)
-	return self.World:Has(self.ID, component)
+	return rawget(self, "World"):Has(rawget(self, "ID"), component)
 end
 
 function Handle:__index(k)
-	return self.World:Get(self.ID, k)
+	return rawget(self, "World"):Get(rawget(self, "ID"), k)
 end
 
 function Handle:__newindex(k, v)
-	self.World:Set(self.ID, k, v)
+	rawget(self, "World"):Set(rawget(self, "ID"), k, v)
 end
 
 return ECS
