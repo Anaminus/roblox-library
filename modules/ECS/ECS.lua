@@ -745,7 +745,7 @@ function World.__index:Has(id, component)
 	if components == nil then
 		return false
 	end
-	if component and not components[component] then
+	if component ~= nil and not components[component] then
 		return false
 	end
 	return true
