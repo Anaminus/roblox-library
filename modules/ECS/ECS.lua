@@ -702,9 +702,16 @@ function World.__index:CreateEntity(name, ...)
 end
 
 function World.__index:DestroyEntity(entity)
-	if type(entity) == "number" then
-		table.insert(self.marked, entity)
+	if not self.nextID then
+		errorf("cannot destroy entity before world is initialized")
 	end
+	if type(entity) ~= "number" then
+		errorf("unexpected value for identifier")
+	end
+	if not self.entities[entity] then
+		errorf("entity does not exist")
+	end
+	table.insert(self.marked, entity)
 end
 
 function World.__index:Upkeep()
