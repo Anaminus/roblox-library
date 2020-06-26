@@ -726,27 +726,33 @@ end
 local function formatRows(rows)
 	local width = {}
 	for _, row in ipairs(rows) do
-		for i, cell in ipairs(row) do
-			local n = #tostring(cell)
-			local w = width[i]
-			if w == nil or n > w then
-				width[i] = n
+		if type(row) == "table" then
+			for i, cell in ipairs(row) do
+				local n = #tostring(cell)
+				local w = width[i]
+				if w == nil or n > w then
+					width[i] = n
+				end
 			end
 		end
 	end
 
 	local s = {}
 	for i, row in ipairs(rows) do
-		for i, cell in ipairs(row) do
-			local v = tostring(cell)
-			if type(cell) == "string" then
-				append(s, v, string.rep(" ", width[i] - #v))
-			elseif type(cell) == "number" then
-				append(s, string.rep(" ", width[i] - #v), v)
+		if type(row) == "table" then
+			for i, cell in ipairs(row) do
+				local v = tostring(cell)
+				if type(cell) == "string" then
+					append(s, v, string.rep(" ", width[i] - #v))
+				elseif type(cell) == "number" then
+					append(s, string.rep(" ", width[i] - #v), v)
+				end
+				if i < #row then
+					append(s, "\t")
+				end
 			end
-			if i < #row then
-				append(s, "\t")
-			end
+		elseif type(row) == "string" then
+			append(s, row)
 		end
 		if i < #rows then
 			append(s, "\n")
@@ -1059,7 +1065,11 @@ function ModuleResult.__index:BenchmarkResults()
 	end
 	local rows = {}
 	for _, test in ipairs(self.Results) do
-		append(rows, {test.Name, test.Iterations, math.floor(test.Duration/test.Iterations*1e9), "ns/op"})
+		if test.Failed then
+			append(rows, tostring(test))
+		else
+			append(rows, {test.Name, test.Iterations, math.floor(test.Duration/test.Iterations*1e9), "ns/op"})
+		end
 	end
 	return formatRows(rows)
 end
