@@ -941,6 +941,7 @@ function B.__index:runN(n)
 end
 
 function B.__index:run1()
+	self.N = 1
 	local ok, err = xpcall(self.benchFunc, self.errHandler, self, self.require)
 	self.result.Duration = os.clock() - self.epoch
 	self.result.Failed = self.failed
