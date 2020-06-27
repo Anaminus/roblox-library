@@ -428,6 +428,65 @@ function T.TestHandle_newindex(t, require)
 	end
 end
 
--- TODO: Test behavior.
+-- Simulation of two objects moving towards each other that stop when they're
+-- close enough.
+function T.TestSimulate(t, require)
+	local world = require().NewWorld()
+
+	world:DefineComponent("Speed", 1)
+	world:DefineComponent("Position", function(x,y,z)
+		return Vector3.new(x,y,z)
+	end)
+	world:DefineComponent("MoveTo", {
+		Target = false,
+		Position = Vector3.new(0,0,0),
+	})
+
+	world:DefineEntity("Buddy", function(x,y,z) return {
+		Speed = true,
+		Position = {x,y,z},
+		MoveTo = true,
+	} end)
+
+	world:DefineSystem("MoveTo",
+		{"Speed", "Position", "MoveTo"},
+		function(world, entities, dt)
+			for _, e in ipairs(entities) do
+				local target = world:Entity(target)
+				if target then
+					local direction = (target.Position - e.Position)
+					if direction.magnitude > 1 then
+						e.MoveTo.Position = e.Position + direction.unit*(e.Speed*dt)
+					end
+				end
+			end
+		end
+	)
+	world:DefineSystem("SetPosition",
+		{"Position", "MoveTo"},
+		function(world, entities, dt)
+			for _, e in ipairs(entities) do
+				e.Position = e.MoveTo.Position
+			end
+		end
+	)
+
+	world:Init()
+
+	local a = world:CreateEntity("Buddy",-10,0,0)
+	local b = world:CreateEntity("Buddy",10,0,0)
+	world:Get(a, "MoveTo").Target = b
+	world:Get(b, "MoveTo").Target = a
+	for i = 1, 20 do
+		world:Update("MoveTo", 1)
+		world:Update("SetPosition", 1)
+		world:Upkeep()
+	end
+
+	t:Log("A", world:Get(a, "Position"))
+	t:Log("B", world:Get(b, "Position"))
+	assert(world:Get(a,"Position"):FuzzyEq(Vector3.new(0,0,0)))
+	assert(world:Get(b,"Position"):FuzzyEq(Vector3.new(0,0,0)))
+end
 
 return T
