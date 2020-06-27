@@ -133,8 +133,8 @@ DESCRIPTION
 
 	DefineSystem defines a system by associating a name to a number of
 	components, and updater function. The updater receives as arguments the
-	world, a list of entities to traverse, as well as the extra arguments passed
-	to the Update method.
+	state of the world, a list of entities to traverse, as well as the extra
+	arguments passed to the Update method.
 
 		world:DefineSystem("Physics",
 			{"Physics"},
@@ -239,8 +239,8 @@ DESCRIPTION
 		print(world:Set(hero, "Health", 50))    --> true
 		print(world:Set(monster, "Health", 50)) --> false
 
-	Using Set from within a system should be avoided. Instead, a system should
-	be created to update the value directly.
+	Has, Get, and Set should not be used from within a system updater. Instead,
+	a system should be created to observe and mutate state directly.
 
 	----
 
@@ -289,13 +289,22 @@ API
 	-- Updater is passed to World.DefineSystem, and is called when the
 	-- associated system updates.
 	--
-	-- *world* is the world that ran the Updater.
+	-- *world* is a WorldState that encapsulates the state of the World that ran
+	-- the updater. The updater should avoid mutating entities retrieved from
+	-- *world*. Instead, a system should be created to update such entities.
 	--
 	-- *entities* is the unordered list of entities to be traversed by the
 	-- system. *entities* and its content must not be retained.
 	--
 	-- *args* are the arguments that were passed to the World.Update function.
-	type Updater = function(world: World, entities: Array<Entity>, args: ...any)
+	type Updater = function(world: WorldState, entities: Array<Entity>, args: ...any)
+
+	-- WorldState encapsulates the state of a World.
+	type WorldState
+
+	-- Entity returns the state of the entity of the given identifier. Returns
+	-- nil if the entity does not exist.
+	function WorldState:Entity(target: ID): Entity?
 
 	-- Entity represents the state of a single entity.
 	type Entity = {
@@ -496,6 +505,11 @@ end
 local ECS = {}
 
 local World = {__index={}}
+local WorldState = {__index={}}
+
+function WorldState.__index:Entity(id)
+	return self.entities[id]
+end
 
 function ECS.NewWorld()
 	local self = {
@@ -507,7 +521,9 @@ function ECS.NewWorld()
 		entities = {},    -- {[ID]: Entity}
 		entityComps = {}, -- {[ID]: Set<Name>}
 		marked = {},      -- Array<Entity>,
+		state = setmetatable({entities=nil}, WorldState),
 	}
+	self.state.entities = self.entities
 	return setmetatable(self, World)
 end
 
@@ -737,7 +753,7 @@ function World.__index:Update(name, ...)
 	if not system then
 		errorf("system %q is not defined", name)
 	end
-	system.update(self, self.iterators[name], ...)
+	system.update(self.state, self.iterators[name], ...)
 end
 
 function World.__index:Has(id, component)
