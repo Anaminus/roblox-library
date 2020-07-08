@@ -69,8 +69,11 @@ end
 
 function mt:__sub(object)
 	local t = Selection:Get()
-	table.insert(t, object)
-	Selection:Set(t)
+	local i = table.find(t, object)
+	if i then
+		table.remove(t, i)
+		Selection:Set(t)
+	end
 	return self
 end
 
