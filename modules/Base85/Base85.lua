@@ -32,7 +32,7 @@ function Base85.Encode(source)
 	local j = 1
 	local data = table.create(math.modf((#source+3)/4)*5)
 	while i <= #source do
-		local a, b, c, d = string.byte(source, i, i+4)
+		local a, b, c, d = string.byte(source, i, i+3)
 		local n = (a or 0)*16777216 + (b or 0)*65536 + (c or 0)*256 + (d or 0)
 		for k = 4, 0, -1 do
 			data[j+k] = encodeTable[math.modf(n%85)+1]
