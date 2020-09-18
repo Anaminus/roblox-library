@@ -121,7 +121,7 @@ if conditionA and
 end
 ```
 
-This is stupid and unreadable, but often can't helped. Oh well.
+This is stupid and unreadable, but often can't be helped. Oh well.
 
 ## Comments
 Generally, comments should form complete sentences.
