@@ -4,11 +4,11 @@ local Sync = {}
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
--- Resume resumes thread with the remaining arguments, returning no values. If
+-- resume resumes thread with the remaining arguments, returning no values. If
 -- the thread returns an error, then the message is emitted along with a stack
 -- trace.
-local function Resume(thread, ...)
--- local function Resume(thread: thread, ...any)
+function Sync.resume(thread, ...)
+-- function Sync.resume(thread: thread, ...any)
 	local ok, err = coroutine.resume(thread, ...)
 	if ok then
 		return
@@ -18,8 +18,6 @@ local function Resume(thread, ...)
 	-- TODO: somehow emit as info.
 	print(debug.traceback(thread))
 end
-
-Sync.Resume = Resume
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -40,11 +38,11 @@ local function assertSignals(signals)
 	end
 end
 
--- AnySignal blocks until any of the given signals have fired.
+-- anySignal blocks until any of the given signals have fired.
 --
 -- Must not be used with signals that fire upon connecting (e.g. RemoteEvent).
-function Sync.AnySignal(...)
--- function Sync.AnySignal(signals: ...Event)
+function Sync.anySignal(...)
+-- function Sync.anySignal(signals: ...Event)
 	local signals = table.pack(...)
 	assertSignals(signals)
 	local conns = {}
@@ -62,11 +60,11 @@ function Sync.AnySignal(...)
 	end
 end
 
--- AllSignals blocks until all of the given signals have fired.
+-- allSignals blocks until all of the given signals have fired.
 --
 -- Must not be used with signals that fire upon connecting (e.g. RemoteEvent).
-function Sync.AllSignals(...)
--- function Sync.AllSignals(signals: ...Event)
+function Sync.allSignals(...)
+-- function Sync.allSignals(signals: ...Event)
 	local signals = table.pack(...)
 	assertSignals(signals)
 	local blocker = Instance.new("BoolValue")
@@ -144,10 +142,10 @@ function Group.__index:Wait()
 	self.blocker.Changed:Wait()
 end
 
--- Group returns a new Group object. *counter* is an optional initial value of
+-- group returns a new Group object. *counter* is an optional initial value of
 -- the group counter, defaulting to 0.
-function Sync.Group(counter)
--- function Sync.Group(counter: number?): Group
+function Sync.group(counter)
+-- function Sync.group(counter: number?): Group
 	return setmetatable({
 		counter = math.modf(counter or 0),
 		blocker = nil,
@@ -215,9 +213,9 @@ function Mutex.__index:Wrap(func)
 	end
 end
 
--- Mutex creates a new mutex.
-function Sync.Mutex()
--- function Sync.Mutex() -> Mutex
+-- mutex creates a new mutex.
+function Sync.mutex()
+-- function Sync.mutex() -> Mutex
 	return setmetatable({blockers = {}}, Mutex)
 end
 
@@ -344,7 +342,7 @@ local function Signal_destruct(self)
 	end
 end
 
-function Sync.Signal(ctor, dtor)
+function Sync.signal(ctor, dtor)
 	local self = {
 		-- Constructor function.
 		ctor = ctor,
@@ -392,7 +390,7 @@ function Cond.__index:Wait()
 	return table.unpack(args[2], 1, args[2].n)
 end
 
-function Sync.Cond()
+function Sync.cond()
 	return setmetatable({
 		args    = {},
 		nextID  = 0,
