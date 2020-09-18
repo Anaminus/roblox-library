@@ -35,13 +35,13 @@ local encodeTable = {
 function Base85.encode(source)
 	local i = 1
 	local j = 1
-	local data = table.create(math.modf((#source+3)/4)*5)
+	local data = table.create(math.floor((#source+3)/4)*5)
 	while i <= #source do
 		local a, b, c, d = string.byte(source, i, i+3)
 		local n = (a or 0)*16777216 + (b or 0)*65536 + (c or 0)*256 + (d or 0)
 		for k = 4, 0, -1 do
-			data[j+k] = encodeTable[math.modf(n%85)+1]
-			n = math.modf(n/85)
+			data[j+k] = encodeTable[math.floor(n%85)+1]
+			n = math.floor(n/85)
 		end
 		i = i + 4
 		j = j + 5
@@ -82,7 +82,7 @@ local decodeTable = {
 -- source contains invalid base85 data or invalid bytes. Bytes that are spaces
 -- are ignored.
 function Base85.decode(source)
-	local data = table.create((math.modf(#source*4/5)))
+	local data = table.create(math.floor(#source*4/5))
 	local bytes = 0
 	local value = 0
 	for i = 1, #source do
@@ -94,10 +94,10 @@ function Base85.decode(source)
 			bytes = bytes + 1
 			if bytes == 5 then
 				table.insert(data, string.char(
-					(math.modf(value/16777216%256)),
-					(math.modf(value/65536%256)),
-					(math.modf(value/256%256)),
-					(math.modf(value%256))
+					math.floor(value/16777216%256),
+					math.floor(value/65536%256),
+					math.floor(value/256%256),
+					math.floor(value%256)
 				))
 				bytes = 0
 				value = 0
@@ -112,7 +112,7 @@ function Base85.decode(source)
 			value = value*85 + 84
 		end
 		for i = 0, bytes-2 do
-			table.insert(data, string.char((math.modf(value/16777216%256))))
+			table.insert(data, string.char(math.floor(value/16777216%256)))
 			value = value * 256
 		end
 	end
