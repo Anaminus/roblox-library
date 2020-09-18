@@ -1,12 +1,12 @@
 # Sync
 [Sync]: #user-content-sync
 
-Sync provides primitives for working with threads and signals.
+Sync provides primitives for working with threads and events.
 
 ## Sync.allSignals
 [Sync.allSignals]: #user-content-syncallsignals
 ```
-Sync.allSignals(signals: ...Event)
+Sync.allSignals(signals: ...Signal)
 ```
 
 allSignals blocks until all of the given signals have fired.
@@ -16,7 +16,7 @@ Must not be used with signals that fire upon connecting (e.g. RemoteEvent).
 ## Sync.anySignal
 [Sync.anySignal]: #user-content-syncanysignal
 ```
-Sync.anySignal(signals: ...Event)
+Sync.anySignal(signals: ...Signal)
 ```
 
 anySignal blocks until any of the given signals have fired.
@@ -30,6 +30,19 @@ Sync.cond(): Cond
 ```
 
 cond returns a new Cond.
+
+## Sync.event
+[Sync.event]: #user-content-syncevent
+```
+Sync.event(ctor: ((event: Event) -> (...any))?, dtor: ((event: Event, args: ...any) -> ())?): Event
+```
+
+event returns a new Event.
+
+*ctor* and *dtor* optionally define a constructor and destructor. When the
+first listener is connected to the event, *ctor* is called. When the last
+listener is disconnected from the event, *dtor* is called, receiving the
+values returned by *ctor*.
 
 ## Sync.group
 [Sync.group]: #user-content-syncgroup
@@ -57,19 +70,6 @@ Sync.resume(thread: thread, ...any)
 resume resumes *thread* with the remaining arguments, returning no
 values. If the thread returns an error, then the error is printed along with
 a stack trace.
-
-## Sync.signal
-[Sync.signal]: #user-content-syncsignal
-```
-Sync.signal(ctor: ((signal: Signal) -> (...any))?, dtor: ((signal: Signal, args: ...any) -> ())?): Signal
-```
-
-signal returns a new Signal.
-
-*ctor* and *dtor* optionally define a constructor and destructor. When the
-first listener is connected to the signal, *ctor* is called. When the last
-listener is disconnected from the signal, *dtor* is called, receiving the
-values returned by *ctor*.
 
 # Cond
 [Cond]: #user-content-cond
@@ -103,7 +103,7 @@ arguments passed to Fire.
 type Connection
 ```
 
-Connection represents the connection to a Signal.
+Connection represents the connection to an Event.
 
 ## Connection.Connected
 [Connection.Connected]: #user-content-connectionconnected
@@ -124,7 +124,7 @@ Connection:Disconnect()
 ```
 
 Disconnect disconnects the connection, causing the associated listener
-to no longer be called when the Signal fires. Does nothing if the Connection
+to no longer be called when the Event fires. Does nothing if the Connection
 is already disconnected.
 
 ## Connection.IsConnected
@@ -141,16 +141,48 @@ IsConnected returns whether the Connection is connected.
 type Event
 ```
 
-Event encapsulates the part of a Signal that can be listened on.
+Event is an implementation of the Roblox event pattern, similar to the
+BindableEvent type.
 
-## Event.Connect
-[Event.Connect]: #user-content-eventconnect
+Event does not include a Wait method in its implementation. See [Cond][Cond]
+for equivalent behavior.
+
+## Event.Destroy
+[Event.Destroy]: #user-content-eventdestroy
 ```
-Event:Connect(listener: (...any) -> ()): Connection
+Event:Destroy()
 ```
 
-Connect attaches *listener* to the Signal, to be called when the Signal
-fires. *listener* receives the arguments passed to Signal.Fire.
+Destroy releases all resources used by the object. Listeners are
+disconnected, and the event's destructor is invoked, if defined.
+
+## Event.Event
+[Event.Event]: #user-content-eventevent
+```
+Event.Event: Signal
+```
+
+Event returns the Signal associated with the event.
+
+The Event field exists to be API-compatible with BindableEvents. The
+Signal method is the preferred way to get the signal.
+
+## Event.Fire
+[Event.Fire]: #user-content-eventfire
+```
+Event:Fire(args: ...any)
+```
+
+Fire calls all listeners connected to the event. *args* are passed to
+each listener. Values are not copied.
+
+## Event.Signal
+[Event.Signal]: #user-content-eventsignal
+```
+Event:Signal(): Signal
+```
+
+Signal returns the Signal associated with the event.
 
 # Group
 [Group]: #user-content-group
@@ -228,46 +260,14 @@ returns the same parameters as *func*.
 type Signal
 ```
 
-Signal is an implementation of the Roblox signal pattern, similar to the
-RBXScriptSignal type.
+Signal encapsulates the part of an Event that connects listeners.
 
-Signal does not include the Wait method in its implementation. See
-[Cond][Types.Cond] for equivalent behavior.
-
-## Signal.Destroy
-[Signal.Destroy]: #user-content-signaldestroy
+## Signal.Connect
+[Signal.Connect]: #user-content-signalconnect
 ```
-Signal:Destroy()
+Signal:Connect(listener: (...any) -> ()): Connection
 ```
 
-Destroy releases all resources used by the object. Listeners are
-disconnected, and the signal's destructor is invoked, if defined.
-
-## Signal.Event
-[Signal.Event]: #user-content-signalevent
-```
-Signal.Event: Event
-```
-
-Event returns the Event associated with the signal.
-
-The Event field exists to be API-compatible with BindableEvents. The
-GetEvent method is the preferred way to get the event.
-
-## Signal.Fire
-[Signal.Fire]: #user-content-signalfire
-```
-Signal:Fire(args: ...any)
-```
-
-Fire calls all listeners connected to the signal. *args* are passed to
-each listener. Values are not copied.
-
-## Signal.GetEvent
-[Signal.GetEvent]: #user-content-signalgetevent
-```
-Signal:GetEvent(): Event
-```
-
-GetEvent returns the Event associated with the signal.
+Connect attaches *listener* to the Event, to be called when the Event
+fires. *listener* receives the arguments passed to Event.Fire.
 
