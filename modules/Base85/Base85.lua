@@ -29,10 +29,10 @@ local encodeTable = {
 	"`", "{", "|", "}", "~",
 }
 
---@sec: Base85.Encode
---@def: Base85.Encode(source: string): (data: string)
---@doc: Encode returns the data encoded from source.
-function Base85.Encode(source)
+--@sec: Base85.encode
+--@def: Base85.encode(source: string): (data: string)
+--@doc: encode returns the data encoded from source.
+function Base85.encode(source)
 	local i = 1
 	local j = 1
 	local data = table.create(math.modf((#source+3)/4)*5)
@@ -76,12 +76,12 @@ local decodeTable = {
 	[ 32]=-1, [133]=-1, [160]=-1,
 }
 
---@sec: Base85.Decode
---@def: Base85.Decode(source: string): (data: string)
---@doc: Decode returns the data decoded from source. Throws an error if the
+--@sec: Base85.decode
+--@def: Base85.decode(source: string): (data: string)
+--@doc: decode returns the data decoded from source. Throws an error if the
 -- source contains invalid base85 data or invalid bytes. Bytes that are spaces
 -- are ignored.
-function Base85.Decode(source)
+function Base85.decode(source)
 	local data = table.create((math.modf(#source*4/5)))
 	local bytes = 0
 	local value = 0
