@@ -591,9 +591,9 @@ end
 ```
 
 Throwing an error should be reserved for "compile time" checks (like asserting
-the type of an argument), or when the program gets into an impossible state, or
-for cases that should be similar to a runtime error (like calling a
-non-function).
+the type of an argument), for cases that should be similar to a runtime error
+(like calling a non-function), or when the program gets into an impossible or
+unexpected state.
 
 ```lua
 function Lerp(from, to, alpha)
