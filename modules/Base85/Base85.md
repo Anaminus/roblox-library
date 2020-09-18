@@ -10,21 +10,21 @@ exceptionally. Wrappers (such as `<~ ... ~>`) are neither added nor expected.
 [Ascii85]: https://en.wikipedia.org/wiki/Ascii85
 [RFC1924]: https://tools.ietf.org/html/rfc1924
 
-## Base85.Decode
-[Base85.Decode]: #user-content-base85decode
+## Base85.decode
+[Base85.decode]: #user-content-base85decode
 ```
-Base85.Decode(source: string): (data: string)
+Base85.decode(source: string): (data: string)
 ```
 
-Decode returns the data decoded from source. Throws an error if the
+decode returns the data decoded from source. Throws an error if the
 source contains invalid base85 data or invalid bytes. Bytes that are spaces
 are ignored.
 
-## Base85.Encode
-[Base85.Encode]: #user-content-base85encode
+## Base85.encode
+[Base85.encode]: #user-content-base85encode
 ```
-Base85.Encode(source: string): (data: string)
+Base85.encode(source: string): (data: string)
 ```
 
-Encode returns the data encoded from source.
+encode returns the data encoded from source.
 
