@@ -1,8 +1,12 @@
--- Implements Base85 encoding similar to Ascii85.
+--@sec: Base85
+--@doc: Implements Base85 encoding similar to [Ascii85][Ascii85].
 --
--- The encoding is based off of RFC 1924, which is suitable for JSON strings.
--- Sequences of particular bytes (such as \0\0\0\0\0) are not encoded
--- exceptionally. Wrappers (such as <~ ... ~>) are neither added nor expected.
+-- The encoding is based off of [RFC 1924][RFC1924], which is suitable for JSON
+-- strings. Sequences of particular bytes (such as `\0\0\0\0\0`) are not encoded
+-- exceptionally. Wrappers (such as `<~ ... ~>`) are neither added nor expected.
+--
+-- [Ascii85]: https://en.wikipedia.org/wiki/Ascii85
+-- [RFC1924]: https://tools.ietf.org/html/rfc1924
 local Base85 = {}
 
 local encodeTable = {
@@ -25,9 +29,10 @@ local encodeTable = {
 	"`", "{", "|", "}", "~",
 }
 
--- Encode returns the data encoded from source.
+--@sec: Base85.Encode
+--@def: Base85.Encode(source: string): (data: string)
+--@doc: Encode returns the data encoded from source.
 function Base85.Encode(source)
--- function Base85.Encode(source: string): (data: string)
 	local i = 1
 	local j = 1
 	local data = table.create(math.modf((#source+3)/4)*5)
@@ -71,11 +76,12 @@ local decodeTable = {
 	[ 32]=-1, [133]=-1, [160]=-1,
 }
 
--- Decode returns the data decoded from source. Throws an error if the source
--- contains invalid base85 data or invalid bytes. Bytes that are spaces are
--- ignored.
+--@sec: Base85.Decode
+--@def: Base85.Decode(source: string): (data: string)
+--@doc: Decode returns the data decoded from source. Throws an error if the
+-- source contains invalid base85 data or invalid bytes. Bytes that are spaces
+-- are ignored.
 function Base85.Decode(source)
--- function Base85.Decode(source: string): (data: string)
 	local data = table.create((math.modf(#source*4/5)))
 	local bytes = 0
 	local value = 0
