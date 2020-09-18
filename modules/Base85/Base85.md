@@ -13,10 +13,10 @@ exceptionally. Wrappers (such as `<~ ... ~>`) are neither added nor expected.
 ## Base85.decode
 [Base85.decode]: #user-content-base85decode
 ```
-Base85.decode(source: string): (data: string)
+Base85.decode(source: string): (err: error, data: string)
 ```
 
-decode returns the data decoded from source. Throws an error if the
+decode returns the data decoded from source. Returns an error if the
 source contains invalid base85 data or invalid bytes. Bytes that are spaces
 are ignored.
 
