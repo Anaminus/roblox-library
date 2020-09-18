@@ -77,8 +77,8 @@ local decodeTable = {
 }
 
 --@sec: Base85.decode
---@def: Base85.decode(source: string): (data: string)
---@doc: decode returns the data decoded from source. Throws an error if the
+--@def: Base85.decode(source: string): (err: error, data: string)
+--@doc: decode returns the data decoded from source. Returns an error if the
 -- source contains invalid base85 data or invalid bytes. Bytes that are spaces
 -- are ignored.
 function Base85.decode(source)
@@ -88,7 +88,7 @@ function Base85.decode(source)
 	for i = 1, #source do
 		local b = decodeTable[string.byte(source, i)]
 		if not b then
-			error("invalid byte at " .. i, 2)
+			return "invalid byte at " .. i, ""
 		elseif b >= 0 then
 			value = value*85 + b
 			bytes = bytes + 1
@@ -106,7 +106,7 @@ function Base85.decode(source)
 	end
 	if bytes > 0 then
 		if bytes == 1 then
-			error("corrupted base85 data at byte " .. #data-1, 2)
+			return "corrupted base85 data at byte " .. #data-1, ""
 		end
 		for i = bytes, 4 do
 			value = value*85 + 84
@@ -116,7 +116,7 @@ function Base85.decode(source)
 			value = value * 256
 		end
 	end
-	return table.concat(data)
+	return nil, table.concat(data)
 end
 
 return Base85
