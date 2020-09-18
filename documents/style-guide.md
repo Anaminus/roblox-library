@@ -531,3 +531,93 @@ function Class.__index:SetName(value)
 	self.name = value
 end
 ```
+
+## Errors
+An error should generally be returned as a value instead of thrown with the
+`error` function. When an error has *not* occurred, the function should
+explicitly return `nil` instead. This allows the error to be checked more easily
+by the caller.
+
+```lua
+-- Instead of this:
+function foo(bad)
+	if bad then
+		error("received bad argument", 2)
+	end
+	return "good"
+end
+
+-- Do this:
+function foo(bad)
+	if bad then
+		return "received bad argument", ""
+	end
+	return nil, "good"
+end
+```
+
+The error should be the *first* returned value; other values are returned after
+it.
+
+In most cases, when an error has occurred, the "zero" for the types of the
+remaining values are returned (`0` for number, `""` for string, etc). This
+allows any type constraints applied to the function to remain satisfied. This is
+by convention; if a value is still useful even in the presence of an error, then
+it can be returned as needed.
+
+An error value can be of any type. A string is appropriate for most situations,
+but for cases where the caller may need to inspect details of the error, a table
+with fields is sufficient.
+
+A non-nil error should be convertible to a string. If an error is a table, it
+should have a `__tostring` metamethod defined. For example:
+
+```lua
+local HttpStatusError = {}
+function HttpStatusError:__tostring()
+	return string.format("%d: %s", self.Code, self.Message)
+end
+function newHttpStatusError(code, message)
+	return setmetatable({
+		Code = code,
+		Message = message,
+	}, HttpStatusError)
+end
+
+local err = newHttpStatusError(404, "Not Found")
+if err.Code ~= 200 then
+	print(err) --> 404: Not Found
+end
+```
+
+Throwing an error should be reserved for "compile time" checks (like asserting
+the type of an argument), or when the program gets into an impossible state, or
+for cases that should be similar to a runtime error (like calling a
+non-function).
+
+```lua
+function Lerp(from, to, alpha)
+	-- Type assertions; allowed.
+	assert(type(from) == "number", "number expected")
+	assert(type(to) == "number", "number expected")
+	assert(type(alpha) == "number", "number expected")
+
+	if alpha < 0 or alpha > 1 then
+		-- Error caused by caller.
+		return "alpha is outside the range [0, 1]", 0
+	end
+	return nil, (1-alpha)*from + alpha*to
+end
+```
+
+As usual, `pcall` should be used whenever a function could throw an error, as
+appropriate. Because the convention is to return instead of throw, `pcall`
+shouldn't be needed as often. Remember that it is still necessary for certain
+methods in the Roblox API.
+
+This error model is similar to the [error model of the Go language][goerrs]. The
+usual case is to return an error, which is then checked by the caller. Go also
+provides the `panic` and `recover` functions, which behave similarly to `error`
+and `pcall` in Lua, respectively.
+
+[goerrs]: https://golang.org/doc/effective_go.html#errors
