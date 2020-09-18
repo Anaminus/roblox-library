@@ -60,6 +60,20 @@ local list = {
 		table     = 8,
 	},
 }
+
+-- Much better.
+local list = {
+	a      = 1,
+	list   = 2,
+	of     = 3,
+	values = 4,
+	also   = {  -- One level
+		including = 5, -- Two levels
+		a         = 6,
+		nested    = 7,
+		table     = 8,
+	},
+}
 ```
 
 Alignment space must never be leading space, or adjacent to indentation space.
