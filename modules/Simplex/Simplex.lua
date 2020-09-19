@@ -1,60 +1,12 @@
---[[
-
-Simplex noise algorithm in Lua.
-
-Original Java implementation by Stefan Gustavson:
-https://weber.itn.liu.se/~stegu/simplexnoise/SimplexNoise.java
-Paper:
-https://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf
-
-SYNOPSIS
-
-	local Simplex = require(...)
-
-	local generator = Simplex.new()
-	generator:Noise2D(x, y)
-	generator:Noise3D(x, y, z)
-	generator:Noise4D(x, y, z, w)
-
-API
-
-	generator = Simplex.new(permutations)
-
-		Returns a generator initialized with a table of permutations.
-
-		*permutations* may be an array containing each integer between 0 and
-		255, inclusive. The order of these integers can be arbitrary.
-
-		*permutations* may be a number, which is used as a random seed to
-		shuffle a generated table of permutations.
-
-		*permutations* may be a Random object, which will be used to shuffle a
-		generated table of permutations.
-
-		*permutations* may be a function that receives an integer, and returns
-		an integer between 1 and the given value, inclusive. In this case, a
-		generated table of permutations will be shuffled using this function.
-		math.random is an example of such a function.
-
-		Otherwise, a shuffled table of permutations is generated from a random
-		source.
-
-	n = generator:Noise2D(x, y)
-
-		Returns a number in the interval [-1, 1] based on the given
-		two-dimensional coordinates and the generator's permutation state.
-
-	n = generator:Noise3D(x, y, z)
-
-		Returns a number in the interval [-1, 1] based on the given
-		three-dimensional coordinates and the generator's permutation state.
-
-	n = generator:Noise4D(x, y, z, w)
-
-		Returns a number in the interval [-1, 1] based on the given
-		four-dimensional coordinates and the generator's permutation state.
-
-]]
+--@sec: Simplex
+--@ord: -1
+--@doc: Simplex noise algorithm in Lua.
+--
+-- - [Original Java implementation by Stefan Gustavson][java]
+-- - [Paper][paper]
+--
+-- [java]: https://weber.itn.liu.se/~stegu/simplexnoise/SimplexNoise.java
+-- [paper]: https://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf
 local Simplex = {}
 
 local grad3 = {
@@ -82,9 +34,15 @@ local G3 = 1 / 6
 local F4 = (math.sqrt(5) - 1)/4
 local G4 = (5 - math.sqrt(5))/20
 
+--@sec: Generator
+--@def: type Generator
+--@doc: Generator holds the state for generating simplex noise.
 local mt = {__index={}}
 
--- 2D simplex noise
+--@sec: Generator.Noise2D
+--@def: Generator:Noise2D(x: number, y: number): number
+--@doc: Returns a number in the interval [-1, 1] based on the given
+-- two-dimensional coordinates and the generator's permutation state.
 function mt.__index:Noise2D(xin, yin)
 	local perm = self.perm
 	local permMod12 = self.permMod12
@@ -149,7 +107,10 @@ function mt.__index:Noise2D(xin, yin)
 	return 70 * (n0 + n1 + n2)
 end
 
--- 3D simplex noise
+--@sec: Generator.Noise3D
+--@def: Generator:Noise3D(x: number, y: number, z: number): number
+--@doc: Returns a number in the interval [-1, 1] based on the given
+-- three-dimensional coordinates and the generator's permutation state.
 function mt.__index:Noise3D(xin, yin, zin)
 	local perm = self.perm
 	local permMod12 = self.permMod12
@@ -245,7 +206,10 @@ function mt.__index:Noise3D(xin, yin, zin)
 	return 32*(n0 + n1 + n2 + n3)
 end
 
--- 4D simplex noise, better simplex rank ordering method 2012-03-09
+--@sec: Generator.Noise4D
+--@def: Generator:Noise4D(x: number, y: number, z: number, w: number): number
+--@doc: Returns a number in the interval [-1, 1] based on the given
+-- four-dimensional coordinates and the generator's permutation state.
 function mt.__index:Noise4D(x, y, z, w)
 	local perm = self.perm
 	local n0, n1, n2, n3, n4 -- Noise contributions from the five corners
@@ -372,6 +336,26 @@ function mt.__index:Noise4D(x, y, z, w)
 	return 27 * (n0 + n1 + n2 + n3 + n4)
 end
 
+--@sec: Simplex.new
+--@def: Simplex.new(permutations: {[number]: number} | number | Random | (number)->(number)): Generator
+--@doc Returns a generator initialized with a table of permutations.
+--
+-- *permutations* may be an array containing each integer between 0 and 255,
+-- inclusive. The order of these integers can be arbitrary.
+--
+-- *permutations* may be a number, which is used as a random seed to shuffle a
+-- generated table of permutations.
+--
+-- *permutations* may be a Random object, which will be used to shuffle a
+-- generated table of permutations.
+--
+-- *permutations* may be a function that receives an integer, and returns an
+-- integer between 1 and the given value, inclusive. In this case, a generated
+-- table of permutations will be shuffled using this function. math.random is an
+-- example of such a function.
+--
+-- Otherwise, a shuffled table of permutations is generated from a random
+-- source.
 function Simplex.new(permutations)
 	if type(permutations) == "table" then
 		-- Validate permutations table.
