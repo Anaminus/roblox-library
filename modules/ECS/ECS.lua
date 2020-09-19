@@ -36,7 +36,7 @@ end
 --
 -- ## Synopsis
 -- ```lua
--- local world = ECS.NewWorld()
+-- local world = ECS.newWorld()
 --
 -- world:DefineComponent("Component", 0)
 -- world:DefineEntity("Entity", {Component=true})
@@ -73,9 +73,9 @@ end
 --
 -- ### Worlds
 -- All entities, components, and systems live within a "World". A new world can
--- be created with the NewWorld function.
+-- be created with the newWorld function.
 -- ```lua
--- local world = ECS.NewWorld()
+-- local world = ECS.newWorld()
 -- ```
 --
 -- A newly created world starts out in a "definition mode". At this point, all
@@ -345,10 +345,10 @@ function WorldState.__index:Entity(id)
 	return self.entities[id]
 end
 
---@sec: ECS.NewWorld
---@def: ECS.NewWorld(): World
---@doc: NewWorld returns a new World.
-function ECS.NewWorld()
+--@sec: ECS.newWorld
+--@def: ECS.newWorld(): World
+--@doc: newWorld returns a new World.
+function ECS.newWorld()
 	local self = {
 		nextID = nil,
 		systems = {},     -- {[Name]: {components: Array<Name>, update: Updater}}

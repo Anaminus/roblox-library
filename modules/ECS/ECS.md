@@ -5,7 +5,7 @@ ESC is an implementation of the entity-component-system pattern.
 
 ## Synopsis
 ```lua
-local world = ECS.NewWorld()
+local world = ECS.newWorld()
 
 world:DefineComponent("Component", 0)
 world:DefineEntity("Entity", {Component=true})
@@ -42,9 +42,9 @@ end
 
 ### Worlds
 All entities, components, and systems live within a "World". A new world can
-be created with the NewWorld function.
+be created with the newWorld function.
 ```lua
-local world = ECS.NewWorld()
+local world = ECS.newWorld()
 ```
 
 A newly created world starts out in a "definition mode". At this point, all
@@ -276,13 +276,13 @@ handle.Health = 50                --> (does nothing)
 Handles should be used only for interfacing with external code outside the
 world.
 
-## ECS.NewWorld
-[ECS.NewWorld]: #user-content-ecsnewworld
+## ECS.newWorld
+[ECS.newWorld]: #user-content-ecsnewworld
 ```
-ECS.NewWorld(): World
+ECS.newWorld(): World
 ```
 
-NewWorld returns a new World.
+newWorld returns a new World.
 
 # ComponentDef
 [ComponentDef]: #user-content-componentdef
