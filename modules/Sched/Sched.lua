@@ -1,43 +1,43 @@
--- Implements a custom scheduler for managing threads.
+--@sec: Sched
+--@ord: -1
+--@doc: Implements a custom scheduler for managing threads.
 local Sched = {}
 
---[[
-type Driver = number
-type ErrorHandler = (thread: thread, err: string) -> ()
-type Function = () -> ()
+local Heartbeat     = 0
+local Stepped       = 1
+local RenderStepped = 2
 
-type Scheduler = {
-	SetErrorHandler = (handler: ErrorHandler?) -> (),
-	SetMinWaitTime  = (duration: number?) -> (),
-	SetBudget       = (duration: number?) -> (),
-	Delay           = (duration: number, func: Function) -> (),
-	DelayCancel     = (duration: number, func: Function) -> Function,
-	Spawn           = (func: Function) -> (),
-	Wait            = (duration: number) -> (),
-	Yield           = () -> (),
-}
-]]
-
-local Heartbeat     = 0 -- local Heartbeat     : Driver = 0
-local Stepped       = 1 -- local Stepped       : Driver = 1
-local RenderStepped = 2 -- local RenderStepped : Driver = 2
-
--- driver contains constants used to specify a Driver.
-Sched.driver = { -- Sched.driver: {[string]: Driver}
-	-- Heartbeat uses RunService.Heartbeat as the driver. This is the default.
+--@sec: Sched.driver
+--@def: Sched.driver = {
+--	Heartbeat     = 0,
+--	Stepped       = 1,
+--	RenderStepped = 2,
+--}
+--@doc: Driver contains constants used to specify a Driver.
+--
+-- The following drivers are available:
+--
+-- Name          | Value | Description
+-- --------------|-------|------------
+-- Heartbeat     | 0     | Uses RunService.Heartbeat as the driver. This is the default.
+-- Stepped       | 1     | Uses RunService.Stepped as the driver.
+-- RenderStepped | 2     | Uses RunService.RenderStepped as the driver.
+Sched.driver = {
 	Heartbeat     = Heartbeat,
-	-- Stepped uses RunService.Stepped as the driver.
 	Stepped       = Stepped,
-	-- RenderStepped uses RunService.RenderStepped as the driver.
 	RenderStepped = RenderStepped,
 }
 
+--@sec: Scheduler
+--@def: type Scheduler
+--@doc: Scheduler manages the yielding and resuming of threads in a queue.
 local Scheduler = {__index={}}
 
--- new returns a new Scheduler driven by the specified driver, or Heartbeat if
--- no driver is specified.
+--@sec: Sched.new
+--@def: Sched.new(driver: Driver?): Scheduler
+--@doc: new returns a new Scheduler driven by *driver*, or Heartbeat if no
+-- driver is specified.
 function Sched.new(driver)
--- function Sched.new(driver: Driver?): (scheduler: Scheduler)
 	local self = setmetatable({
 		suspended = {},       -- Unordered list of suspended threads.
 		pending = {},         -- List of threads to be resumed, ordered by time.
@@ -118,12 +118,12 @@ function Sched.new(driver)
 	return self
 end
 
--- pushThread pushes a thread into the queue, with an optional timestamp
+--@def: Scheduler:pushThread(thread: thread, time: number?, id: number?)
+--@doc: pushThread pushes a thread into the queue, with an optional timestamp
 -- indicating when the thread should be resumed. id is an optional unique
 -- identifier that, when present, is expected to be used to pop the thread from
 -- the queue.
 function Scheduler.__index:pushThread(thread, time, id)
--- function Scheduler.__index:pushThread(thread: thread, time: number?, id: number?)
 	table.insert(self.suspended, {
 		thread = thread,
 		expy = time or 0,
@@ -146,9 +146,9 @@ function Scheduler.__index:pushThread(thread, time, id)
 	end)
 end
 
--- popThread locates and force-removes a thread from the queue.
+--@def: Scheduler:popThread(id: number)
+--@doc: popThread locates and force-removes a thread from the queue.
 function Scheduler.__index:popThread(id)
--- function Scheduler.__index:popThread(id: number)
 	local suspended = self.suspended
 	for i = 1, #suspended do
 		if suspended[i].id == id then
@@ -159,37 +159,42 @@ function Scheduler.__index:popThread(id)
 	end
 end
 
--- SetErrorHandler sets a function that is called when a thread returns an
+--@sec: Scheduler.SetErrorHandler
+--@def: Scheduler:SetErrorHandler(handler: ((thread: thread, err: any) -> ())?)
+--@doc: SetErrorHandler sets a function that is called when a thread returns an
 -- error. The first argument is the thread, which may be used with
 -- debug.traceback to acquire a stack trace. The second argument is the error
--- message.
+-- value.
 --
 -- By default, no function is set, causing any errors to be discarded.
 function Scheduler.__index:SetErrorHandler(handler)
--- function Scheduler.__index:SetErrorHandler(handler: ErrorHandler?)
 	self.handleError = handler
 end
 
--- SetMinWaitTime specifies the minimum duration that threads are allowed to
--- yield, in seconds. Defaults to 0.
+--@sec: Scheduler.SetMinWaitTime
+--@def: Scheduler:SetMinWaitTime(duration: number?)
+--@doc: SetMinWaitTime specifies the minimum duration that threads are allowed
+-- to yield, in seconds. Defaults to 0.
 function Scheduler.__index:SetMinWaitTime(duration)
--- function Scheduler.__index:SetMinWaitTime(duration: number?)
 	self.minWaitTime = duration or 0
 end
 
--- SetBudget specifies the duration each iteration of the driver is allowed to
--- run, in seconds. Defaults to infinite duration.
+--@sec: Scheduler.SetBudget
+--@def: Scheduler:SetBudget(duration: number?)
+--@doc: SetBudget specifies the duration each iteration of the driver is allowed
+-- to run, in seconds. Defaults to infinite duration.
 --
--- When the budget is exceeded, the driver suspends, resuming where it left
--- off on the next iteration.
+-- When the budget is exceeded, the driver suspends, resuming where it left off
+-- on the next iteration.
 function Scheduler.__index:SetBudget(duration)
--- function Scheduler.__index:SetBudget(duration: number?)
 	self.budget = duration or math.huge
 end
 
--- Delay queues `func` to be called after waiting for `duration` seconds.
+--@sec: Scheduler.Delay
+--@def: Scheduler:Delay(duration: number, func: ()->())
+--@doc: Delay queues *func* to be called after waiting for *duration* seconds.
+--*duration* is affected by MinWaitTime.
 function Scheduler.__index:Delay(duration, func)
--- function Scheduler.__index:Delay(duration: number, func: Function)
 	local t = tick()
 	if duration < self.minWaitTime then
 		duration = self.minWaitTime
@@ -197,10 +202,12 @@ function Scheduler.__index:Delay(duration, func)
 	self:pushThread(coroutine.create(func), t + duration)
 end
 
--- DelayCancel queues `func` to be called after waiting for `duration` seconds.
--- Returns a function that, when called, cancels the delayed call.
+--@sec: Scheduler.DelayCancel
+--@def: Scheduler:Delay(duration: number, func: ()->()): (cancel: ()->())
+--@doc: DelayCancel queues *func* to be called after waiting for *duration*
+-- seconds. Returns a function that, when called, cancels the delayed call.
+-- *duration* is affected by MinWaitTime.
 function Scheduler.__index:DelayCancel(duration, func)
--- function Scheduler.__index:Delay(duration: number, func: Function): (cancel: Function)
 	local t = tick()
 	if duration < self.minWaitTime then
 		duration = self.minWaitTime
@@ -217,16 +224,18 @@ function Scheduler.__index:DelayCancel(duration, func)
 	end
 end
 
--- Spawn queues `func` to be called as soon as possible.
+--@sec: Scheduler.Spawn
+--@def: Scheduler:Spawn(func: ()->())
+--@doc: Spawn queues *func* to be called as soon as possible.
 function Scheduler.__index:Spawn(func)
--- function Scheduler.__index:Spawn(func: Function)
 	self:pushThread(coroutine.create(func))
 end
 
--- Wait queues the running thread to be resumed after waiting for `duration`
--- seconds.
+--@sec: Scheduler.Wait
+--@def: Scheduler:Wait(duration: number)
+--@doc: Wait queues the running thread to be resumed after waiting for
+-- *duration* seconds. *duration* is affected by MinWaitTime.
 function Scheduler.__index:Wait(duration)
--- function Scheduler.__index:Wait(duration: number)
 	local t = tick()
 	if duration < self.minWaitTime then
 		duration = self.minWaitTime
@@ -235,9 +244,10 @@ function Scheduler.__index:Wait(duration)
 	coroutine.yield()
 end
 
--- Yield queues the running thread to be resumed as soon as possible.
+--@sec: Scheduler.Yield
+--@def: Scheduler:Yield()
+--@doc: Yield queues the running thread to be resumed as soon as possible.
 function Scheduler.__index:Yield()
--- function Scheduler.__index:Yield()
 	self:pushThread(coroutine.running())
 	coroutine.yield()
 end
