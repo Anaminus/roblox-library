@@ -22,8 +22,8 @@ local Heartbeat     = 0 -- local Heartbeat     : Driver = 0
 local Stepped       = 1 -- local Stepped       : Driver = 1
 local RenderStepped = 2 -- local RenderStepped : Driver = 2
 
--- Driver contains constants used to specify a Driver.
-Sched.Driver = { -- Sched.Driver: {[string]: Driver}
+-- driver contains constants used to specify a Driver.
+Sched.driver = { -- Sched.driver: {[string]: Driver}
 	-- Heartbeat uses RunService.Heartbeat as the driver. This is the default.
 	Heartbeat     = Heartbeat,
 	-- Stepped uses RunService.Stepped as the driver.
@@ -34,10 +34,10 @@ Sched.Driver = { -- Sched.Driver: {[string]: Driver}
 
 local Scheduler = {__index={}}
 
--- New returns a new Scheduler driven by the specified driver, or Heartbeat if
+-- new returns a new Scheduler driven by the specified driver, or Heartbeat if
 -- no driver is specified.
-function Sched.New(driver)
--- function Sched.New(driver: Driver?): (scheduler: Scheduler)
+function Sched.new(driver)
+-- function Sched.new(driver: Driver?): (scheduler: Scheduler)
 	local self = setmetatable({
 		suspended = {},       -- Unordered list of suspended threads.
 		pending = {},         -- List of threads to be resumed, ordered by time.
