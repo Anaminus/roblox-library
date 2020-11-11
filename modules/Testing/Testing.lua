@@ -164,6 +164,9 @@ API
 		-- function should yield back to the engine to prevent the runner from
 		-- timing out.
 		Yield: (() -> ())?,
+
+		-- NoCopy requires actual ModuleScripts instead of copies.
+		NoCopy: boolean,
 	}
 
 	-- Runner manages the state of a test run.
@@ -654,7 +657,10 @@ end
 -- cloneFull creates a copy of instance such that it shares the same full name
 -- as instance. Each ancestor of instance is created as a Folder and given a
 -- matching Name.
-local function cloneFull(instance)
+local function cloneFull(instance, nocopy)
+	if nocopy then
+		return instance
+	end
 	local copy = instance:Clone()
 	local c = copy
 	local parent = instance.Parent
@@ -1140,6 +1146,7 @@ function Testing.Runner(config)
 		benchN = 0,
 		benchD = 1,
 		yield = nil,
+		nocopy = false,
 		modules = nil,
 	}
 	config = config or {}
@@ -1152,6 +1159,9 @@ function Testing.Runner(config)
 	end
 	if type(config.Yield) == "function" then
 		self.yield = config.Yield
+	end
+	if type(config.NoCopy) == "boolean" then
+		self.nocopy = config.NoCopy
 	end
 
 	local modules = {}
@@ -1252,7 +1262,7 @@ function Runner.__index:loadModuleTest(module, test, patterns, funcPrefix)
 	if useLoadModule then
 		-- loadmodule does not cache results, but it's only ever used once
 		-- anyway.
-		local require = debug_loadmodule(cloneFull(test))
+		local require = debug_loadmodule(cloneFull(test, self.nocopy))
 		epoch = os.clock()
 		ok, tests = xpcall(require, errHandler)
 	else
@@ -1260,7 +1270,7 @@ function Runner.__index:loadModuleTest(module, test, patterns, funcPrefix)
 		-- and require throws a separate generic module error. Prefer loadmodule
 		-- if possible.
 		epoch = os.clock()
-		ok, tests = xpcall(require, errHandler, cloneFull(test))
+		ok, tests = xpcall(require, errHandler, cloneFull(test, self.nocopy))
 	end
 	if not ok then
 		moduleResult.Duration = os.clock() - epoch
@@ -1312,9 +1322,9 @@ function Runner.__index:runTest(module, test, name)
 			return cache
 		end
 		if useLoadModule then
-			cache = debug_loadmodule(cloneFull(module))()
+			cache = debug_loadmodule(cloneFull(module, self.nocopy))()
 		else
-			cache = require(cloneFull(module))
+			cache = require(cloneFull(module, self.nocopy))
 		end
 		return cache
 	end
@@ -1374,9 +1384,9 @@ function Runner.__index:runBench(module, benchmark, name)
 			return cache
 		end
 		if useLoadModule then
-			cache = debug_loadmodule(cloneFull(module))()
+			cache = debug_loadmodule(cloneFull(module, self.nocopy))()
 		else
-			cache = require(cloneFull(module))
+			cache = require(cloneFull(module, self.nocopy))
 		end
 		return cache
 	end
