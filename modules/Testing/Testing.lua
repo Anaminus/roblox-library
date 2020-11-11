@@ -462,6 +462,17 @@ do
 	end
 end
 
+local debugMan do
+	local ok, err = pcall(function()
+		local d = DebuggerManager()
+		local _ = d.Name
+		return d
+	end)
+	if ok then
+		debugMan = err
+	end
+end
+
 -- haltMarker is a non-error thrown by error() to halt a test's execution.
 local haltMarker = {}
 
@@ -654,14 +665,45 @@ local function formatScanResults(results)
 	return modules
 end
 
+local function copyBreakpoints(original, copy)
+	if not debugMan then
+		return
+	end
+	local debugger
+	for i, d in ipairs(debugMan:GetDebuggers()) do
+		if d.Script == original then
+			debugger = d
+			break
+		end
+	end
+	if not debugger then
+		return
+	end
+	local breakpoints = debugger:GetBreakpoints()
+	if #breakpoints == 0 then
+		return
+	end
+
+	local debuggerCopy = debugMan:AddDebugger(copy)
+	for _, b in ipairs(breakpoints) do
+		local c = debuggerCopy:SetBreakpoint(b.Line, b.isContextDependentBreakpoint)
+		c.Condition = b.Condition
+		c.IsEnabled = b.IsEnabled
+	end
+end
+
 -- cloneFull creates a copy of instance such that it shares the same full name
 -- as instance. Each ancestor of instance is created as a Folder and given a
 -- matching Name.
+--
+-- When debugging is enabled, if the instance is a script with breakpoints, they
+-- are copied to the new script.
 local function cloneFull(instance, nocopy)
 	if nocopy then
 		return instance
 	end
 	local copy = instance:Clone()
+	copyBreakpoints(instance, copy)
 	local c = copy
 	local parent = instance.Parent
 	while parent and parent ~= game do
