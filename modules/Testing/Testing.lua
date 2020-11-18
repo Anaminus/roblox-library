@@ -406,7 +406,11 @@ API
 	}
 
 	-- T is passed to a Test function to manage the state of the test.
-	type T implements TB = {}
+	type T implements TB = {
+
+		-- Yield calls Config.Yield. Does nothing if unset.
+		Yield: () -> (),
+	}
 
 	-- B is passed to a Benchmark function to manage the state of the benchmark.
 	type B implements TB = {
@@ -426,6 +430,10 @@ API
 
 		-- StopTimer pauses the timing of the benchmark.
 		StopTimer: () -> (),
+
+		-- Yield calls Config.Yield. Does nothing if unset. The timer is stopped
+		-- before yielding, and resumed afterwards.
+		Yield: () -> (),
 	}
 
 ]]
@@ -826,6 +834,7 @@ local function newT(name)
 		skipped = false,
 		log = {},
 		deferred = {},
+		yield = nil,
 	})
 end
 
@@ -851,6 +860,7 @@ local function newB(name, n, d)
 		errHandler = nil,
 		require = nil,
 		epoch = 0,
+		yield = nil,
 	})
 end
 
@@ -962,6 +972,12 @@ for name, method in pairs(TB.__index) do
 	B.__index[name] = method
 end
 
+function T.__index:Yield()
+	if self.yield then
+		self.yield()
+	end
+end
+
 function B.__index:ResetTimer()
 	if not self.timing then
 		return
@@ -984,6 +1000,14 @@ function B.__index:StopTimer()
 	end
 	self.duration = self.duration + (os.clock() - self.startTime)
 	self.timing = false
+end
+
+function B.__index:Yield()
+	if self.yield then
+		self:StopTimer()
+		self.yield()
+		self:StartTimer()
+	end
 end
 
 function B.__index:runN(n)
@@ -1377,6 +1401,7 @@ function Runner.__index:runTest(module, test, name)
 
 	local t = newT(name)
 	local epoch = os.clock()
+	t.yield = self.yield
 	local ok, err = xpcall(test, errHandler, t, req)
 	result.Duration = os.clock() - epoch
 	result.Failed = t.failed
@@ -1409,6 +1434,7 @@ end
 
 function Runner.__index:runBench(module, benchmark, name)
 	local b = newB(name, self.benchN, self.benchD)
+	b.yield = self.yield
 	b.benchFunc = benchmark
 	b.result = new(BenchmarkResult, {
 		Name = name,
