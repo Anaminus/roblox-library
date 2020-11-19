@@ -855,12 +855,35 @@ end
 
 function T.TestBuffer_WriteFloat(t, require)
 	local Bitbuf = require()
-	--TODO
+
+	local buf = Bitbuf.new()
+	buf:WriteFloat(32, math.pi)
+	pass(t, buf:Len() == 32, "buffer length is 32")
+	pass(t, buf:Index() == 32, "buffer index is 32")
+	pass(t, buf:String() == pi32Bits, "32-bit pi")
+
+	local buf = Bitbuf.new()
+	buf:WriteFloat(64, math.pi)
+	pass(t, buf:Len() == 64, "buffer length is 64")
+	pass(t, buf:Index() == 64, "buffer index is 64")
+	pass(t, buf:String() == pi64Bits, "64-bit pi")
+
+	fail(t, function() buf:WriteFloat(1, 0) end, "invalid size")
 end
 
 function T.TestBuffer_ReadFloat(t, require)
 	local Bitbuf = require()
-	--TODO
+
+	local pi32 = string.unpack("<f", string.pack("<f", math.pi))
+	local buf = Bitbuf.fromString(pi32Bits)
+	pass(t, buf:ReadFloat(32) == pi32, "32-bit pi")
+	pass(t, buf:Index() == 32, "buffer index is 32")
+
+	local buf = Bitbuf.fromString(pi64Bits)
+	pass(t, buf:ReadFloat(64) == math.pi, "64-bit pi")
+	pass(t, buf:Index() == 64, "buffer index is 32")
+
+	fail(t, function() buf:ReadFloat(1, 0) end, "invalid size")
 end
 
 function T.TestBuffer_WriteUfixed(t, require)

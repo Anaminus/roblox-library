@@ -510,10 +510,10 @@ function Buffer.__index:WriteFloat(size, v)
 	assert(type(v) == "number", "number expected")
 	assert(size==32 or size==64, "invalid size ("..size..")")
 	if size == 32 then
-		writeUnit(self, 32, float32_to_uint(v))
-		return
+		self:WriteBytes(string.pack("<f", v))
+	else
+		self:WriteBytes(string.pack("<d", v))
 	end
-	writeUnit(self, 64, float64_to_uint(v))
 end
 
 --@sec: Buffer.ReadFloat
@@ -526,10 +526,12 @@ end
 function Buffer.__index:ReadFloat(size)
 	assert(type(size) == "number", "number expected")
 	assert(size==32 or size==64, "size ("..size..") must be 32 or 64")
+	local s = self:ReadBytes(size/8)
 	if size == 32 then
-		return float32_from_uint(readUnit(self, 32))
+		return string.unpack("<f", s)
+	else
+		return string.unpack("<d", s)
 	end
-	return float64_from_uint(readUnit(self, 64, v))
 end
 
 --@sec: Buffer.WriteUfixed
