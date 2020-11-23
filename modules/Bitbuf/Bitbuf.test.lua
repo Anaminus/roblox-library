@@ -452,9 +452,40 @@ end
 
 function T.TestBuffer_Pad(t, require)
 	local Bitbuf = require()
-
+	--TODO: init with ones
+	t:Log("test nil")
 	superTest(t, Bitbuf, function(buf, l, i, v)
 		buf:Pad(v)
+
+		local expi = i+v
+		local explen = math.max(expi, l)
+		if buf:Len() ~= explen then
+			return superError(t,l,i,v, "expected length %d, got %d", explen, buf:Len())
+		end
+		if buf:Index() ~= expi then
+			return superError(t,l,i,v, "expected index %d, got %d", expi, buf:Index())
+		end
+		return compData(t,l,i,v, string.rep("\0", math.ceil(explen/8)), buf:String())
+	end)
+
+	t:Log("test false")
+	superTest(t, Bitbuf, function(buf, l, i, v)
+		buf:Pad(v, false)
+
+		local expi = i+v
+		local explen = math.max(expi, l)
+		if buf:Len() ~= explen then
+			return superError(t,l,i,v, "expected length %d, got %d", explen, buf:Len())
+		end
+		if buf:Index() ~= expi then
+			return superError(t,l,i,v, "expected index %d, got %d", expi, buf:Index())
+		end
+		return compData(t,l,i,v, string.rep("\0", math.ceil(explen/8)), buf:String())
+	end)
+
+	t:Log("test true")
+	superTest(t, Bitbuf, function(buf, l, i, v)
+		buf:Pad(v, true)
 
 		local expi = i+v
 		local explen = math.max(expi, l)
@@ -471,9 +502,39 @@ end
 function T.TestBuffer_Align(t, require)
 	local Bitbuf = require()
 
+	t:Log("test nil")
 	superTest(t, Bitbuf, function(buf, l, i, v)
-		-- TODO: init buffer with ones
 		buf:Align(v)
+
+		local expi = v == 0 and i or math.ceil(i/v)*v
+		local explen = math.max(expi, l)
+		if buf:Len() ~= explen then
+			return superError(t,l,i,v, "expected length %d, got %d", explen, buf:Len())
+		end
+		if buf:Index() ~= expi then
+			return superError(t,l,i,v, "expected index %d, got %d", expi, buf:Index())
+		end
+		return compData(t,l,i,v, string.rep("\0", math.ceil(explen/8)), buf:String())
+	end)
+
+	t:Log("test false")
+	superTest(t, Bitbuf, function(buf, l, i, v)
+		buf:Align(v, false)
+
+		local expi = v == 0 and i or math.ceil(i/v)*v
+		local explen = math.max(expi, l)
+		if buf:Len() ~= explen then
+			return superError(t,l,i,v, "expected length %d, got %d", explen, buf:Len())
+		end
+		if buf:Index() ~= expi then
+			return superError(t,l,i,v, "expected index %d, got %d", expi, buf:Index())
+		end
+		return compData(t,l,i,v, string.rep("\0", math.ceil(explen/8)), buf:String())
+	end)
+
+	t:Log("test true")
+	superTest(t, Bitbuf, function(buf, l, i, v)
+		buf:Align(v, true)
 
 		local expi = v == 0 and i or math.ceil(i/v)*v
 		local explen = math.max(expi, l)
