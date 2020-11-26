@@ -532,6 +532,44 @@ function Class.__index:SetName(value)
 end
 ```
 
+### Type checking
+It is often useful to check whether the type of a value is a class. A module
+should provide an "is" function that returns whether an arbitrary value is an
+instance of a class defined in the module.
+
+The `is` function should be defined such that the first parameter is the name of
+a type, followed by the value to check. It should return false if the given type
+is not known by the function.
+
+```lua
+function Module.is(type, value)
+	if type == "Class" then
+		return getmetatable(value) == Class
+	elseif type == "Foo" then
+		return getmetatable(value) == Foo
+	elseif type == "Bar" then
+		return getmetatable(value) == Bar
+	end
+	return false
+end
+```
+
+This may instead be defined as a number of functions, one for each class:
+
+```lua
+function Module.isClass(value)
+	return getmetatable(value) == Class
+end
+
+function Module.isFoo(value)
+	return getmetatable(value) == Foo
+end
+
+function Module.isBar(value)
+	return getmetatable(value) == Bar
+end
+```
+
 ## Errors
 An error should generally be returned as a value instead of thrown with the
 `error` function. When an error has *not* occurred, the function should
