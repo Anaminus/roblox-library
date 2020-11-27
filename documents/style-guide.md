@@ -532,6 +532,94 @@ function Class.__index:SetName(value)
 end
 ```
 
+## Modules
+### Layout type
+There are several types of module, which is determined by the content:
+
+- Library: Returns a collection of constructors, functions, and constants
+  contained in a table.
+- Class: Like a library, but structured around a single class.
+- Data: Typically contains only static values, with no behavior.
+
+#### Library-type module
+A library-type module contains a number of related classes, procedures, and
+constants.
+
+```lua
+local Module = {}
+
+local Foo = {__index={}}
+
+function Module.foo()
+	return setmetatable({}, Foo)
+end
+
+function Foo.__index:Method()
+	return "foo"
+end
+
+local Bar = {__index={}}
+
+function Module.bar()
+	return setmetatable({}, Bar)
+end
+
+function Bar.__index:Method()
+	return "foo"
+end
+
+return Module
+```
+
+#### Class-type module
+A class-type module is structured around a single class.
+
+```lua
+local Foobar = {}
+
+local mt = {__index={}}
+
+function Foobar.new()
+	return setmetatable({}, mt)
+end
+
+function mt.__index:Method()
+	return "foobar"
+end
+
+return Foobar
+```
+
+Alternatively, the module table can created at the end:
+
+```lua
+local Foobar = {__index={}}
+
+local function new()
+	return setmetatable({}, Foobar)
+end
+
+function Foobar.__index:Method()
+	return "foobar"
+end
+
+return {
+	new = new,
+}
+```
+
+#### Data-type module
+A data-type module returns static data. Conceptually, it is similar to a global
+variable.
+
+```lua
+return {
+	A = 1,
+	B = 2,
+	C = 3,
+}
+```
+
 ### Type checking
 It is often useful to check whether the type of a value is a class. A module
 should provide an "is" function that returns whether an arbitrary value is an
