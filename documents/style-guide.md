@@ -432,6 +432,11 @@ end
 Module.class = newClass
 ```
 
+Typically, the name of the constructor is the name of the class in
+`lowerCamelCase`. Within a [class-type](#user-content-class-type-module) module,
+there is only a single class, and the module's name will likely be the same as
+the class. In this case, "new" should be used as the name of the constructor.
+
 The structure of a constructor has a common flow.
 
 - Create the state of the instance, assigned to the `self` variable.
