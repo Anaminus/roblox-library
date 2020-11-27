@@ -419,7 +419,7 @@ they are used. If the constructor is exported by the module, then it can be
 defined that way directly:
 
 ```lua
-function Module.Class()
+function Module.class()
 end
 ```
 
@@ -429,7 +429,7 @@ function. The primary constructor should be named `new<class>`:
 ```lua
 local function newClass()
 end
-Module.Class = newClass
+Module.class = newClass
 ```
 
 The structure of a constructor has a common flow.
