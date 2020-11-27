@@ -115,6 +115,12 @@ function Maid.__index:TaskEach(...)
 	end
 end
 
+local errors = {
+	__tostring = function(self)
+		return table.concat(self, "\n")
+	end,
+}
+
 --@sec: Maid.Finish
 --@def: Maid:Finish(...string): (errs: {string}?)
 --@doc: Finish completes the tasks of the given names. Names with no assigned
@@ -130,7 +136,7 @@ function Maid.__index:Finish(...)
 			local err = threadTask(self, task)
 			if err then
 				if errs == nil then
-					errs = {}
+					errs = setmetatable({}, errors)
 				end
 				table.insert(errs, string.format("task %s: %s", tostring(name), err))
 			end
@@ -150,7 +156,7 @@ function Maid.__index:FinishAll()
 		local err = threadTask(self, task)
 		if err then
 			if errs == nil then
-				errs = {}
+				errs = setmetatable({}, errors)
 			end
 			table.insert(errs, string.format("task %s: %s", tostring(name), err))
 		end
