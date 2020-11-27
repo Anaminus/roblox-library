@@ -663,6 +663,14 @@ function Module.isBar(value)
 end
 ```
 
+For class-type modules, which has a single class, the type name can be omitted:
+
+```lua
+function Class.is(value)
+	return getmetatable(value) == ClassMetatable
+end
+```
+
 ## Errors
 An error should generally be returned as a value instead of thrown with the
 `error` function. When an error has *not* occurred, the function should
