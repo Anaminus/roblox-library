@@ -625,6 +625,42 @@ return {
 }
 ```
 
+### Module table access
+A module should never access its own returned table:
+
+```lua
+local Module = {}
+
+function Module.foo()
+	print("foo")
+end
+
+function Module.bar()
+	Module.foo() -- Bad!
+	print("bar")
+end
+
+return Module
+```
+
+Instead, define the value locally, *then* add it to the table:
+
+```lua
+local Module = {}
+
+local function foo()
+	print("foo")
+end
+Module.foo = foo
+
+function Module.bar()
+	foo() -- Good!
+	print("bar")
+end
+
+return Module
+```
+
 ### Type checking
 It is often useful to check whether the type of a value is a class. A module
 should provide an "is" function that returns whether an arbitrary value is an
