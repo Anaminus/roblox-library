@@ -399,7 +399,7 @@ function Class:__tostring()
 end
 ```
 
-## Definition
+## Class definition
 When defining a class, begin with the metatable. The variable name should match
 the name of the class, if possible.
 
