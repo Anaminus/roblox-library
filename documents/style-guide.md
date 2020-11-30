@@ -507,6 +507,34 @@ class.
 In practice, true encapsulation cannot be enforced without greatly increasing
 the cost of instances, so it is instead enforced by discipline of the user.
 
+Some enforced encapsulation can be accomplished with private methods by using a
+local function instead:
+
+```lua
+local Class = {__index={}}
+
+-- As normal private method.
+function Class.__index:increment(value)
+	value = value + 1
+	self.value = value
+	return value
+end
+
+-- As local function, encapsulated by scope.
+local function Class_increment(self, value)
+	value = value + 1
+	self.value = value
+	return value
+end
+
+function Class.__index:Increment(value)
+	return Class_increment(self, value)
+end
+```
+
+Either way is fine, but actual private methods can be useful for ignoring
+encapsulation deliberately, such as when testing.
+
 #### Getters and setters
 Using `__index` and `__newindex` for getters and setters is often too
 complicated and expensive to setup and use. A more simple pattern for this is to
