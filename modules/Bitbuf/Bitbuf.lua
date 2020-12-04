@@ -123,14 +123,14 @@ function Buffer.__index:String()
 	return table.concat(s)
 end
 
---@def: function writeUnit(buf: Buffer, size: number, v: number)
+--@def: function Buffer:writeUnit(size: number, v: number)
 --@doc: writeUnit writes the first *size* bits of the unsigned integer *v* to
--- the given buffer, and advances the cursor by *size* bits. *size* must be an
--- integer between 0 and 32. *v* is normalized according to the bit32 library.
--- The capacity of the buffer is extended as needed to write the value.
+-- the buffer, and advances the cursor by *size* bits. *size* must be an integer
+-- between 0 and 32. *v* is normalized according to the bit32 library. The
+-- capacity of the buffer is extended as needed to write the value.
 --
 -- The buffer is assumed to be a sequence of 32-bit unsigned integers.
-local function writeUnit(self, size, v)
+function Buffer.__index:writeUnit(size, v)
 	assert(size>=0 and size<=32, "size must be in range [0,32]")
 	if size == 0 then
 		return
@@ -155,14 +155,14 @@ local function writeUnit(self, size, v)
 	end
 end
 
---@def: function readUnit(buf: Buffer, size: number): (v: number)
---@doc: readUnit reads *size* bits as an unsigned integer from the given buffer,
--- and advances the cursor by *size* bits. *size* must be an integer between 0
--- and 32.
+--@def: function Buffer:readUnit(size: number): (v: number)
+--@doc: readUnit reads *size* bits as an unsigned integer from the buffer, and
+-- advances the cursor by *size* bits. *size* must be an integer between 0 and
+-- 32.
 --
 -- The buffer is assumed to be a sequence of 32-bit unsigned integers. Bits past
 -- the length of the buffer are read as zeros.
-local function readUnit(self, size)
+function Buffer.__index:readUnit(size)
 	assert(size>=0 and size<=32, "size must be in range [0,32]")
 	if size == 0 then
 		return 0
@@ -260,9 +260,9 @@ function Buffer.__index:Pad(size, bit)
 		return
 	end
 	for i = 1, math.floor(size/32) do
-		writeUnit(self, 32, 0)
+		self:writeUnit(32, 0)
 	end
-	writeUnit(self, size%32, 0)
+	self:writeUnit(size%32, 0)
 end
 
 --@sec: Buffer.Align
@@ -286,9 +286,9 @@ function Buffer.__index:Align(size, bit)
 		return
 	end
 	for i = 1, math.floor(size/32) do
-		writeUnit(self, 32, 0)
+		self:writeUnit(32, 0)
 	end
-	writeUnit(self, size%32, 0)
+	self:writeUnit(size%32, 0)
 end
 
 --@sec: Buffer.Reset
@@ -306,14 +306,14 @@ end
 local function fastWriteBytes(self, s)
 	-- Handle short string.
 	if #s <= 4 then
-		writeUnit(self, #s*8, (string.unpack("<I"..#s, s)))
+		self:writeUnit(#s*8, (string.unpack("<I"..#s, s)))
 		return
 	end
 
 	-- Write until cursor is aligned to unit.
 	local a = math.floor(3-(self.i/8-1)%4)
 	if a > 0 then
-		writeUnit(self, a*8, (string.unpack("<I"..a, s)))
+		self:writeUnit(a*8, (string.unpack("<I"..a, s)))
 	end
 
 	-- Write unit-aligned groups of 32 bits.
@@ -329,7 +329,7 @@ local function fastWriteBytes(self, s)
 	-- Write remainder.
 	local r = (#s-a)%4
 	if r > 0 then
-		writeUnit(self, r*8, string.unpack("<I"..r, s, #s-r+1))
+		self:writeUnit(r*8, string.unpack("<I"..r, s, #s-r+1))
 	end
 end
 
@@ -346,7 +346,7 @@ function Buffer.__index:WriteBytes(v)
 		return
 	end
 	for i = 1, #v do
-		writeUnit(self, 8, string.byte(v, i))
+		self:writeUnit(8, string.byte(v, i))
 	end
 end
 
@@ -356,7 +356,7 @@ end
 local function fastReadBytes(self, size)
 	-- Handle short string.
 	if size <= 4 then
-		return string.pack("<I"..size, readUnit(self, size*8))
+		return string.pack("<I"..size, self:readUnit(size*8))
 	end
 
 	local a = math.floor(3-(self.i/8-1)%4)
@@ -366,7 +366,7 @@ local function fastReadBytes(self, size)
 
 	-- Read until cursor is aligned to unit.
 	if a > 0 then
-		v[i] = string.pack("<I"..a, readUnit(self, a*8))
+		v[i] = string.pack("<I"..a, self:readUnit(a*8))
 		i = i + 1
 	end
 
@@ -388,7 +388,7 @@ local function fastReadBytes(self, size)
 	end
 	-- Read remainder.
 	if r > 0 then
-		v[i] = string.pack("<I"..r, readUnit(self, r*8))
+		v[i] = string.pack("<I"..r, self:readUnit(r*8))
 	end
 
 	return table.concat(v)
@@ -407,7 +407,7 @@ function Buffer.__index:ReadBytes(size)
 	end
 	local v = table.create(size, "")
 	for i = 1, size do
-		v[i] = string.char(readUnit(self, 8))
+		v[i] = string.char(self:readUnit(8))
 	end
 	return table.concat(v)
 end
@@ -423,11 +423,11 @@ function Buffer.__index:WriteUint(size, v)
 	if size == 0 then
 		return
 	elseif size <= 32 then
-		writeUnit(self, size, v)
+		self:writeUnit(size, v)
 		return
 	end
-	writeUnit(self, 32, v)
-	writeUnit(self, size-32, math.floor(v/2^32))
+	self:writeUnit(32, v)
+	self:writeUnit(size-32, math.floor(v/2^32))
 end
 
 --@sec: Buffer.ReadUint
@@ -440,9 +440,9 @@ function Buffer.__index:ReadUint(size)
 	if size == 0 then
 		return 0
 	elseif size <= 32 then
-		return readUnit(self, size)
+		return self:readUnit(size)
 	end
-	return readUnit(self, 32) + readUnit(self, size-32)*2^32
+	return self:readUnit(32) + self:readUnit(size-32)*2^32
 end
 
 --@sec: Buffer.WriteBool
@@ -450,10 +450,10 @@ end
 --@doc: WriteBool writes a 0 bit if *v* is falsy, or a 1 bit if *v* is truthy.
 function Buffer.__index:WriteBool(v)
 	if v then
-		writeUnit(self, 1, 1)
+		self:writeUnit(1, 1)
 		return
 	end
-	writeUnit(self, 1, 0)
+	self:writeUnit(1, 0)
 end
 
 --@sec: Buffer.ReadBool
@@ -461,7 +461,7 @@ end
 --@doc: ReadBool reads one bit and returns false if the bit is 0, or true if the
 -- bit is 1.
 function Buffer.__index:ReadBool()
-	return readUnit(self, 1) == 1
+	return self:readUnit(1) == 1
 end
 
 --@sec: Buffer.WriteByte
@@ -469,14 +469,14 @@ end
 --@doc: WriteByte is shorthand for `Buffer:WriteUint(8, v)`.
 function Buffer.__index:WriteByte(v)
 	assert(type(v) == "number", "number expected")
-	writeUnit(self, 8, 1)
+	self:writeUnit(8, 1)
 end
 
 --@sec: Buffer.ReadByte
 --@def: function Buffer:ReadByte(): (v: number)
 --@doc: ReadByte is shorthand for `Buffer:ReadUint(8, v)`.
 function Buffer.__index:ReadByte()
-	return readUnit(self, 8)
+	return self:readUnit(8)
 end
 
 --@sec: Buffer.WriteInt
@@ -492,11 +492,11 @@ function Buffer.__index:WriteInt(size, v)
 	end
 	v = int_to_uint(size, v)
 	if size <= 32 then
-		writeUnit(self, size, v)
+		self:writeUnit(size, v)
 		return
 	end
-	writeUnit(self, 32, v)
-	writeUnit(self, size-32, math.floor(v/2^32))
+	self:writeUnit(32, v)
+	self:writeUnit(size-32, math.floor(v/2^32))
 end
 
 --@sec: Buffer.ReadInt
@@ -511,9 +511,9 @@ function Buffer.__index:ReadInt(size)
 	end
 	local v
 	if size <= 32 then
-		v = readUnit(self, size)
+		v = self:readUnit(size)
 	else
-		v = readUnit(self, 32) + readUnit(self, size-32)*2^32
+		v = self:readUnit(32) + self:readUnit(size-32)*2^32
 	end
 	return int_from_uint(size, v)
 end
