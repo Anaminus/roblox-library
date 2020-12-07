@@ -1143,6 +1143,12 @@ function ModuleResult.__index:BenchmarkResults()
 			append(rows, {test.Name, test.Iterations, math.floor(test.Duration/test.Iterations*1e9), "ns/op"})
 		end
 	end
+	table.sort(rows, function(a,b)
+		if a[3] == b[3] then
+			return a[1] < b[1]
+		end
+		return a[3] < b[3]
+	end)
 	return formatRows(rows)
 end
 
