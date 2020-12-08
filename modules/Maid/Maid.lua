@@ -36,8 +36,8 @@ end
 --@doc: new returns a new Maid instance.
 local function new()
 	return setmetatable({
-		tasks = {},
-		thread = nil,
+		_tasks = {},
+		_thread = false,
 	}, Maid)
 end
 
@@ -54,23 +54,23 @@ local success = newproxy()
 -- detect if the task yields. The thread can be reused as long as a task
 -- behaves.
 local function threadTask(self, task)
-	if self.thread == nil then
-		self.thread = coroutine.create(function()
+	if not self._thread then
+		self._thread = coroutine.create(function()
 			while true do
 				finalizeTask(coroutine.yield(success))
 			end
 		end)
 		-- Initialize to enter loop.
-		coroutine.resume(self.thread)
+		coroutine.resume(self._thread)
 	end
-	local ok, err = coroutine.resume(task)
+	local ok, err = coroutine.resume(self._thread, task)
 	if not ok then
 		-- Task errored, return it.
-		self.thread = nil
+		self._thread = false
 		return err
 	elseif err ~= success then
 		-- Task yielded, which isn't allowed.
-		self.thread = nil
+		self._thread = false
 		return "unexpected yield while finishing task"
 	end
 	return nil
@@ -83,15 +83,16 @@ end
 -- the task yielded or errored.
 function Maid.__index:Task(name, task)
 	assert(type(name) == "string", "string expected")
+	assert(string.sub(name, 1, 1) ~= "_", "name cannot begin with underscore")
 	if task ~= nil then
-		self.tasks[name] = task
+		self._tasks[name] = task
 		return nil
 	end
-	local task = self.tasks[name]
+	local task = self._tasks[name]
 	if task == nil then
 		return nil
 	end
-	self.tasks[name] = nil
+	self._tasks[name] = nil
 	return threadTask(self, task)
 end
 
@@ -111,7 +112,7 @@ end
 function Maid.__index:TaskEach(...)
 	local tasks = table.pack(...)
 	for i = 1, tasks.n do
-		table.insert(self.tasks, tasks[i])
+		table.insert(self._tasks, tasks[i])
 	end
 end
 
@@ -131,7 +132,7 @@ function Maid.__index:Finish(...)
 	local errs = nil
 	for i = 1, names.n do
 		local name = names[i]
-		local task = self.tasks[name]
+		local task = self._tasks[name]
 		if task ~= nil then
 			local err = threadTask(self, task)
 			if err then
@@ -140,7 +141,7 @@ function Maid.__index:Finish(...)
 				end
 				table.insert(errs, string.format("task %s: %s", tostring(name), err))
 			end
-			self.tasks[name] = nil
+			self._tasks[name] = nil
 		end
 	end
 	return errs
@@ -152,7 +153,7 @@ end
 -- that yields or errors, or nil if all tasks finished successfully.
 function Maid.__index:FinishAll()
 	local errs = nil
-	for name, task in pairs(self.tasks) do
+	for name, task in pairs(self._tasks) do
 		local err = threadTask(self, task)
 		if err then
 			if errs == nil then
@@ -161,7 +162,7 @@ function Maid.__index:FinishAll()
 			table.insert(errs, string.format("task %s: %s", tostring(name), err))
 		end
 	end
-	table.clear(self.tasks)
+	table.clear(self._tasks)
 	return errs
 end
 
