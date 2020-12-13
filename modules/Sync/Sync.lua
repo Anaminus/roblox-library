@@ -48,8 +48,6 @@ function Sync.anySignal(...)
 	local blocker = Instance.new("BindableEvent")
 	for _, signal in ipairs(signals) do
 		table.insert(conns, signal:Connect(function()
-			-- TODO: operate on current thread directly once Roblox has a way to
-			-- resume threads with error handling.
 			blocker:Fire()
 		end))
 	end
@@ -79,8 +77,6 @@ function Sync.allSignals(...)
 			if n > 0 then
 				return
 			end
-			-- TODO: operate on current thread directly once Roblox has a way to
-			-- resume threads with error handling.
 			blocker:Fire()
 		end)
 	end
