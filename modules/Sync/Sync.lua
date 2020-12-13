@@ -36,37 +36,41 @@ local function assertSignals(signals)
 end
 
 --@sec: Sync.anySignal
---@def: Sync.anySignal(signals: ...Signal)
---@doc: anySignal blocks until any of the given signals have fired.
+--@def: Sync.anySignal(signals: ...Signal): Signal
+--@doc: anySignal returns a Signal that fires after any of the given signals
+-- have fired.
 --
 -- Must not be used with signals that fire upon connecting (e.g. RemoteEvent).
 function Sync.anySignal(...)
 	local signals = table.pack(...)
 	assertSignals(signals)
 	local conns = {}
-	local blocker = Instance.new("BoolValue")
+	local blocker = Instance.new("BindableEvent")
 	for _, signal in ipairs(signals) do
 		table.insert(conns, signal:Connect(function()
 			-- TODO: operate on current thread directly once Roblox has a way to
 			-- resume threads with error handling.
-			blocker.Value = not blocker.Value
+			blocker:Fire()
 		end))
 	end
-	blocker.Changed:Wait()
-	for _, conn in ipairs(conns) do
-		conn:Disconnect()
-	end
+	table.insert(conns, blocker.Event:Connect(function()
+		for _, conn in ipairs(conns) do
+			conn:Disconnect()
+		end
+	end))
+	return blocker.Event
 end
 
 --@sec: Sync.allSignals
 --@def: Sync.allSignals(signals: ...Signal)
---@doc: allSignals blocks until all of the given signals have fired.
+--@doc: allSignals returns a Signal that fires after all of the given signals
+-- have fired.
 --
 -- Must not be used with signals that fire upon connecting (e.g. RemoteEvent).
 function Sync.allSignals(...)
 	local signals = table.pack(...)
 	assertSignals(signals)
-	local blocker = Instance.new("BoolValue")
+	local blocker = Instance.new("BindableEvent")
 	local n = #signals
 	for _, signal in ipairs(signals) do
 		local conn; conn = signal:Connect(function()
@@ -77,10 +81,10 @@ function Sync.allSignals(...)
 			end
 			-- TODO: operate on current thread directly once Roblox has a way to
 			-- resume threads with error handling.
-			blocker.Value = not blocker.Value
+			blocker:Fire()
 		end)
 	end
-	blocker.Changed:Wait()
+	return blocker.Event
 end
 
 --@sec: Group
