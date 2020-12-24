@@ -205,11 +205,25 @@ function Buffer.__index:SetLen(size)
 	if size < 0 then
 		size = 0
 	end
+	-- Clear removed portion of buffer.
+	if size < self.len then
+		local lower = math.floor(size/32)+1
+		-- Truncate lower unit.
+		if size % 32 == 0 then
+			self.buf[lower] = nil
+		else
+			self.buf[lower] = bit32.band(self.buf[lower], 2^(size%32)-1)
+		end
+		-- Clear everything after lower unit.
+		local upper = math.floor((self.len-1)/32)+1
+		for i = lower+1, upper do
+			self.buf[i] = nil
+		end
+	end
 	self.len = size
 	if self.i > size then
 		self.i = size
 	end
-	-- TODO: handle buf
 end
 
 --@sec: Buffer.Index
