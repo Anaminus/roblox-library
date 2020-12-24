@@ -108,17 +108,19 @@ function Buffer.__index:String()
 	local n = math.ceil(self.len/32)
 	local s = table.create(n, "")
 	for i in ipairs(s) do
-		local x = self.buf[i]
-		if x then
-			s[i] = string.pack("<I4", x)
+		local v = self.buf[i]
+		if v then
+			s[i] = string.pack("<I4", v)
 		else
 			s[i] = "\0\0\0\0"
 		end
 	end
-	-- Pad remainder to bytes rather than unit.
-	local r = math.ceil(self.len/8)%4
-	if r > 0 then
-		s[n] = string.pack("<I"..r, self.buf[n] or 0)
+	local rem = self.len % 32
+	if rem > 0 then
+		-- Truncate to length.
+		local v = bit32.band(self.buf[n] or 0, bit32.lshift(1, rem)-1)
+		local width = math.floor((self.len-1)/8)%4+1
+		s[n] = string.pack("<I"..width, v)
 	end
 	return table.concat(s)
 end
