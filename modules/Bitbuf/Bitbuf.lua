@@ -256,19 +256,8 @@ function Buffer.__index:Fits(size)
 	return size <= self.len - self.i
 end
 
---@sec: Buffer.Pad
---@def: function Buffer:Pad(size: number, bit: boolean?)
---@doc: Pad pads the buffer with *size* bits. Does nothing if *size* is less
--- than or equal to zero.
---
--- If *bit* is true, then the buffer is padded with zero bits. If *bit* is false
--- or nil, then nothing is written, but the cursor is moved by *size* bits.
-function Buffer.__index:Pad(size, bit)
-	assert(type(size) == "number", "number expected")
-	if size <= 0 then
-		return
-	end
-	if not bits then
+local function pad(self, size, write)
+	if not write then
 		self.i += size
 		if self.i > self.len then
 			self.len = self.i
@@ -281,30 +270,37 @@ function Buffer.__index:Pad(size, bit)
 	self:writeUnit(size%32, 0)
 end
 
+--@sec: Buffer.Pad
+--@def: function Buffer:Pad(size: number, write: boolean?)
+--@doc: Pad pads the buffer with *size* bits. Does nothing if *size* is less
+-- than or equal to zero.
+--
+-- If *write* is true, then the buffer is padded with zero bits. If *write* is
+-- false or nil, then nothing is written, but the cursor is moved by *size*
+-- bits.
+function Buffer.__index:Pad(size, write)
+	assert(type(size) == "number", "number expected")
+	if size <= 0 then
+		return
+	end
+	pad(self, size, write)
+end
+
 --@sec: Buffer.Align
---@def: function Buffer:Align(size: number, bit: boolean?)
+--@def: function Buffer:Align(size: number, write: boolean?)
 --@doc: Align pads the buffer with bits until the position of the cursor is a
 -- multiple of *size*. Does nothing if *size* is less than or equal to 1.
 --
--- If *bit* is true, then the buffer is padded with zero bits. If *bit* is false
--- or nil, then nothing is written, but the cursor is moved by *size* bits.
-function Buffer.__index:Align(size, bit)
+-- If *write* is true, then the buffer is padded with zero bits. If *write* is
+-- false or nil, then nothing is written, but the cursor is moved by *size*
+-- bits.
+function Buffer.__index:Align(size, write)
 	assert(type(size) == "number", "number expected")
 	if size <= 1 or self.i%size == 0 then
 		return
 	end
 	size = math.floor(math.ceil(self.i/size)*size - self.i)
-	if not bits then
-		self.i += size
-		if self.i > self.len then
-			self.len = self.i
-		end
-		return
-	end
-	for i = 1, math.floor(size/32) do
-		self:writeUnit(32, 0)
-	end
-	self:writeUnit(size%32, 0)
+	pad(self, size, write)
 end
 
 --@sec: Buffer.Reset
