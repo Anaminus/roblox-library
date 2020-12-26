@@ -137,18 +137,23 @@ function Buffer.__index:writeUnit(size, v)
 	if size == 0 then
 		return
 	end
+	-- Index of unit in buffer.
 	local i = bit32.rshift(self.i, 5) + 1
+	-- Index of first unread bit in unit.
 	local u = self.i % 32
 	if u == 0 and size == 32 then
 		self.buf[i] = bit32.band(v, 0xFFFFFFFF)
 	else
+		-- Index of of unit end relative to first unread bit.
 		local f = 32 - u
-		local r = f - size
-		if r >= 0 then
+		local r = size - f
+		if r <= 0 then
+			-- Size fits within current unit.
 			self.buf[i] = bit32.replace(self.buf[i] or 0, v, u, size)
 		else
+			-- Size extends into next unit.
 			self.buf[i] = bit32.replace(self.buf[i] or 0, bit32.extract(v, 0, f), u, f)
-			self.buf[i+1] = bit32.replace(self.buf[i+1] or 0, bit32.extract(v, f, -r), 0, -r)
+			self.buf[i+1] = bit32.replace(self.buf[i+1] or 0, bit32.extract(v, f, r), 0, r)
 		end
 	end
 	self.i += size
