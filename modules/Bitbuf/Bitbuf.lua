@@ -487,7 +487,7 @@ end
 --@doc: WriteByte is shorthand for `Buffer:WriteUint(8, v)`.
 function Buffer.__index:WriteByte(v)
 	assert(type(v) == "number", "number expected")
-	self:writeUnit(8, 1)
+	self:writeUnit(8, v)
 end
 
 --@sec: Buffer.ReadByte
