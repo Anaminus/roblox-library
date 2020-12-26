@@ -9,17 +9,19 @@ Sync provides primitives for working with threads and events.
 Sync.allSignals(signals: ...Signal)
 ```
 
-allSignals blocks until all of the given signals have fired.
+allSignals returns a Signal that fires after all of the given signals
+have fired.
 
 Must not be used with signals that fire upon connecting (e.g. RemoteEvent).
 
 ## Sync.anySignal
 [Sync.anySignal]: #user-content-syncanysignal
 ```
-Sync.anySignal(signals: ...Signal)
+Sync.anySignal(signals: ...Signal): Signal
 ```
 
-anySignal blocks until any of the given signals have fired.
+anySignal returns a Signal that fires after any of the given signals
+have fired.
 
 Must not be used with signals that fire upon connecting (e.g. RemoteEvent).
 

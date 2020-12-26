@@ -41,14 +41,15 @@ Bits are written in little-endian.
 ## Buffer.Align
 [Buffer.Align]: #user-content-bufferalign
 ```
-function Buffer:Align(size: number, bit: boolean?)
+function Buffer:Align(size: number, write: boolean?)
 ```
 
 Align pads the buffer with bits until the position of the cursor is a
 multiple of *size*. Does nothing if *size* is less than or equal to 1.
 
-If *bit* is true, then the buffer is padded with zero bits. If *bit* is false
-or nil, then nothing is written, but the cursor is moved by *size* bits.
+If *write* is true, then the buffer is padded with zero bits. If *write* is
+false or nil, then nothing is written, but the cursor is moved by *size*
+bits.
 
 ## Buffer.Fits
 [Buffer.Fits]: #user-content-bufferfits
@@ -78,14 +79,15 @@ Len returns the length of the buffer in bits.
 ## Buffer.Pad
 [Buffer.Pad]: #user-content-bufferpad
 ```
-function Buffer:Pad(size: number, bit: boolean?)
+function Buffer:Pad(size: number, write: boolean?)
 ```
 
 Pad pads the buffer with *size* bits. Does nothing if *size* is less
 than or equal to zero.
 
-If *bit* is true, then the buffer is padded with zero bits. If *bit* is false
-or nil, then nothing is written, but the cursor is moved by *size* bits.
+If *write* is true, then the buffer is padded with zero bits. If *write* is
+false or nil, then nothing is written, but the cursor is moved by *size*
+bits.
 
 ## Buffer.ReadBool
 [Buffer.ReadBool]: #user-content-bufferreadbool
