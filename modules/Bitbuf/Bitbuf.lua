@@ -438,6 +438,7 @@ function Buffer.__index:WriteUint(size, v)
 		self:writeUnit(size, v)
 		return
 	end
+	v = v % 2^size
 	self:writeUnit(32, v)
 	self:writeUnit(size-32, math.floor(v/2^32))
 end
