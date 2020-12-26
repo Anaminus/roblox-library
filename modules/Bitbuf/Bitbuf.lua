@@ -388,7 +388,7 @@ local function fastReadBytes(self, size)
 	end
 
 	-- Read unit-aligned groups of 32 bits.
-	local c = math.floor((size-a)/4) --TODO: #v or size?
+	local c = math.floor((size-a)/4)
 	local n = bit32.rshift(self.i, 5) + 1
 	for j = 0, c-1 do
 		local x = self.buf[n+j]
