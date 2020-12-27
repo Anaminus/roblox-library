@@ -10,6 +10,9 @@
 --     {"_", size: number}
 --         Padding. *size* is the number of bits to pad with.
 --
+--     {"align", size: number}
+--         Pad until the buffer is aligned to *size* bits.
+--
 --     {"bool", size: number?}
 --         A boolean. *size* is the number of bits used to represent the value,
 --         defaulting to 1.
@@ -113,6 +116,17 @@ types["_"] = function(decode, encode, size)
 		end})
 		table.insert(encode, {RUN, function(buf)
 			buf:Pad(size, true)
+		end})
+	end
+end
+
+types["align"] = function(decode, encode, size)
+	if size and size > 0 then
+		table.insert(decode, {RUN, function(buf)
+			buf:Align(size)
+		end})
+		table.insert(encode, {RUN, function(buf)
+			buf:Align(size, true)
 		end})
 	end
 end

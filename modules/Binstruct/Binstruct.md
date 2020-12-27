@@ -47,6 +47,9 @@ structure of the table:
     {"_", size: number}
         Padding. *size* is the number of bits to pad with.
 
+    {"align", size: number}
+        Pad until the buffer is aligned to *size* bits.
+
     {"bool", size: number?}
         A boolean. *size* is the number of bits used to represent the value,
         defaulting to 1.
