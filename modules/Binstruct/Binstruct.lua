@@ -1,6 +1,38 @@
 --@sec: Binstruct
 --@ord: -1
 --@doc: Binstruct encodes and decodes binary structures.
+--
+-- Example:
+-- ```lua
+-- local vector3 = {"struct",
+-- 	{"X" , {"fixed", 4, 4}},
+-- 	{"Y" , {"fixed", 4, 4}},
+-- 	{"Z" , {"fixed", 4, 4}},
+-- }
+--
+-- local rotation = {"struct",
+-- 	{"X" , {"uint", 5}},
+-- 	{"Y" , {"uint", 5}},
+-- 	{"Z" , {"uint", 5}},
+-- 	{"_" , 1},
+-- }
+--
+-- local brick = {"struct",
+-- 	{"Position"     , vector3},
+-- 	{"Rotation"     , rotation},
+-- 	{"Size"         , vector3},
+-- 	{"Color"        , {"byte"}},
+-- 	{"Reflectance"  , {"uint", 4}},
+-- 	{"Transparency" , {"uint", 4}},
+-- 	{"CanCollide"   , {"bool"}},
+-- 	{"Shape"        , {"uint", 3}},
+-- 	{"_"            , {"_", 4}},
+-- 	{"Material"     , {"uint", 6}},
+-- 	{"_"            , {"_", 2}},
+-- }
+--
+-- local codec = Binstruct.new(brick)
+--```
 
 --@sec: TypeDef
 --@def: type TypeDef = {[1]: string, ...}
