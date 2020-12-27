@@ -89,3 +89,7 @@ structure of the table:
         struct. The first element of a field is the name, and the second element
         is a TypeDef.
 
+    {"array", size: number, type: TypeDef}
+        A list of unnamed fields. *size* indicates the constant size of the
+        array.
+

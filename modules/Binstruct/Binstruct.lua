@@ -51,6 +51,10 @@
 --         A set of named fields. Each element is a table indicating a field of the
 --         struct. The first element of a field is the name, and the second element
 --         is a TypeDef.
+--
+--     {"array", size: number, type: TypeDef}
+--         A list of unnamed fields. *size* indicates the constant size of the
+--         array.
 
 local Binstruct = {}
 
@@ -238,6 +242,21 @@ types["struct"] = function(decode, encode, ...)
 			if err ~= nil then
 				return string.format("field %q: %s", name, tostring(err))
 			end
+		end
+	end
+	table.insert(decode, {POP})
+	table.insert(encode, {POP})
+end
+
+types["array"] = function(decode, encode, size, typ)
+	table.insert(decode, {PSH, function() return {} end})
+	table.insert(encode, {PSH})
+	for i = 1, size do
+		table.insert(decode, {FLD, i})
+		table.insert(encode, {FLD, i})
+		local err = parseDef(typ, decode, encode)
+		if err ~= nil then
+			return string.format("array[%d]: %s", i, tostring(err))
 		end
 	end
 	table.insert(decode, {POP})
