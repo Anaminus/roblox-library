@@ -106,10 +106,10 @@ local POP = 3 -- t, k = pop()
 types["_"] = function(decode, encode, size)
 	if size and size > 0 then
 		table.insert(decode, {SET, function(buf)
-			buf:Pad(size, true)
-		end})
-		table.insert(encode, {SET, function(buf, v)
 			buf:Pad(size)
+		end})
+		table.insert(encode, {SET, function(buf)
+			buf:Pad(size, true)
 		end})
 	end
 end
