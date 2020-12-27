@@ -3,7 +3,7 @@
 --@doc: Binstruct encodes and decodes binary structures.
 
 --@sec: TypeDef
---@def: {[1]: string, ...}
+--@def: type TypeDef = {[1]: string, ...}
 --@doc: TypeDef is a table where the first element determines the remaining
 -- structure of the table:
 --
@@ -74,7 +74,7 @@ INSTRUCTIONS
 
 	Decoding
 		SET (function)
-			Sets TAB[KEY] the result of [1], which receives BUF.
+			Sets TAB[KEY] to the result of [1], which receives BUF.
 		PSH (function)
 			Sets TAB[KEY] to the result of [1], pushes (TAB, KEY) onto STK, then
 			sets TAB to the result of [1].

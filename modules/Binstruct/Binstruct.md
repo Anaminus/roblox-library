@@ -38,7 +38,7 @@ Encode encodes a value into a binary string according to the codec.
 # TypeDef
 [TypeDef]: #user-content-typedef
 ```
-{[1]: string, ...}
+type TypeDef = {[1]: string, ...}
 ```
 
 TypeDef is a table where the first element determines the remaining
