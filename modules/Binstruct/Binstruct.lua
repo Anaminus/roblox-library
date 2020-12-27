@@ -103,7 +103,7 @@ local PSH = 1 -- t[k] = v; push(t, k); t = t[k]
 local FLD = 2 -- k = v
 local POP = 3 -- t, k = pop()
 
-function types._(decode, encode, size)
+types["_"] = function(decode, encode, size)
 	if size and size > 0 then
 		table.insert(decode, {SET, function(buf)
 			buf:Pad(size, true)
@@ -114,7 +114,7 @@ function types._(decode, encode, size)
 	end
 end
 
-function types.bool(decode, encode, size)
+types["bool"] = function(decode, encode, size)
 	if size then
 		size -= 1
 	else
@@ -140,7 +140,7 @@ function types.bool(decode, encode, size)
 	end})
 end
 
-function types.uint(decode, encode, size)
+types["uint"] = function(decode, encode, size)
 	table.insert(decode, {SET, function(buf)
 		return buf:ReadUint(size)
 	end})
@@ -149,7 +149,7 @@ function types.uint(decode, encode, size)
 	end})
 end
 
-function types.int(decode, encode, size)
+types["int"] = function(decode, encode, size)
 	table.insert(decode, {SET, function(buf)
 		return buf:ReadInt(size)
 	end})
@@ -158,7 +158,7 @@ function types.int(decode, encode, size)
 	end})
 end
 
-function types.byte(decode, encode)
+types["byte"] = function(decode, encode)
 	table.insert(decode, {SET, function(buf)
 		return buf:ReadByte()
 	end})
@@ -167,7 +167,7 @@ function types.byte(decode, encode)
 	end})
 end
 
-function types.float(decode, encode, size)
+types["float"] = function(decode, encode, size)
 	size = size or 64
 	table.insert(decode, {SET, function(buf)
 		return buf:ReadFloat(size)
@@ -177,7 +177,7 @@ function types.float(decode, encode, size)
 	end})
 end
 
-function types.ufixed(decode, encode, i, f)
+types["ufixed"] = function(decode, encode, i, f)
 	table.insert(decode, {SET, function(buf)
 		return buf:ReadUfixed(i, f)
 	end})
@@ -186,7 +186,7 @@ function types.ufixed(decode, encode, i, f)
 	end})
 end
 
-function types.fixed(decode, encode, i, f)
+types["fixed"] = function(decode, encode, i, f)
 	table.insert(decode, {SET, function(buf)
 		return buf:ReadFixed(i, f)
 	end})
@@ -195,7 +195,7 @@ function types.fixed(decode, encode, i, f)
 	end})
 end
 
-function types.string(decode, encode, size)
+types["string"] = function(decode, encode, size)
 	table.insert(decode, {SET, function(buf)
 		local len = buf:ReadUint(size)
 		return buf:ReadBytes(len)
@@ -206,7 +206,7 @@ function types.string(decode, encode, size)
 	end})
 end
 
-function types.struct(decode, encode, ...)
+types["struct"] = function(decode, encode, ...)
 	table.insert(decode, {PSH, function() return {} end})
 	table.insert(encode, {PSH})
 	for _, field in ipairs({...}) do
