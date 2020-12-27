@@ -55,7 +55,7 @@ local Binstruct = {}
 
 A Codec is implemented as two lists of instructions, one each for decoding and
 encoding. Each data type is implemented as a function that appends instructions
-to the lists.
+to these lists.
 
 REGISTERS
 
@@ -86,6 +86,8 @@ INSTRUCTIONS
 			Sets TAB to TAB[KEY] and pushes (TAB, KEY) onto the stack.
 			PSH must be followed directly by FLD or POP.
 	Both
+		RUN (function)
+			Calls [1], which receives BUF.
 		FLD (string)
 			Sets KEY to [1].
 		POP ()
@@ -99,16 +101,17 @@ local types = {}
 local parseDef
 
 local SET = 0 -- t[k] = v
-local PSH = 1 -- t[k] = v; push(t, k); t = t[k]
-local FLD = 2 -- k = v
-local POP = 3 -- t, k = pop()
+local RUN = 1 -- v()
+local PSH = 2 -- t[k] = v; push(t, k); t = t[k]
+local FLD = 3 -- k = v
+local POP = 4 -- t, k = pop()
 
 types["_"] = function(decode, encode, size)
 	if size and size > 0 then
-		table.insert(decode, {SET, function(buf)
+		table.insert(decode, {RUN, function(buf)
 			buf:Pad(size)
 		end})
-		table.insert(encode, {SET, function(buf)
+		table.insert(encode, {RUN, function(buf)
 			buf:Pad(size, true)
 		end})
 	end
@@ -282,6 +285,8 @@ function Codec.__index:Decode(buffer)
 		local op = instruction[1]
 		if op == SET then
 			tab[key] = instruction[2](buf)
+		elseif op == RUN then
+			instruction[2](buf)
 		elseif op == PSH then
 			tab[key] = instruction[2](buf)
 			table.insert(tstack, tab)
@@ -314,6 +319,8 @@ function Codec.__index:Encode(data)
 		local op = instruction[1]
 		if op == SET then
 			instruction[2](buf, tab[key])
+		elseif op == RUN then
+			instruction[2](buf)
 		elseif op == PSH then
 			table.insert(tstack, tab)
 			table.insert(kstack, key)
