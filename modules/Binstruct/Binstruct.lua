@@ -70,20 +70,28 @@
 
 --@sec: TypeDef
 --@def: type TypeDef = {
+-- 	encode = Filter?,
+-- 	decode = Filter?,
 -- 	[1]: string,
 -- 	...,
 -- }
 --@doc: TypeDef is a table where the first element indicates a type that
--- determines the remaining structure of the table. The following types are
--- defined:
+-- determines the remaining structure of the table.
+--
+-- Additionally, the following optional named fields can be specified:
+-- - `encode`: A filter that transforms a value before encoding.
+-- - `decode`: A filter that transforms a value after decoding.
+--
+-- The following types are defined:
 --
 --     {"pad", number}
---         Padding. Does not read or write any value. The parameter is the
---         number of bits to pad with.
+--         Padding. Does not read or write any value (filters are ignored). The
+--         parameter is the number of bits to pad with.
 --
 --     {"align", number}
 --         Pad until the buffer is aligned to the number of bits indicated by
---         the parameter. Does not read or write any value.
+--         the parameter. Does not read or write any value (filters are
+--         ignored).
 --
 --     {"bool", number?}
 --         A boolean. The parameter is the number of bits used to represent the
@@ -131,6 +139,12 @@
 --         struct from which the size is determined. Evaluates to 0 if this
 --         field cannot be determined or is a non-number. The second parameter
 --         is the type of each element in the array.
+
+--@sec: Filter
+--@def: type Filter = (value: any?, params: ...any) -> any?
+--@doc: Filter applies to a TypeDef by transforming *value* before encoding, or
+-- after decoding. *params* are the parameters of the TypeDef. Should return the
+-- transformed *value*.
 
 local Binstruct = {}
 
@@ -192,6 +206,7 @@ Instructions.PUSH = {op=3,
 		R.TABLE = R.TABLE[R.KEY]
 	end,
 	function(R, fn)
+		fn(R.BUFFER, R.TABLE[R.KEY])
 		table.insert(R.STACK, copyFrame(R))
 		R.TABLE = R.TABLE[R.KEY]
 	end,
@@ -277,25 +292,33 @@ end
 
 local parseDef
 
-Types["pad"] = function(list, size)
+Types["pad"] = function(list, decode, encode, size)
 	if size and size > 0 then
 		append(list, "CALL",
-			function(buf) buf:Pad(size) end,
-			function(buf) buf:Pad(size, true) end
+			function(buf)
+				buf:Pad(size)
+			end,
+			function(buf)
+				buf:Pad(size, true)
+			end
 		)
 	end
 end
 
-Types["align"] = function(list, size)
+Types["align"] = function(list, decode, encode, size)
 	if size and size > 0 then
 		append(list, "CALL",
-			function(buf) buf:Align(size) end,
-			function(buf) buf:Align(size, true) end
+			function(buf)
+				buf:Align(size)
+			end,
+			function(buf)
+				buf:Align(size, true)
+			end
 		)
 	end
 end
 
-Types["bool"] = function(list, size)
+Types["bool"] = function(list, decode, encode, size)
 	if size then
 		size -= 1
 	else
@@ -303,70 +326,148 @@ Types["bool"] = function(list, size)
 	end
 	if size > 0 then
 		append(list, "SET",
-			function(buf) return buf:ReadBool() end,
-			function(buf, v) buf:WriteBool(v) end
+			function(buf)
+				local v = buf:ReadBool()
+				v = decode(v, size)
+				return v
+			end,
+			function(buf, v)
+				v = encode(v, size)
+				buf:WriteBool(v)
+			end
 		)
 		return
 	end
 	append(list, "SET",
-		function(buf) local v = buf:ReadBool(); buf:Pad(size); return v end,
-		function(buf, v) buf:WriteBool(v); buf:Pad(size, false) end
+		function(buf)
+			local v = buf:ReadBool()
+			v = decode(v, size)
+			buf:Pad(size)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, size)
+			buf:WriteBool(v)
+			buf:Pad(size, false)
+		end
 	)
 end
 
-Types["uint"] = function(list, size)
+Types["uint"] = function(list, decode, encode, size)
 	append(list, "SET",
-		function(buf) return buf:ReadUint(size) end,
-		function(buf, v) buf:WriteUint(size, v) end
+		function(buf)
+			local v = buf:ReadUint(size)
+			v = decode(v, size)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, size)
+			buf:WriteUint(size, v)
+		end
 	)
 end
 
-Types["int"] = function(list, size)
+Types["int"] = function(list, decode, encode, size)
 	append(list, "SET",
-		function(buf) return buf:ReadInt(size) end,
-		function(buf, v) buf:WriteInt(size, v) end
+		function(buf)
+			local v = buf:ReadInt(size)
+			v = decode(v, size)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, size)
+			buf:WriteInt(size, v)
+		end
 	)
 end
 
-Types["byte"] = function(list)
+Types["byte"] = function(list, decode, encode)
 	append(list, "SET",
-		function(buf) return buf:ReadByte() end,
-		function(buf, v) buf:WriteByte(v) end
+		function(buf)
+			local v = buf:ReadByte()
+			v = decode(v)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v)
+			buf:WriteByte(v)
+		end
 	)
 end
 
-Types["float"] = function(list, size)
+Types["float"] = function(list, decode, encode, size)
 	size = size or 64
 	append(list, "SET",
-		function(buf) return buf:ReadFloat(size) end,
-		function(buf, v) buf:WriteFloat(size, v) end
+		function(buf)
+			local v = buf:ReadFloat(size)
+			v = decode(v, size)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, size)
+			buf:WriteFloat(size, v)
+		end
 	)
 end
 
-Types["ufixed"] = function(list, i, f)
+Types["ufixed"] = function(list, decode, encode, i, f)
 	append(list, "SET",
-		function(buf) return buf:ReadUfixed(i, f) end,
-		function(buf, v) buf:WriteUfixed(i, f, v) end
+		function(buf)
+			local v = buf:ReadUfixed(i, f)
+			v = decode(v, i, f)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, i, f)
+			buf:WriteUfixed(i, f, v)
+		end
 	)
 end
 
-Types["fixed"] = function(list, i, f)
+Types["fixed"] = function(list, decode, encode, i, f)
 	append(list, "SET",
-		function(buf) return buf:ReadFixed(i, f) end,
-		function(buf, v) buf:WriteFixed(i, f, v) end
+		function(buf)
+			local v = buf:ReadFixed(i, f)
+			v = decode(v, i, f)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, i, f)
+			buf:WriteFixed(i, f, v)
+		end
 	)
 end
 
-Types["string"] = function(list, size)
+Types["string"] = function(list, decode, encode, size)
 	append(list, "SET",
-		function(buf) local len = buf:ReadUint(size); return buf:ReadBytes(len) end,
-		function(buf, v) buf:WriteUint(size, #v); buf:WriteBytes(v) end
+		function(buf)
+			local len = buf:ReadUint(size)
+			local v = buf:ReadBytes(len)
+			v = decode(v, size)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, size)
+			buf:WriteUint(size, #v)
+			buf:WriteBytes(v)
+		end
 	)
 end
 
-Types["struct"] = function(list, ...)
-	append(list, "PUSH", function() return {} end, nil)
-	for _, field in ipairs({...}) do
+Types["struct"] = function(list, decode, encode, ...)
+	local fields = table.pack(...)
+	append(list, "PUSH",
+		function(buf)
+			local v = {}
+			v = decode(v, table.unpack(fields, 1, fields.n))
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, table.unpack(fields, 1, fields.n))
+		end
+	)
+	for i = 1, fields.n do
+		local field = fields[i]
 		if type(field) == "table" then
 			local name = field[1]
 			if type(name) ~= "string" then
@@ -382,8 +483,17 @@ Types["struct"] = function(list, ...)
 	append(list, "POP", nil, nil)
 end
 
-Types["array"] = function(list, size, typ)
-	append(list, "PUSH", function() return {} end, nil)
+Types["array"] = function(list, decode, encode, size, typ)
+	append(list, "PUSH",
+		function(buf)
+			local v = {}
+			v = decode(v, size, typ)
+			return v
+		end,
+		function(buf, v)
+			v = encode(v, size, typ)
+		end
+	)
 	if type(size) == "number" then
 		append(list, "FORC", size, size)
 	else
@@ -413,6 +523,7 @@ for opcode, data in pairs(Instructions) do
 	opcodes[data.op] = opcode
 end
 
+local function nop(v) return v end
 function parseDef(def, list)
 	if type(def) ~= "table" then
 		return "table expected"
@@ -422,7 +533,15 @@ function parseDef(def, list)
 	if not t then
 		return string.format("unknown type %q", tostring(t))
 	end
-	return t(list, unpack(def, 2))
+	if def.decode ~= nil and type(def.decode) ~= "function" then
+		return "decode filter must be a function"
+	end
+	if def.encode ~= nil and type(def.encode) ~= "function" then
+		return "encode filter must be a function"
+	end
+	local decode = def.decode or nop
+	local encode = def.encode or nop
+	return t(list, decode, encode, unpack(def, 2))
 end
 
 --@sec: Codec

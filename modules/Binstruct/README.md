@@ -101,26 +101,44 @@ Codec:Encode(data: any): string
 
 Encode encodes a value into a binary string according to the codec.
 
+# Filter
+[Filter]: #user-content-filter
+```
+type Filter = (value: any?, params: ...any) -> any?
+```
+
+Filter applies to a TypeDef by transforming *value* before encoding, or
+after decoding. *params* are the parameters of the TypeDef. Should return the
+transformed *value*.
+
 # TypeDef
 [TypeDef]: #user-content-typedef
 ```
 type TypeDef = {
+	encode = Filter?,
+	decode = Filter?,
 	[1]: string,
 	...,
 }
 ```
 
 TypeDef is a table where the first element indicates a type that
-determines the remaining structure of the table. The following types are
-defined:
+determines the remaining structure of the table.
+
+Additionally, the following optional named fields can be specified:
+- `encode`: A filter that transforms a value before encoding.
+- `decode`: A filter that transforms a value after decoding.
+
+The following types are defined:
 
     {"pad", number}
-        Padding. Does not read or write any value. The parameter is the
-        number of bits to pad with.
+        Padding. Does not read or write any value (filters are ignored). The
+        parameter is the number of bits to pad with.
 
     {"align", number}
         Pad until the buffer is aligned to the number of bits indicated by
-        the parameter. Does not read or write any value.
+        the parameter. Does not read or write any value (filters are
+        ignored).
 
     {"bool", number?}
         A boolean. The parameter is the number of bits used to represent the
