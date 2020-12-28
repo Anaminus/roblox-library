@@ -681,7 +681,7 @@ function T.TestBuffer_Fits(t, require)
 	end)
 end
 
-function T.TestBuffer_Pad(t, require)
+function T.TestBuffer_WritePad(t, require)
 	local Bitbuf = require()
 
 	local suite = {
@@ -690,26 +690,8 @@ function T.TestBuffer_Pad(t, require)
 		ones = true,
 	}
 
-	t:Log("read")
 	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		buf:Pad(s)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("1", l) .. string.rep("0", explen-l)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-
-	t:Log("write")
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		buf:Pad(s, true)
+		buf:WritePad(s)
 
 		local expi = i + s
 		local explen = math.max(expi, l)
@@ -725,7 +707,7 @@ function T.TestBuffer_Pad(t, require)
 	end)
 end
 
-function T.TestBuffer_Align(t, require)
+function T.TestBuffer_ReadPad(t, require)
 	local Bitbuf = require()
 
 	local suite = {
@@ -734,11 +716,10 @@ function T.TestBuffer_Align(t, require)
 		ones = true,
 	}
 
-	t:Log("read")
 	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		buf:Align(s)
+		buf:ReadPad(s)
 
-		local expi = s == 0 and i or math.ceil(i/s)*s
+		local expi = i + s
 		local explen = math.max(expi, l)
 		if buf:Len() ~= explen then
 			return "expected length %d, got %d", explen, buf:Len()
@@ -750,10 +731,19 @@ function T.TestBuffer_Align(t, require)
 		local got = explodeBuf(buf)
 		return compare(want, got)
 	end)
+end
 
-	t:Log("write")
+function T.TestBuffer_WriteAlign(t, require)
+	local Bitbuf = require()
+
+	local suite = {
+		lengths = unitSuite.lengths,
+		sizes = unitSuite.sizes,
+		ones = true,
+	}
+
 	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		buf:Align(s, true)
+		buf:WriteAlign(s)
 
 		local expi = s == 0 and i or math.ceil(i/s)*s
 		local explen = math.max(expi, l)
@@ -764,6 +754,32 @@ function T.TestBuffer_Align(t, require)
 			return "expected index %d, got %d", expi, buf:Index()
 		end
 		local want = string.rep("1", i) .. string.rep("0", expi-i) .. string.rep("1", l-i-(expi-i))
+		local got = explodeBuf(buf)
+		return compare(want, got)
+	end)
+end
+
+function T.TestBuffer_ReadAlign(t, require)
+	local Bitbuf = require()
+
+	local suite = {
+		lengths = unitSuite.lengths,
+		sizes = unitSuite.sizes,
+		ones = true,
+	}
+
+	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
+		buf:ReadAlign(s)
+
+		local expi = s == 0 and i or math.ceil(i/s)*s
+		local explen = math.max(expi, l)
+		if buf:Len() ~= explen then
+			return "expected length %d, got %d", explen, buf:Len()
+		end
+		if buf:Index() ~= expi then
+			return "expected index %d, got %d", expi, buf:Index()
+		end
+		local want = string.rep("1", l) .. string.rep("0", explen-l)
 		local got = explodeBuf(buf)
 		return compare(want, got)
 	end)

@@ -261,51 +261,69 @@ function Buffer.__index:Fits(size)
 	return size <= self.len - self.i
 end
 
-local function pad(self, size, write)
-	if not write then
-		self.i += size
-		if self.i > self.len then
-			self.len = self.i
-		end
-		return
+local function readPad(self, size)
+	self.i += size
+	if self.i > self.len then
+		self.len = self.i
 	end
+end
+
+local function writePad(self, size)
 	for i = 1, math.floor(size/32) do
 		self:writeUnit(32, 0)
 	end
 	self:writeUnit(size%32, 0)
 end
 
---@sec: Buffer.Pad
---@def: function Buffer:Pad(size: number, write: boolean?)
---@doc: Pad pads the buffer with *size* bits. Does nothing if *size* is less
--- than or equal to zero.
---
--- If *write* is true, then the buffer is padded with zero bits. If *write* is
--- false or nil, then nothing is written, but the cursor is moved by *size*
--- bits.
-function Buffer.__index:Pad(size, write)
+--@sec: Buffer.WritePad
+--@def: function Buffer:WritePad(size: number)
+--@doc: WritePad pads the buffer with *size* zero bits. Does nothing if *size*
+-- is less than or equal to zero.
+function Buffer.__index:WritePad(size)
 	assert(type(size) == "number", "number expected")
 	if size <= 0 then
 		return
 	end
-	pad(self, size, write)
+	writePad(self, size)
 end
 
---@sec: Buffer.Align
---@def: function Buffer:Align(size: number, write: boolean?)
---@doc: Align pads the buffer with bits until the position of the cursor is a
--- multiple of *size*. Does nothing if *size* is less than or equal to 1.
---
--- If *write* is true, then the buffer is padded with zero bits. If *write* is
--- false or nil, then nothing is written, but the cursor is moved by *size*
--- bits.
-function Buffer.__index:Align(size, write)
+--@sec: Buffer.ReadPad
+--@def: function Buffer:ReadPad(size: number)
+--@doc: ReadPad moves the cursor by *size* bits without writing any data. Does
+-- nothing if *size* is less than or equal to zero.
+function Buffer.__index:ReadPad(size)
+	assert(type(size) == "number", "number expected")
+	if size <= 0 then
+		return
+	end
+	readPad(self, size)
+end
+
+--@sec: Buffer.WriteAlign
+--@def: function Buffer:WriteAlign(size: number)
+--@doc: WriteAlign pads the buffer with zero bits until the position of the
+-- cursor is a multiple of *size*. Does nothing if *size* is less than or equal
+-- to 1.
+function Buffer.__index:WriteAlign(size)
 	assert(type(size) == "number", "number expected")
 	if size <= 1 or self.i%size == 0 then
 		return
 	end
 	size = math.floor(math.ceil(self.i/size)*size - self.i)
-	pad(self, size, write)
+	writePad(self, size)
+end
+
+--@sec: Buffer.ReadAlign
+--@def: function Buffer:ReadAlign(size: number)
+--@doc: ReadAlign moves the cursor until its position is a multiple of *size*
+-- without writing any data. Does nothing if *size* is less than or equal to 1.
+function Buffer.__index:ReadAlign(size)
+	assert(type(size) == "number", "number expected")
+	if size <= 1 or self.i%size == 0 then
+		return
+	end
+	size = math.floor(math.ceil(self.i/size)*size - self.i)
+	readPad(self, size)
 end
 
 --@sec: Buffer.Reset

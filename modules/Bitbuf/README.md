@@ -38,19 +38,6 @@ buffer. Bits read past the length of the buffer are returned as zeros.
 
 Bits are written in little-endian.
 
-## Buffer.Align
-[Buffer.Align]: #user-content-bufferalign
-```
-function Buffer:Align(size: number, write: boolean?)
-```
-
-Align pads the buffer with bits until the position of the cursor is a
-multiple of *size*. Does nothing if *size* is less than or equal to 1.
-
-If *write* is true, then the buffer is padded with zero bits. If *write* is
-false or nil, then nothing is written, but the cursor is moved by *size*
-bits.
-
 ## Buffer.Fits
 [Buffer.Fits]: #user-content-bufferfits
 ```
@@ -76,18 +63,14 @@ function Buffer:Len(): number
 
 Len returns the length of the buffer in bits.
 
-## Buffer.Pad
-[Buffer.Pad]: #user-content-bufferpad
+## Buffer.ReadAlign
+[Buffer.ReadAlign]: #user-content-bufferreadalign
 ```
-function Buffer:Pad(size: number, write: boolean?)
+function Buffer:ReadAlign(size: number)
 ```
 
-Pad pads the buffer with *size* bits. Does nothing if *size* is less
-than or equal to zero.
-
-If *write* is true, then the buffer is padded with zero bits. If *write* is
-false or nil, then nothing is written, but the cursor is moved by *size*
-bits.
+ReadAlign moves the cursor until its position is a multiple of *size*
+without writing any data. Does nothing if *size* is less than or equal to 1.
 
 ## Buffer.ReadBool
 [Buffer.ReadBool]: #user-content-bufferreadbool
@@ -145,6 +128,15 @@ function Buffer:ReadInt(size: number): (v: number)
 ReadInt reads *size* bits as a signed integer. *size* must be an integer
 between 0 and 53.
 
+## Buffer.ReadPad
+[Buffer.ReadPad]: #user-content-bufferreadpad
+```
+function Buffer:ReadPad(size: number)
+```
+
+ReadPad moves the cursor by *size* bits without writing any data. Does
+nothing if *size* is less than or equal to zero.
+
 ## Buffer.ReadUfixed
 [Buffer.ReadUfixed]: #user-content-bufferreadufixed
 ```
@@ -200,6 +192,16 @@ function Buffer:String(): string
 String converts the content of the buffer to a string. If the length is
 not a multiple of 8, then the result will be padded with zeros until it is.
 
+## Buffer.WriteAlign
+[Buffer.WriteAlign]: #user-content-bufferwritealign
+```
+function Buffer:WriteAlign(size: number)
+```
+
+WriteAlign pads the buffer with zero bits until the position of the
+cursor is a multiple of *size*. Does nothing if *size* is less than or equal
+to 1.
+
 ## Buffer.WriteBool
 [Buffer.WriteBool]: #user-content-bufferwritebool
 ```
@@ -254,6 +256,15 @@ function Buffer:WriteInt(size: number, v: number)
 
 WriteInt writes *v* as a signed integer of *size* bits. *size* must be
 an integer between 0 and 53.
+
+## Buffer.WritePad
+[Buffer.WritePad]: #user-content-bufferwritepad
+```
+function Buffer:WritePad(size: number)
+```
+
+WritePad pads the buffer with *size* zero bits. Does nothing if *size*
+is less than or equal to zero.
 
 ## Buffer.WriteUfixed
 [Buffer.WriteUfixed]: #user-content-bufferwriteufixed
