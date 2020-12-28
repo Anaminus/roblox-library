@@ -27,10 +27,10 @@
 --
 -- 	{"CanCollide" , {"bool"}},
 -- 	{"Shape"      , {"uint", 3}},
--- 	{"_"          , {"_", 4}},
+-- 	{"_"          , {"pad", 4}},
 --
 -- 	{"Material" , {"uint", 6}},
--- 	{"_"        , {"_", 2}},
+-- 	{"_"        , {"pad", 2}},
 -- }
 --
 -- local codec = Binstruct.new(brick)
@@ -41,7 +41,7 @@
 --@doc: TypeDef is a table where the first element determines the remaining
 -- structure of the table:
 --
---     {"_", size: number}
+--     {"pad", size: number}
 --         Padding. *size* is the number of bits to pad with.
 --
 --     {"align", size: number}
@@ -238,7 +238,7 @@ end
 
 local parseDef
 
-Types["_"] = function(list, size)
+Types["pad"] = function(list, size)
 	if size and size > 0 then
 		append(list, "CALL",
 			function(buf) buf:Pad(size) end,
