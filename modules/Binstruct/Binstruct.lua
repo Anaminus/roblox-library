@@ -4,35 +4,37 @@
 --
 -- Example:
 -- ```lua
+-- local float = {"float", 32}
+--
 -- local vector3 = {"struct",
--- 	{"X" , {"fixed", 4, 4}},
--- 	{"Y" , {"fixed", 4, 4}},
--- 	{"Z" , {"fixed", 4, 4}},
+-- 	{"X" , float},
+-- 	{"Y" , float},
+-- 	{"Z" , float},
 -- }
 --
--- local rotation = {"struct",
--- 	{"X" , {"uint", 5}},
--- 	{"Y" , {"uint", 5}},
--- 	{"Z" , {"uint", 5}},
--- 	{"_" , 1},
+-- local cframe = {"struct",
+-- 	{"Position" , vector3},
+-- 	{"Rotation" , {"array", 9, float}},
 -- }
 --
 -- local brick = {"struct",
--- 	{"Position"     , vector3},
--- 	{"Rotation"     , rotation},
--- 	{"Size"         , vector3},
--- 	{"Color"        , {"byte"}},
+-- 	{"CFrame" , cframe},
+-- 	{"Size"   , vector3},
+-- 	{"Color"  , {"byte"}},
+--
 -- 	{"Reflectance"  , {"uint", 4}},
 -- 	{"Transparency" , {"uint", 4}},
--- 	{"CanCollide"   , {"bool"}},
--- 	{"Shape"        , {"uint", 3}},
--- 	{"_"            , {"_", 4}},
--- 	{"Material"     , {"uint", 6}},
--- 	{"_"            , {"_", 2}},
+--
+-- 	{"CanCollide" , {"bool"}},
+-- 	{"Shape"      , {"uint", 3}},
+-- 	{"_"          , {"_", 4}},
+--
+-- 	{"Material" , {"uint", 6}},
+-- 	{"_"        , {"_", 2}},
 -- }
 --
 -- local codec = Binstruct.new(brick)
---```
+-- ```
 
 --@sec: TypeDef
 --@def: type TypeDef = {[1]: string, ...}
