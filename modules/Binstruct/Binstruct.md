@@ -121,7 +121,10 @@ structure of the table:
         struct. The first element of a field is the name, and the second element
         is a TypeDef.
 
-    {"array", size: number, type: TypeDef}
-        A list of unnamed fields. *size* indicates the constant size of the
-        array.
+    {"array", size: number|string, type: TypeDef}
+        A list of unnamed fields. *size* indicates the size of the array. If
+        *size* is a number, this indicates a constant size. If *size* is a
+        string, it indicates the name of a field in the parent struct from
+        which the size is determined. Evaluates to 0 if the field cannot be
+        determined or is a non-number.
 

@@ -84,230 +84,304 @@
 --         struct. The first element of a field is the name, and the second element
 --         is a TypeDef.
 --
---     {"array", size: number, type: TypeDef}
---         A list of unnamed fields. *size* indicates the constant size of the
---         array.
+--     {"array", size: number|string, type: TypeDef}
+--         A list of unnamed fields. *size* indicates the size of the array. If
+--         *size* is a number, this indicates a constant size. If *size* is a
+--         string, it indicates the name of a field in the parent struct from
+--         which the size is determined. Evaluates to 0 if the field cannot be
+--         determined or is a non-number.
 
 local Binstruct = {}
 
---[[
-
-A Codec is implemented as two lists of instructions, one each for decoding and
-encoding. Each data type is implemented as a function that appends instructions
-to these lists.
-
-REGISTERS
-
-	Registers hold the state when encoding or decoding, and are modified by
-	instructions.
-
-	TAB : The current table.
-	KEY : A key indicating a field in TAB.
-	STK : A stack that stores tuples of TAB and KEY.
-	BUF : A Bitbuf.Buffer to which data is encoded and decoded.
-
-INSTRUCTIONS
-
-	An instruction consists of an op code followed by some number of values. The
-	behavior of some instructions are different when encoding versus decoding.
-
-	Decoding
-		SET (function)
-			Sets TAB[KEY] to the result of [1], which receives BUF.
-		PSH (function)
-			Sets TAB[KEY] to the result of [1], pushes (TAB, KEY) onto STK, then
-			sets TAB to the result of [1].
-			PSH must be followed directly by FLD or POP.
-	Encoding
-		SET (function)
-			Calls [1], which receives BUF and TAB[KEY].
-		PSH ()
-			Sets TAB to TAB[KEY] and pushes (TAB, KEY) onto the stack.
-			PSH must be followed directly by FLD or POP.
-	Both
-		RUN (function)
-			Calls [1], which receives BUF.
-		FLD (string)
-			Sets KEY to [1].
-		POP ()
-			Pops from STK to set TAB and KEY.
-
-]]
-
 local Bitbuf = require(script.Parent.Bitbuf)
 
-local types = {}
+-- Registers that should be copied into a stack frame.
+local frameRegisters = {
+	TABLE = true,
+	KEY   = true,
+	N     = true,
+	JA    = true,
+}
+
+-- Copies registers in *from* to *to*, or a new frame if *to* is unspecified.
+-- Returns *to*.
+local function copyFrame(from, to)
+	to = to or {}
+	for k, v in pairs(from) do
+		if frameRegisters[k] then
+			to[k] = v
+		end
+	end
+	return to
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Set of instructions. Each key is an opcode. Each value is a table, where the
+-- "op" field indicates the value of the instruction op. Numeric indices are the
+-- columns of the instruction. Each column is a function that receives
+-- registers, followed by an instruction parameter. If a column is `true`
+-- instead, then it is assigned the value of the previous column.
+local Instructions = {}
+
+-- Get or set TABLE[KEY] from BUFFER.
+Instructions.SET = {op=1,
+	function(R, fn)
+		R.TABLE[R.KEY] = fn(R.BUFFER)
+	end,
+	function(R, fn)
+		fn(R.BUFFER, R.TABLE[R.KEY])
+	end,
+}
+
+-- Call the parameter with BUFFER.
+Instructions.CALL = {op=2,
+	function(R, fn)
+		fn(R.BUFFER)
+	end,
+	true,
+}
+
+-- Scope into a structural value. Must not be followed by an instruction that
+-- reads KEY.
+Instructions.PUSH = {op=3,
+	function(R, fn)
+		R.TABLE[R.KEY] = fn(R.BUFFER)
+		table.insert(R.STACK, copyFrame(R))
+		R.TABLE = R.TABLE[R.KEY]
+	end,
+	function(R, fn)
+		table.insert(R.STACK, copyFrame(R))
+		R.TABLE = R.TABLE[R.KEY]
+	end,
+}
+
+-- Set KEY to the parameter.
+Instructions.FIELD = {op=4,
+	function(R, v)
+		R.KEY = v
+	end,
+	true,
+}
+
+-- Scope out of a structural value.
+Instructions.POP = {op=5,
+	function(R, fn)
+		local frame = table.remove(R.STACK)
+		copyFrame(frame, R)
+	end,
+	true,
+}
+
+-- Initialize a loop with a constant terminator.
+Instructions.FORC = {op=6,
+	function(R, c)
+		R.JA = R.PC
+		R.KEY = 1
+		R.N = c
+	end,
+	true,
+}
+
+-- Initialize a loop with a dynamic terminator, determined by a field in the
+-- parent structure.
+Instructions.FORF = {op=7,
+	function(R, f)
+		R.JA = R.PC
+		R.KEY = 1
+		local top = R.STACK[#R.STACK]
+		if not top then
+			R.N = 0
+			return
+		end
+		local parent = top.TABLE
+		if not parent then
+			R.N = 0
+			return
+		end
+		local v = parent[f]
+		if type(v) ~= "number" then
+			R.N = 0
+			return
+		end
+		R.N = v
+	end,
+	true,
+}
+
+-- Jump to loop start if KEY is less than N.
+Instructions.JMPN = {op=8,
+	function(R, fn)
+		if R.KEY < R.N then
+			R.KEY += 1
+			R.PC = R.JA
+		end
+	end,
+	true,
+}
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Set of value types. Each key is a type name. Each value is a function that
+-- receives an instruction list, followed by TypeDef parameters. The `append`
+-- function should be used to append instructions to the list.
+local Types = {}
+
+-- Appends to *list* the instruction corresponding to *opcode*. Each remaining
+-- argument corresponds to an argument to be passed to the corresponding
+-- instruction column.
+local function append(list, opcode, ...)
+	table.insert(list, {op = Instructions[opcode].op, n = select("#", ...), ...})
+end
+
 local parseDef
 
-local SET = 0 -- t[k] = v
-local RUN = 1 -- v()
-local PSH = 2 -- t[k] = v; push(t, k); t = t[k]
-local FLD = 3 -- k = v
-local POP = 4 -- t, k = pop()
-
-types["_"] = function(decode, encode, size)
+Types["_"] = function(list, size)
 	if size and size > 0 then
-		table.insert(decode, {RUN, function(buf)
-			buf:Pad(size)
-		end})
-		table.insert(encode, {RUN, function(buf)
-			buf:Pad(size, true)
-		end})
+		append(list, "CALL",
+			function(buf) buf:Pad(size) end,
+			function(buf) buf:Pad(size, true) end
+		)
 	end
 end
 
-types["align"] = function(decode, encode, size)
+Types["align"] = function(list, size)
 	if size and size > 0 then
-		table.insert(decode, {RUN, function(buf)
-			buf:Align(size)
-		end})
-		table.insert(encode, {RUN, function(buf)
-			buf:Align(size, true)
-		end})
+		append(list, "CALL",
+			function(buf) buf:Align(size) end,
+			function(buf) buf:Align(size, true) end
+		)
 	end
 end
 
-types["bool"] = function(decode, encode, size)
+Types["bool"] = function(list, size)
 	if size then
 		size -= 1
 	else
 		size = 0
 	end
 	if size > 0 then
-		table.insert(decode, {SET, function(buf)
-			return buf:ReadBool()
-		end})
-		table.insert(encode, {SET, function(buf, v)
-			buf:WriteBool(v)
-		end})
+		append(list, "SET",
+			function(buf) return buf:ReadBool() end,
+			function(buf, v) buf:WriteBool(v) end
+		)
 		return
 	end
-	table.insert(decode, {SET, function(buf)
-		local v = buf:ReadBool()
-		buf:Pad(size)
-		return v
-	end})
-	table.insert(encode, {SET, function(buf, v)
-		buf:WriteBool(v)
-		buf:Pad(size, false)
-	end})
+	append(list, "SET",
+		function(buf) local v = buf:ReadBool(); buf:Pad(size); return v end,
+		function(buf, v) buf:WriteBool(v); buf:Pad(size, false) end
+	)
 end
 
-types["uint"] = function(decode, encode, size)
-	table.insert(decode, {SET, function(buf)
-		return buf:ReadUint(size)
-	end})
-	table.insert(encode, {SET, function(buf, v)
-		buf:WriteUint(size, v)
-	end})
+Types["uint"] = function(list, size)
+	append(list, "SET",
+		function(buf) return buf:ReadUint(size) end,
+		function(buf, v) buf:WriteUint(size, v) end
+	)
 end
 
-types["int"] = function(decode, encode, size)
-	table.insert(decode, {SET, function(buf)
-		return buf:ReadInt(size)
-	end})
-	table.insert(encode, {SET, function(buf, v)
-		buf:WriteInt(size, v)
-	end})
+Types["int"] = function(list, size)
+	append(list, "SET",
+		function(buf) return buf:ReadInt(size) end,
+		function(buf, v) buf:WriteInt(size, v) end
+	)
 end
 
-types["byte"] = function(decode, encode)
-	table.insert(decode, {SET, function(buf)
-		return buf:ReadByte()
-	end})
-	table.insert(encode, {SET, function(buf, v)
-		buf:WriteByte(v)
-	end})
+Types["byte"] = function(list)
+	append(list, "SET",
+		function(buf) return buf:ReadByte() end,
+		function(buf, v) buf:WriteByte(v) end
+	)
 end
 
-types["float"] = function(decode, encode, size)
+Types["float"] = function(list, size)
 	size = size or 64
-	table.insert(decode, {SET, function(buf)
-		return buf:ReadFloat(size)
-	end})
-	table.insert(encode, {SET, function(buf, v)
-		buf:WriteFloat(size, v)
-	end})
+	append(list, "SET",
+		function(buf) return buf:ReadFloat(size) end,
+		function(buf, v) buf:WriteFloat(size, v) end
+	)
 end
 
-types["ufixed"] = function(decode, encode, i, f)
-	table.insert(decode, {SET, function(buf)
-		return buf:ReadUfixed(i, f)
-	end})
-	table.insert(encode, {SET, function(buf, v)
-		buf:WriteUfixed(i, f, v)
-	end})
+Types["ufixed"] = function(list, i, f)
+	append(list, "SET",
+		function(buf) return buf:ReadUfixed(i, f) end,
+		function(buf, v) buf:WriteUfixed(i, f, v) end
+	)
 end
 
-types["fixed"] = function(decode, encode, i, f)
-	table.insert(decode, {SET, function(buf)
-		return buf:ReadFixed(i, f)
-	end})
-	table.insert(encode, {SET, function(buf, v)
-		buf:WriteFixed(i, f, v)
-	end})
+Types["fixed"] = function(list, i, f)
+	append(list, "SET",
+		function(buf) return buf:ReadFixed(i, f) end,
+		function(buf, v) buf:WriteFixed(i, f, v) end
+	)
 end
 
-types["string"] = function(decode, encode, size)
-	table.insert(decode, {SET, function(buf)
-		local len = buf:ReadUint(size)
-		return buf:ReadBytes(len)
-	end})
-	table.insert(encode, {SET, function(buf, v)
-		buf:WriteUint(size, #v)
-		buf:WriteBytes(v)
-	end})
+Types["string"] = function(list, size)
+	append(list, "SET",
+		function(buf) local len = buf:ReadUint(size); return buf:ReadBytes(len) end,
+		function(buf, v) buf:WriteUint(size, #v); buf:WriteBytes(v) end
+	)
 end
 
-types["struct"] = function(decode, encode, ...)
-	table.insert(decode, {PSH, function() return {} end})
-	table.insert(encode, {PSH})
+Types["struct"] = function(list, ...)
+	append(list, "PUSH", function() return {} end, nil)
 	for _, field in ipairs({...}) do
 		if type(field) == "table" then
 			local name = field[1]
 			if type(name) ~= "string" then
 				return "first element of field must be a string"
 			end
-			table.insert(decode, {FLD, name})
-			table.insert(encode, {FLD, name})
-			local err = parseDef(field[2], decode, encode)
+			append(list, "FIELD", name, name)
+			local err = parseDef(field[2], list)
 			if err ~= nil then
 				return string.format("field %q: %s", name, tostring(err))
 			end
 		end
 	end
-	table.insert(decode, {POP})
-	table.insert(encode, {POP})
+	append(list, "POP", nil, nil)
 end
 
-types["array"] = function(decode, encode, size, typ)
-	table.insert(decode, {PSH, function() return {} end})
-	table.insert(encode, {PSH})
-	for i = 1, size do
-		table.insert(decode, {FLD, i})
-		table.insert(encode, {FLD, i})
-		local err = parseDef(typ, decode, encode)
-		if err ~= nil then
-			return string.format("array[%d]: %s", i, tostring(err))
+Types["array"] = function(list, size, typ)
+	append(list, "PUSH", function() return {} end, nil)
+	if type(size) == "number" then
+		append(list, "FORC", size, size)
+	else
+		append(list, "FORF", size, size)
+	end
+	local err = parseDef(typ, list)
+	if err ~= nil then
+		return string.format("array[%s]: %s", tostring(size), tostring(err))
+	end
+	append(list, "JMPN", nil, nil)
+	append(list, "POP", nil, nil)
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+local instructions = {}
+local opcodes = {}
+for opcode, data in pairs(Instructions) do
+	for i, k in ipairs(data) do
+		if k == true then
+			-- Copy previous entry.
+			data[i] = data[i-1]
 		end
 	end
-	table.insert(decode, {POP})
-	table.insert(encode, {POP})
+	instructions[data.op] = data
+	opcodes[data.op] = opcode
 end
 
-function parseDef(def, decode, encode)
+function parseDef(def, list)
 	if type(def) ~= "table" then
 		return "table expected"
 	end
 	local name = def[1]
-	if type(name) ~= "string" then
-		return "first element must be a string"
-	end
-	local t = types[name]
+	local t = Types[name]
 	if not t then
 		return string.format("unknown type %q", tostring(t))
 	end
-	return t(decode, encode, unpack(def, 2))
+	return t(list, unpack(def, 2))
 end
 
 --@sec: Codec
@@ -319,19 +393,45 @@ local Codec = {__index={}}
 --@def: Binstruct.new(def: TypeDef): Codec
 --@doc: new constructs a Codec from the given definition.
 function Binstruct.new(def)
-	local decode = {}
-	local encode = {}
-	local err = parseDef(def, decode, encode)
+	local list = {}
+	local err = parseDef(def, list)
 	if err ~= nil then
 		return err, nil
 	end
+	local self = {list = list}
+	return nil, setmetatable(self, Codec)
+end
 
-	local self = {
-		decode = decode,
-		encode = encode,
+-- Executes the instructions in *list*. *k* selects the instruction argument
+-- column. *buffer* is the bit buffer to use. *data* is the data on which to
+-- operate.
+local function execute(list, k, buffer, data)
+	local PN = #list
+
+	-- Registers.
+	local R = {
+		PC = 1,          -- Program counter.
+		BUFFER = buffer, -- Bit buffer.
+		STACK = {},      -- Stores frames.
+		TABLE = {data},  -- The working table.
+		KEY = 1,         -- A key pointing to a field in TABLE.
+		N = 0,           -- Maximum counter value.
+		JA = 0,          -- Jump address.
 	}
 
-	return nil, setmetatable(self, Codec)
+	while R.PC <= PN do
+		local inst = list[R.PC]
+		local op = inst.op
+		local exec = instructions[op]
+		if not exec then
+			R.PC += 1
+			continue
+		end
+		exec[k](R, inst[k])
+		R.PC += 1
+	end
+
+	return R.TABLE[R.KEY]
 end
 
 --@sec: Codec.Decode
@@ -339,33 +439,7 @@ end
 --@doc: Decode decodes a binary string into a value according to the codec.
 function Codec.__index:Decode(buffer)
 	local buf = Bitbuf.fromString(buffer)
-
-	local tstack = {}
-	local kstack = {}
-
-	local tab = {nil}
-	local key = 1
-
-	for _, instruction in ipairs(self.decode) do
-		local op = instruction[1]
-		if op == SET then
-			tab[key] = instruction[2](buf)
-		elseif op == RUN then
-			instruction[2](buf)
-		elseif op == PSH then
-			tab[key] = instruction[2](buf)
-			table.insert(tstack, tab)
-			table.insert(kstack, key)
-			tab = tab[key]
-		elseif op == FLD then
-			key = instruction[2]
-		elseif op == POP then
-			tab = table.remove(tstack)
-			key = table.remove(kstack)
-		end
-	end
-
-	return tab[key]
+	return execute(self.list, 1, buf, nil)
 end
 
 --@sec: Codec.Encode
@@ -373,32 +447,51 @@ end
 --@doc: Encode encodes a value into a binary string according to the codec.
 function Codec.__index:Encode(data)
 	local buf = Bitbuf.new()
-
-	local tstack = {}
-	local kstack = {}
-
-	local tab = {data}
-	local key = 1
-
-	for _, instruction in ipairs(self.encode) do
-		local op = instruction[1]
-		if op == SET then
-			instruction[2](buf, tab[key])
-		elseif op == RUN then
-			instruction[2](buf)
-		elseif op == PSH then
-			table.insert(tstack, tab)
-			table.insert(kstack, key)
-			tab = tab[key]
-		elseif op == FLD then
-			key = instruction[2]
-		elseif op == POP then
-			tab = table.remove(tstack)
-			key = table.remove(kstack)
-		end
-	end
-
+	execute(self.list, 2, buf, data)
 	return buf:String()
+end
+
+local function formatArg(arg)
+	if arg == nil then
+		return "nil"
+	elseif type(arg) == "function" then
+		return "<f>"
+	elseif type(arg) == "string" then
+		return string.format("%q", arg)
+	end
+	return tostring(arg)
+end
+
+-- Prints a human-readable representation of the instructions of the codec.
+function Codec.__index:Dump()
+	local s = {}
+	local width = {}
+	for addr, inst in ipairs(self.list) do
+		local opcode = opcodes[inst.op]
+		local args = table.create(inst.n)
+		for i = 1, inst.n do
+			args[i] = formatArg(inst[i])
+			if #args[i] > (width[i] or 0) then
+				width[i] = #args[i]
+			end
+		end
+		if #opcode > (width[0] or 0) then
+			width[0] = #opcode
+		end
+		table.insert(s, {addr, opcode, args})
+	end
+	local fmt = "%0" .. math.ceil(math.log(#self.list+1, 16)) .. "X: %-" .. width[0] .. "s ( "
+	for i, w in ipairs(width) do
+		if i > 1 then
+			fmt = fmt .. " | "
+		end
+		fmt = fmt .. "%-" .. w .. "s"
+	end
+	fmt = fmt .. " )"
+	for i, v in ipairs(s) do
+		s[i] = string.format(fmt, v[1], v[2], unpack(v[3]))
+	end
+	return table.concat(s, "\n")
 end
 
 return Binstruct
