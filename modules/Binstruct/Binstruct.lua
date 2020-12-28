@@ -79,8 +79,16 @@
 -- determines the remaining structure of the table.
 --
 -- Additionally, the following optional named fields can be specified:
--- - `encode`: A filter that transforms a value before encoding.
--- - `decode`: A filter that transforms a value after decoding.
+-- - `encode`: A filter that transforms a structural value before encoding.
+-- - `decode`: A filter that transforms a structural value after decoding.
+--
+-- Within a decode filter, only the top-level value is structural; components of
+-- the value will have already been transformed (if defined to do so). Likewise,
+-- an encode filter should return a value that itself is structural, but
+-- contains transformed components as expected by the component's type
+-- definition. Each component's definition will eventually transform the
+-- component itself, so the outer definition must avoid making transformations
+-- on the component.
 --
 -- When a type encodes the value `nil`, the zero-value for the type is used.
 --
@@ -234,13 +242,13 @@ Instructions.CALL = {op=2,
 -- reads KEY.
 Instructions.PUSH = {op=3,
 	function(R, fn)
-		-- *fn* must return a structral value to scope into.
+		-- *fn* must return a structural value to scope into.
 		local v = fn(R.BUFFER)
 		table.insert(R.STACK, copyFrame(R))
 		R.TABLE = v
 	end,
 	function(R, fn)
-		-- *fn* must return a structral value to scope into.
+		-- *fn* must return a structural value to scope into.
 		local v = R.TABLE[R.KEY]
 		v = fn(R.BUFFER, v)
 		table.insert(R.STACK, copyFrame(R))

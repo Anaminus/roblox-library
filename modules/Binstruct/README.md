@@ -126,8 +126,16 @@ TypeDef is a table where the first element indicates a type that
 determines the remaining structure of the table.
 
 Additionally, the following optional named fields can be specified:
-- `encode`: A filter that transforms a value before encoding.
-- `decode`: A filter that transforms a value after decoding.
+- `encode`: A filter that transforms a structural value before encoding.
+- `decode`: A filter that transforms a structural value after decoding.
+
+Within a decode filter, only the top-level value is structural; components of
+the value will have already been transformed (if defined to do so). Likewise,
+an encode filter should return a value that itself is structural, but
+contains transformed components as expected by the component's type
+definition. Each component's definition will eventually transform the
+component itself, so the outer definition must avoid making transformations
+on the component.
 
 When a type encodes the value `nil`, the zero-value for the type is used.
 
@@ -196,8 +204,8 @@ The following types are defined:
 
         The first element of a field definition is the key used to index the
         field. If nil, the value will be processed, but the field will not be
-        assigned to when decoding. When encoding, `nil` will be received, so
-        the zero-value of the field's type will be used.
+        assigned to when decoding. When encoding, a `nil` value will be
+        received, so the zero-value of the field's type will be used.
 
         The second element of a field definition is the type of the field.
 
