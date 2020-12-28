@@ -5,36 +5,68 @@ Binstruct encodes and decodes binary structures.
 
 Example:
 ```lua
-local float = {"float", 32}
-
-local vector3 = {"struct",
-	{"X" , float},
-	{"Y" , float},
-	{"Z" , float},
+local Float = {"float", 32}
+local String = {"string", 8}
+local Vector3 = {"struct",
+	{"X" , Float},
+	{"Y" , Float},
+	{"Z" , Float},
 }
-
-local cframe = {"struct",
-	{"Position" , vector3},
-	{"Rotation" , {"array", 9, float}},
+local CFrame = {"struct",
+	{"Position" , Vector3},
+	{"Rotation" , {"array", 9, Float}},
 }
-
 local brick = {"struct",
-	{"CFrame" , cframe},
-	{"Size"   , vector3},
-	{"Color"  , {"byte"}},
-
+	{"Name"         , String},
+	{"CFrame"       , CFrame},
+	{"Size"         , Vector3},
+	{"Color"        , {"byte"}},
 	{"Reflectance"  , {"uint", 4}},
 	{"Transparency" , {"uint", 4}},
-
-	{"CanCollide" , {"bool"}},
-	{"Shape"      , {"uint", 3}},
-	{"_"          , {"pad", 4}},
-
-	{"Material" , {"uint", 6}},
-	{"_"        , {"pad", 2}},
+	{"CanCollide"   , {"bool"}},
+	{"Shape"        , {"uint", 3}},
+	{"_"            , {"pad", 4}},
+	{"Material"     , {"uint", 6}},
+	{"_"            , {"pad", 2}},
 }
 
-local codec = Binstruct.new(brick)
+local err, codec = Binstruct.new(brick)
+if err ~= nil then
+	t:Fatalf(err)
+end
+print(codec:Decode("\8"..string.rep("A", 73)))
+-- {
+--     ["CFrame"] = {
+--         ["Position"] = {
+--             ["X"] = 12.078,
+--             ["Y"] = 12.078,
+--             ["Z"] = 12.078
+--         },
+--         ["Rotation"] = {
+--             [1] = 12.078,
+--             [2] = 12.078,
+--             [3] = 12.078,
+--             [4] = 12.078,
+--             [5] = 12.078,
+--             [6] = 12.078,
+--             [7] = 12.078,
+--             [8] = 12.078,
+--             [9] = 12.078
+--         }
+--     },
+--     ["CanCollide"] = true,
+--     ["Color"] = 65,
+--     ["Material"] = 1,
+--     ["Name"] = "AAAAAAAA",
+--     ["Reflectance"] = 1,
+--     ["Shape"] = 0,
+--     ["Size"] = {
+--         ["X"] = 12.078,
+--         ["Y"] = 12.078,
+--         ["Z"] = 12.078
+--     },
+--     ["Transparency"] = 4
+-- }
 ```
 
 ## Binstruct.new
