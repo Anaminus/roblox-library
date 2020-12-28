@@ -129,6 +129,8 @@ Additionally, the following optional named fields can be specified:
 - `encode`: A filter that transforms a value before encoding.
 - `decode`: A filter that transforms a value after decoding.
 
+When a type encodes the value `nil`, the zero-value for the type is used.
+
 The following types are defined:
 
     {"pad", number}
@@ -144,13 +146,19 @@ The following types are defined:
         A boolean. The parameter is the number of bits used to represent the
         value, defaulting to 1.
 
+        The zero for this type is `false`.
+
     {"int", number}
         A signed integer. The parameter is the number of bits used to
         represent the value.
 
+        The zero for this type is `0`.
+
     {"uint", number}
         An unsigned integer. The parameter is the number of bits used to
         represent the value.
+
+        The zero for this type is `0`.
 
     {"byte"}
         Shorthand for `{"uint", 8}`.
@@ -159,31 +167,52 @@ The following types are defined:
         A floating-point number. The parameter is the number of bits used to
         represent the value, and must be 32 or 64. Defaults to 64.
 
+        The zero for this type is `0`.
+
     {"fixed", number, number}
         A signed fixed-point number. The first parameter is the number of
         bits used to represent the integer part, and the second parameter is
         the number of bits used to represent the fractional part.
+
+        The zero for this type is `0`.
 
     {"ufixed", number, number}
         An unsigned fixed-point number. The first parameter is the number of
         bits used to represent the integer part, and the second parameter is
         the number of bits used to represent the fractional part.
 
+        The zero for this type is `0`.
+
     {"string", number}
         A sequence of characters. Encoded as an unsigned integer indicating
         the length of the string, followed by the raw bytes of the string.
         The parameter is the number of bits used to represent the length.
 
-    {"struct", ...{string, TypeDef}}
-        A set of named fields. Each parameter is a table defining a field of
-        the struct. The first element of a field definition is the name of
-        the field, and the second element indicate the type of the field.
+        The zero for this type is the empty string.
 
-    {"array", number|string, TypeDef}
-        A list of unnamed fields. The first parameter is the *size* of the
-        array. If *size* is a number, this indicates a constant size. If
-        *size* is a string, it indicates the name of a field in the parent
-        struct from which the size is determined. Evaluates to 0 if this
-        field cannot be determined or is a non-number. The second parameter
-        is the type of each element in the array.
+    {"struct", ...{any?, TypeDef}}
+        A set of named fields. Each parameter is a table defining a field of
+        the struct.
+
+        The first element of a field definition is the key used to index the
+        field. If nil, the value will be processed, but the field will not be
+        assigned to when decoding. When encoding, `nil` will be received, so
+        the zero-value of the field's type will be used.
+
+        The second element of a field definition is the type of the field.
+
+        The zero for this type is an empty struct.
+
+    {"array", number|any, TypeDef}
+        A list of unnamed fields.
+
+        The first parameter is the *size* of the array. If *size* is a
+        number, this indicates a constant size. Otherwise, *size* indicates
+        the name of a field in the parent struct from which the size is
+        determined. Evaluates to 0 if this field cannot be determined or is a
+        non-number.
+
+        The second parameter is the type of each element in the array.
+
+        The zero for this type is an empty array.
 

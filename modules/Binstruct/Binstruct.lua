@@ -82,6 +82,8 @@
 -- - `encode`: A filter that transforms a value before encoding.
 -- - `decode`: A filter that transforms a value after decoding.
 --
+-- When a type encodes the value `nil`, the zero-value for the type is used.
+--
 -- The following types are defined:
 --
 --     {"pad", number}
@@ -97,13 +99,19 @@
 --         A boolean. The parameter is the number of bits used to represent the
 --         value, defaulting to 1.
 --
+--         The zero for this type is `false`.
+--
 --     {"int", number}
 --         A signed integer. The parameter is the number of bits used to
 --         represent the value.
 --
+--         The zero for this type is `0`.
+--
 --     {"uint", number}
 --         An unsigned integer. The parameter is the number of bits used to
 --         represent the value.
+--
+--         The zero for this type is `0`.
 --
 --     {"byte"}
 --         Shorthand for `{"uint", 8}`.
@@ -112,33 +120,54 @@
 --         A floating-point number. The parameter is the number of bits used to
 --         represent the value, and must be 32 or 64. Defaults to 64.
 --
+--         The zero for this type is `0`.
+--
 --     {"fixed", number, number}
 --         A signed fixed-point number. The first parameter is the number of
 --         bits used to represent the integer part, and the second parameter is
 --         the number of bits used to represent the fractional part.
+--
+--         The zero for this type is `0`.
 --
 --     {"ufixed", number, number}
 --         An unsigned fixed-point number. The first parameter is the number of
 --         bits used to represent the integer part, and the second parameter is
 --         the number of bits used to represent the fractional part.
 --
+--         The zero for this type is `0`.
+--
 --     {"string", number}
 --         A sequence of characters. Encoded as an unsigned integer indicating
 --         the length of the string, followed by the raw bytes of the string.
 --         The parameter is the number of bits used to represent the length.
 --
---     {"struct", ...{string, TypeDef}}
---         A set of named fields. Each parameter is a table defining a field of
---         the struct. The first element of a field definition is the name of
---         the field, and the second element indicate the type of the field.
+--         The zero for this type is the empty string.
 --
---     {"array", number|string, TypeDef}
---         A list of unnamed fields. The first parameter is the *size* of the
---         array. If *size* is a number, this indicates a constant size. If
---         *size* is a string, it indicates the name of a field in the parent
---         struct from which the size is determined. Evaluates to 0 if this
---         field cannot be determined or is a non-number. The second parameter
---         is the type of each element in the array.
+--     {"struct", ...{any?, TypeDef}}
+--         A set of named fields. Each parameter is a table defining a field of
+--         the struct.
+--
+--         The first element of a field definition is the key used to index the
+--         field. If nil, the value will be processed, but the field will not be
+--         assigned to when decoding. When encoding, a `nil` value will be
+--         received, so the zero-value of the field's type will be used.
+--
+--         The second element of a field definition is the type of the field.
+--
+--         The zero for this type is an empty struct.
+--
+--     {"array", number|any, TypeDef}
+--         A list of unnamed fields.
+--
+--         The first parameter is the *size* of the array. If *size* is a
+--         number, this indicates a constant size. Otherwise, *size* indicates
+--         the name of a field in the parent struct from which the size is
+--         determined. Evaluates to 0 if this field cannot be determined or is a
+--         non-number.
+--
+--         The second parameter is the type of each element in the array.
+--
+--         The zero for this type is an empty array.
 
 --@sec: Filter
 --@def: type Filter = (value: any?, params: ...any) -> any?
@@ -182,7 +211,11 @@ local Instructions = {}
 -- Get or set TABLE[KEY] from BUFFER.
 Instructions.SET = {op=1,
 	function(R, fn)
-		R.TABLE[R.KEY] = fn(R.BUFFER)
+		-- *fn* must return the value to assign to TABLE[KEY].
+		local v = fn(R.BUFFER)
+		if R.KEY ~= nil then
+			R.TABLE[R.KEY] = v
+		end
 	end,
 	function(R, fn)
 		fn(R.BUFFER, R.TABLE[R.KEY])
@@ -201,14 +234,20 @@ Instructions.CALL = {op=2,
 -- reads KEY.
 Instructions.PUSH = {op=3,
 	function(R, fn)
-		R.TABLE[R.KEY] = fn(R.BUFFER)
+		-- *fn* must return a structral value to scope into.
+		local v = fn(R.BUFFER)
+		if R.KEY ~= nil then
+			R.TABLE[R.KEY] = v
+		end
 		table.insert(R.STACK, copyFrame(R))
-		R.TABLE = R.TABLE[R.KEY]
+		R.TABLE = v
 	end,
 	function(R, fn)
-		fn(R.BUFFER, R.TABLE[R.KEY])
+		-- *fn* must return a structral value to scope into.
+		local v = R.TABLE[R.KEY]
+		v = fn(R.BUFFER, v)
 		table.insert(R.STACK, copyFrame(R))
-		R.TABLE = R.TABLE[R.KEY]
+		R.TABLE = v
 	end,
 }
 
@@ -222,7 +261,7 @@ Instructions.FIELD = {op=4,
 
 -- Scope out of a structural value.
 Instructions.POP = {op=5,
-	function(R, fn)
+	function(R)
 		local frame = table.remove(R.STACK)
 		copyFrame(frame, R)
 	end,
@@ -267,7 +306,7 @@ Instructions.FORF = {op=7,
 
 -- Jump to loop start if KEY is less than N.
 Instructions.JMPN = {op=8,
-	function(R, fn)
+	function(R)
 		if R.KEY < R.N then
 			R.KEY += 1
 			R.PC = R.JA
@@ -332,6 +371,7 @@ Types["bool"] = function(list, decode, encode, size)
 				return v
 			end,
 			function(buf, v)
+				if v == nil then v = false end
 				v = encode(v, size)
 				buf:WriteBool(v)
 			end
@@ -346,6 +386,7 @@ Types["bool"] = function(list, decode, encode, size)
 			return v
 		end,
 		function(buf, v)
+			if v == nil then v = false end
 			v = encode(v, size)
 			buf:WriteBool(v)
 			buf:Pad(size, false)
@@ -361,6 +402,7 @@ Types["uint"] = function(list, decode, encode, size)
 			return v
 		end,
 		function(buf, v)
+			if v == nil then v = 0 end
 			v = encode(v, size)
 			buf:WriteUint(size, v)
 		end
@@ -375,6 +417,7 @@ Types["int"] = function(list, decode, encode, size)
 			return v
 		end,
 		function(buf, v)
+			if v == nil then v = 0 end
 			v = encode(v, size)
 			buf:WriteInt(size, v)
 		end
@@ -389,6 +432,7 @@ Types["byte"] = function(list, decode, encode)
 			return v
 		end,
 		function(buf, v)
+			if v == nil then v = 0 end
 			v = encode(v)
 			buf:WriteByte(v)
 		end
@@ -404,6 +448,7 @@ Types["float"] = function(list, decode, encode, size)
 			return v
 		end,
 		function(buf, v)
+			if v == nil then v = 0 end
 			v = encode(v, size)
 			buf:WriteFloat(size, v)
 		end
@@ -418,6 +463,7 @@ Types["ufixed"] = function(list, decode, encode, i, f)
 			return v
 		end,
 		function(buf, v)
+			if v == nil then v = 0 end
 			v = encode(v, i, f)
 			buf:WriteUfixed(i, f, v)
 		end
@@ -432,6 +478,7 @@ Types["fixed"] = function(list, decode, encode, i, f)
 			return v
 		end,
 		function(buf, v)
+			if v == nil then v = 0 end
 			v = encode(v, i, f)
 			buf:WriteFixed(i, f, v)
 		end
@@ -447,6 +494,7 @@ Types["string"] = function(list, decode, encode, size)
 			return v
 		end,
 		function(buf, v)
+			if v == nil then v = "" end
 			v = encode(v, size)
 			buf:WriteUint(size, #v)
 			buf:WriteBytes(v)
@@ -463,16 +511,15 @@ Types["struct"] = function(list, decode, encode, ...)
 			return v
 		end,
 		function(buf, v)
-			v = encode(v, table.unpack(fields, 1, fields.n))
+			if v == nil then v = {} end
+			encode(v, table.unpack(fields, 1, fields.n))
+			return v
 		end
 	)
 	for i = 1, fields.n do
 		local field = fields[i]
 		if type(field) == "table" then
 			local name = field[1]
-			if type(name) ~= "string" then
-				return "first element of field must be a string"
-			end
 			append(list, "FIELD", name, name)
 			local err = parseDef(field[2], list)
 			if err ~= nil then
@@ -491,11 +538,15 @@ Types["array"] = function(list, decode, encode, size, typ)
 			return v
 		end,
 		function(buf, v)
-			v = encode(v, size, typ)
+			if v == nil then v = {} end
+			encode(v, size, typ)
+			return v
 		end
 	)
 	if type(size) == "number" then
 		append(list, "FORC", size, size)
+	elseif size == nil then
+		return "array size cannot be nil"
 	else
 		append(list, "FORF", size, size)
 	end
@@ -612,9 +663,7 @@ function Codec.__index:Encode(data)
 end
 
 local function formatArg(arg)
-	if arg == nil then
-		return "nil"
-	elseif type(arg) == "function" then
+	if type(arg) == "function" then
 		return "<f>"
 	elseif type(arg) == "string" then
 		return string.format("%q", arg)
