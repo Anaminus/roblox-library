@@ -190,11 +190,11 @@ local frameRegisters = {
 -- Copies registers in *from* to *to*, or a new frame if *to* is unspecified.
 -- Returns *to*.
 local function copyFrame(from, to)
-	to = to or {}
-	for k, v in pairs(from) do
-		if frameRegisters[k] then
-			to[k] = v
-		end
+	if to == nil then
+		to = {}
+	end
+	for k in pairs(frameRegisters) do
+		to[k] = from[k]
 	end
 	return to
 end
