@@ -176,6 +176,21 @@
 --         The second parameter is the type of each element in the array.
 --
 --         The zero for this type is an empty array.
+--
+--     {"instance", string, ...{any?, TypeDef}}
+--         A Roblox instance. The first parameter is the name of a Roblox class.
+--         Each remaining parameter is a table defining a property of the
+--         instance.
+--
+--         The first element of a property definition is the name used to index
+--         the property. If nil, the value will be processed, but the field will
+--         not be assigned to when decoding. When encoding, a `nil` value will
+--         be received, so the zero-value of the field's type will be used.
+--
+--         The second element of a property definition is the type of the
+--         property.
+--
+--         The zero for this type is a new instance of the class.
 
 --@sec: Filter
 --@def: type Filter = (value: any?, params: ...any) -> any?
@@ -565,6 +580,32 @@ Types["array"] = function(list, dfilter, efilter, size, typ)
 	end
 	append(list, "JMPN", nil, nil)
 	append(list, "POP", function(v) return dfilter(v, size, typ) end, nil)
+end
+
+Types["instance"] = function(list, dfilter, efilter, class, ...)
+	local properties = table.pack(...)
+	append(list, "PUSH",
+		function(buf)
+			return Instance.new(class)
+		end,
+		function(buf, v)
+			if v == nil then v = Instance.new(class) end
+			v = efilter(v, table.unpack(properties, 1, properties.n))
+			return v
+		end
+	)
+	for i = 1, properties.n do
+		local property = properties[i]
+		if type(property) == "table" then
+			local name = property[1]
+			append(list, "FIELD", name, name)
+			local err = parseDef(property[2], list)
+			if err ~= nil then
+				return string.format("property %q: %s", name, tostring(err))
+			end
+		end
+	end
+	append(list, "POP", function(v) return dfilter(v, table.unpack(properties, 1, properties.n)) end, nil)
 end
 
 --------------------------------------------------------------------------------

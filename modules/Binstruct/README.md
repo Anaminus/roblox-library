@@ -224,3 +224,18 @@ The following types are defined:
 
         The zero for this type is an empty array.
 
+    {"instance", string, ...{any?, TypeDef}}
+        A Roblox instance. The first parameter is the name of a Roblox class.
+        Each remaining parameter is a table defining a property of the
+        instance.
+
+        The first element of a property definition is the name used to index
+        the property. If nil, the value will be processed, but the field will
+        not be assigned to when decoding. When encoding, a `nil` value will
+        be received, so the zero-value of the field's type will be used.
+
+        The second element of a property definition is the type of the
+        property.
+
+        The zero for this type is a new instance of the class.
+
