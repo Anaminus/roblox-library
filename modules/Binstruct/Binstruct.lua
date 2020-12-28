@@ -331,7 +331,7 @@ end
 
 local parseDef
 
-Types["pad"] = function(list, decode, encode, size)
+Types["pad"] = function(list, dfilter, efilter, size)
 	if size and size > 0 then
 		append(list, "CALL",
 			function(buf)
@@ -344,7 +344,7 @@ Types["pad"] = function(list, decode, encode, size)
 	end
 end
 
-Types["align"] = function(list, decode, encode, size)
+Types["align"] = function(list, dfilter, efilter, size)
 	if size and size > 0 then
 		append(list, "CALL",
 			function(buf)
@@ -357,7 +357,7 @@ Types["align"] = function(list, decode, encode, size)
 	end
 end
 
-Types["bool"] = function(list, decode, encode, size)
+Types["bool"] = function(list, dfilter, efilter, size)
 	if size then
 		size -= 1
 	else
@@ -367,12 +367,12 @@ Types["bool"] = function(list, decode, encode, size)
 		append(list, "SET",
 			function(buf)
 				local v = buf:ReadBool()
-				v = decode(v, size)
+				v = dfilter(v, size)
 				return v
 			end,
 			function(buf, v)
 				if v == nil then v = false end
-				v = encode(v, size)
+				v = efilter(v, size)
 				buf:WriteBool(v)
 			end
 		)
@@ -381,128 +381,128 @@ Types["bool"] = function(list, decode, encode, size)
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadBool()
-			v = decode(v, size)
+			v = dfilter(v, size)
 			buf:Pad(size)
 			return v
 		end,
 		function(buf, v)
 			if v == nil then v = false end
-			v = encode(v, size)
+			v = efilter(v, size)
 			buf:WriteBool(v)
 			buf:Pad(size, false)
 		end
 	)
 end
 
-Types["uint"] = function(list, decode, encode, size)
+Types["uint"] = function(list, dfilter, efilter, size)
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadUint(size)
-			v = decode(v, size)
+			v = dfilter(v, size)
 			return v
 		end,
 		function(buf, v)
 			if v == nil then v = 0 end
-			v = encode(v, size)
+			v = efilter(v, size)
 			buf:WriteUint(size, v)
 		end
 	)
 end
 
-Types["int"] = function(list, decode, encode, size)
+Types["int"] = function(list, dfilter, efilter, size)
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadInt(size)
-			v = decode(v, size)
+			v = dfilter(v, size)
 			return v
 		end,
 		function(buf, v)
 			if v == nil then v = 0 end
-			v = encode(v, size)
+			v = efilter(v, size)
 			buf:WriteInt(size, v)
 		end
 	)
 end
 
-Types["byte"] = function(list, decode, encode)
+Types["byte"] = function(list, dfilter, efilter)
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadByte()
-			v = decode(v)
+			v = dfilter(v)
 			return v
 		end,
 		function(buf, v)
 			if v == nil then v = 0 end
-			v = encode(v)
+			v = efilter(v)
 			buf:WriteByte(v)
 		end
 	)
 end
 
-Types["float"] = function(list, decode, encode, size)
+Types["float"] = function(list, dfilter, efilter, size)
 	size = size or 64
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadFloat(size)
-			v = decode(v, size)
+			v = dfilter(v, size)
 			return v
 		end,
 		function(buf, v)
 			if v == nil then v = 0 end
-			v = encode(v, size)
+			v = efilter(v, size)
 			buf:WriteFloat(size, v)
 		end
 	)
 end
 
-Types["ufixed"] = function(list, decode, encode, i, f)
+Types["ufixed"] = function(list, dfilter, efilter, i, f)
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadUfixed(i, f)
-			v = decode(v, i, f)
+			v = dfilter(v, i, f)
 			return v
 		end,
 		function(buf, v)
 			if v == nil then v = 0 end
-			v = encode(v, i, f)
+			v = efilter(v, i, f)
 			buf:WriteUfixed(i, f, v)
 		end
 	)
 end
 
-Types["fixed"] = function(list, decode, encode, i, f)
+Types["fixed"] = function(list, dfilter, efilter, i, f)
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadFixed(i, f)
-			v = decode(v, i, f)
+			v = dfilter(v, i, f)
 			return v
 		end,
 		function(buf, v)
 			if v == nil then v = 0 end
-			v = encode(v, i, f)
+			v = efilter(v, i, f)
 			buf:WriteFixed(i, f, v)
 		end
 	)
 end
 
-Types["string"] = function(list, decode, encode, size)
+Types["string"] = function(list, dfilter, efilter, size)
 	append(list, "SET",
 		function(buf)
 			local len = buf:ReadUint(size)
 			local v = buf:ReadBytes(len)
-			v = decode(v, size)
+			v = dfilter(v, size)
 			return v
 		end,
 		function(buf, v)
 			if v == nil then v = "" end
-			v = encode(v, size)
+			v = efilter(v, size)
 			buf:WriteUint(size, #v)
 			buf:WriteBytes(v)
 		end
 	)
 end
 
-Types["struct"] = function(list, decode, encode, ...)
+Types["struct"] = function(list, dfilter, efilter, ...)
 	local fields = table.pack(...)
 	append(list, "PUSH",
 		function(buf)
@@ -512,7 +512,7 @@ Types["struct"] = function(list, decode, encode, ...)
 		end,
 		function(buf, v)
 			if v == nil then v = {} end
-			encode(v, table.unpack(fields, 1, fields.n))
+			efilter(v, table.unpack(fields, 1, fields.n))
 			return v
 		end
 	)
@@ -530,7 +530,7 @@ Types["struct"] = function(list, decode, encode, ...)
 	append(list, "POP", nil, nil)
 end
 
-Types["array"] = function(list, decode, encode, size, typ)
+Types["array"] = function(list, dfilter, efilter, size, typ)
 	append(list, "PUSH",
 		function(buf)
 			local v = {}
@@ -539,7 +539,7 @@ Types["array"] = function(list, decode, encode, size, typ)
 		end,
 		function(buf, v)
 			if v == nil then v = {} end
-			encode(v, size, typ)
+			efilter(v, size, typ)
 			return v
 		end
 	)
