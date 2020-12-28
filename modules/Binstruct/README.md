@@ -104,61 +104,68 @@ Encode encodes a value into a binary string according to the codec.
 # TypeDef
 [TypeDef]: #user-content-typedef
 ```
-type TypeDef = {[1]: string, ...}
+type TypeDef = {
+	[1]: string,
+	...,
+}
 ```
 
-TypeDef is a table where the first element determines the remaining
-structure of the table:
+TypeDef is a table where the first element indicates a type that
+determines the remaining structure of the table. The following types are
+defined:
 
-    {"pad", size: number}
-        Padding. *size* is the number of bits to pad with.
+    {"pad", number}
+        Padding. Does not read or write any value. The parameter is the
+        number of bits to pad with.
 
-    {"align", size: number}
-        Pad until the buffer is aligned to *size* bits.
+    {"align", number}
+        Pad until the buffer is aligned to the number of bits indicated by
+        the parameter. Does not read or write any value.
 
-    {"bool", size: number?}
-        A boolean. *size* is the number of bits used to represent the value,
-        defaulting to 1.
+    {"bool", number?}
+        A boolean. The parameter is the number of bits used to represent the
+        value, defaulting to 1.
 
-    {"int", size: number
-        A signed integer. *size* is the number of bits used to represent the
-        value.
+    {"int", number}
+        A signed integer. The parameter is the number of bits used to
+        represent the value.
 
-    {"uint", size: number}
-        An unsigned integer. *size* is the number of bits used to represent
-        the value.
+    {"uint", number}
+        An unsigned integer. The parameter is the number of bits used to
+        represent the value.
 
     {"byte"}
         Shorthand for `{"uint", 8}`.
 
-    {"float", size: number?}
-        A floating-point number. *size* is the number of bits used to represent
-        the value, and must be 32 or 64. Defaults to 64.
+    {"float", number?}
+        A floating-point number. The parameter is the number of bits used to
+        represent the value, and must be 32 or 64. Defaults to 64.
 
-    {"fixed", i: number, f: number}
-        A signed fixed-point number. *i* is the number of bits used to represent
-        the integer part, and *f* is the number of bits used to represent the
-        fractional part.
+    {"fixed", number, number}
+        A signed fixed-point number. The first parameter is the number of
+        bits used to represent the integer part, and the second parameter is
+        the number of bits used to represent the fractional part.
 
-    {"ufixed", i: number, f: number}
-        An unsigned fixed-point number. *i* is the number of bits used to
-        represent the integer part, and *f* is the number of bits used to
-        represent the fractional part.
+    {"ufixed", number, number}
+        An unsigned fixed-point number. The first parameter is the number of
+        bits used to represent the integer part, and the second parameter is
+        the number of bits used to represent the fractional part.
 
-    {"string", size: number}
-        A sequence of characters. Encoded as an unsigned integer indicating the
-        length of the string, followed by the raw bytes of the string. *size* is
-        the number of bits used to represent the length.
+    {"string", number}
+        A sequence of characters. Encoded as an unsigned integer indicating
+        the length of the string, followed by the raw bytes of the string.
+        The parameter is the number of bits used to represent the length.
 
-    {"struct", ...{[1]: string, [2]: TypeDef}}
-        A set of named fields. Each element is a table indicating a field of the
-        struct. The first element of a field is the name, and the second element
-        is a TypeDef.
+    {"struct", ...{string, TypeDef}}
+        A set of named fields. Each parameter is a table defining a field of
+        the struct. The first element of a field definition is the name of
+        the field, and the second element indicate the type of the field.
 
-    {"array", size: number|string, type: TypeDef}
-        A list of unnamed fields. *size* indicates the size of the array. If
-        *size* is a number, this indicates a constant size. If *size* is a
-        string, it indicates the name of a field in the parent struct from
-        which the size is determined. Evaluates to 0 if the field cannot be
-        determined or is a non-number.
+    {"array", number|string, TypeDef}
+        A list of unnamed fields. The first parameter is the *size* of the
+        array. If *size* is a number, this indicates a constant size. If
+        *size* is a string, it indicates the name of a field in the parent
+        struct from which the size is determined. Evaluates to 0 if this
+        field cannot be determined or is a non-number. The second parameter
+        is the type of each element in the array.
 
