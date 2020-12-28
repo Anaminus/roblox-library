@@ -236,9 +236,6 @@ Instructions.PUSH = {op=3,
 	function(R, fn)
 		-- *fn* must return a structral value to scope into.
 		local v = fn(R.BUFFER)
-		if R.KEY ~= nil then
-			R.TABLE[R.KEY] = v
-		end
 		table.insert(R.STACK, copyFrame(R))
 		R.TABLE = v
 	end,
@@ -261,11 +258,19 @@ Instructions.FIELD = {op=4,
 
 -- Scope out of a structural value.
 Instructions.POP = {op=5,
+	-- *fn* runs TABLE through the type's decode filter.
+	function(R, fn)
+		local v = fn(R.TABLE)
+		local frame = table.remove(R.STACK)
+		copyFrame(frame, R)
+		if R.KEY ~= nil then
+			R.TABLE[R.KEY] = v
+		end
+	end,
 	function(R)
 		local frame = table.remove(R.STACK)
 		copyFrame(frame, R)
 	end,
-	true,
 }
 
 -- Initialize a loop with a constant terminator.
@@ -506,13 +511,11 @@ Types["struct"] = function(list, dfilter, efilter, ...)
 	local fields = table.pack(...)
 	append(list, "PUSH",
 		function(buf)
-			local v = {}
-			v = decode(v, table.unpack(fields, 1, fields.n))
-			return v
+			return {}
 		end,
 		function(buf, v)
 			if v == nil then v = {} end
-			efilter(v, table.unpack(fields, 1, fields.n))
+			v = efilter(v, table.unpack(fields, 1, fields.n))
 			return v
 		end
 	)
@@ -527,19 +530,17 @@ Types["struct"] = function(list, dfilter, efilter, ...)
 			end
 		end
 	end
-	append(list, "POP", nil, nil)
+	append(list, "POP", function(v) return dfilter(v, table.unpack(fields, 1, fields.n)) end, nil)
 end
 
 Types["array"] = function(list, dfilter, efilter, size, typ)
 	append(list, "PUSH",
 		function(buf)
-			local v = {}
-			v = decode(v, size, typ)
-			return v
+			return {}
 		end,
 		function(buf, v)
 			if v == nil then v = {} end
-			efilter(v, size, typ)
+			v = efilter(v, size, typ)
 			return v
 		end
 	)
@@ -555,7 +556,7 @@ Types["array"] = function(list, dfilter, efilter, size, typ)
 		return string.format("array[%s]: %s", tostring(size), tostring(err))
 	end
 	append(list, "JMPN", nil, nil)
-	append(list, "POP", nil, nil)
+	append(list, "POP", function(v) return dfilter(v, size, typ) end, nil)
 end
 
 --------------------------------------------------------------------------------
