@@ -216,7 +216,6 @@ local frameRegisters = {
 	TABLE = true,
 	KEY   = true,
 	N     = true,
-	JA    = true,
 }
 
 -- Copies registers in *from* to *to*, or a new frame if *to* is unspecified.
@@ -307,10 +306,14 @@ Instructions.POP = {op=5,
 
 -- Initialize a loop with a constant terminator.
 Instructions.FORC = {op=6,
-	function(R, c)
-		R.JA = R.PC
-		R.KEY = 1
-		R.N = c
+	function(R, params)
+		-- params: {jumpaddr, size}
+		if params[2] >= 1 then
+			R.KEY = 1
+			R.N = params[2]
+			return
+		end
+		R.PC = params[1]
 	end,
 	true,
 }
@@ -318,41 +321,34 @@ Instructions.FORC = {op=6,
 -- Initialize a loop with a dynamic terminator, determined by a field in the
 -- parent structure.
 Instructions.FORF = {op=7,
-	function(R, f)
-		-- f: {field, level}
-		R.JA = R.PC
-		R.KEY = 1
-		local level = #R.STACK-f[2]+1
-		if level <= 1 then
-			R.N = 0
-			return
+	function(R, params)
+		-- params: {jumpaddr, field, level}
+		local level = #R.STACK-params[3]+1
+		if level > 1 then
+			local top = R.STACK[level]
+			if top then
+				local parent = top.TABLE
+				if parent then
+					local v = parent[params[2]]
+					if type(v) == "number" then
+						R.KEY = 1
+						R.N = v
+						return
+					end
+				end
+			end
 		end
-		local top = R.STACK[level]
-		if not top then
-			R.N = 0
-			return
-		end
-		local parent = top.TABLE
-		if not parent then
-			R.N = 0
-			return
-		end
-		local v = parent[f[1]]
-		if type(v) ~= "number" then
-			R.N = 0
-			return
-		end
-		R.N = v
+		R.PC = params[1]
 	end,
 	true,
 }
 
 -- Jump to loop start if KEY is less than N.
 Instructions.JMPN = {op=8,
-	function(R)
+	function(R, addr)
 		if R.KEY < R.N then
 			R.KEY += 1
-			R.PC = R.JA
+			R.PC = addr
 		end
 	end,
 	true,
@@ -367,9 +363,20 @@ local Types = {}
 
 -- Appends to *list* the instruction corresponding to *opcode*. Each remaining
 -- argument corresponds to an argument to be passed to the corresponding
--- instruction column.
+-- instruction column. Returns the address of the appended instruction.
 local function append(list, opcode, ...)
 	table.insert(list, {op = Instructions[opcode].op, n = select("#", ...), ...})
+	return #list
+end
+
+-- Sets the first element of each column of the instruction at *addr* to the
+-- address of the the last instruction. Expects each column argument to be a
+-- table.
+local function setjump(list, addr)
+	local instr = list[addr]
+	for i = 1, instr.n do
+		instr[i][1] = #list
+	end
 end
 
 local function nop(v)
@@ -623,6 +630,10 @@ Types["array"] = function(list, def)
 	local efilter = def.encode or nop
 	local size = def[1]
 	local typ = def[2]
+	if type(size) == "number" and size <= 0 then
+		-- Array is constantly empty.
+		return nil
+	end
 	append(list, "PUSH",
 		function(buf)
 			return {}
@@ -633,8 +644,10 @@ Types["array"] = function(list, def)
 			return v
 		end
 	)
+	local ja
 	if type(size) == "number" then
-		append(list, "FORC", size, size)
+		local params = {nil, size}
+		ja = append(list, "FORC", params, params)
 	elseif size == nil then
 		return "array size cannot be nil"
 	else
@@ -642,14 +655,15 @@ Types["array"] = function(list, def)
 		if level < 0 then
 			level = 0
 		end
-		local f = {size, level}
-		append(list, "FORF", f, f)
+		local params = {nil, size, level}
+		ja = append(list, "FORF", params, params)
 	end
 	local err = parseDef(typ, list)
 	if err ~= nil then
 		return string.format("array[%s]: %s", tostring(size), tostring(err))
 	end
-	append(list, "JMPN", nil, nil)
+	append(list, "JMPN", ja, ja)
+	setjump(list, ja)
 	append(list, "POP", function(v) return dfilter(v, size, typ) end, nil)
 end
 
@@ -754,7 +768,6 @@ local function execute(list, k, buffer, data)
 		TABLE = {data},  -- The working table.
 		KEY = 1,         -- A key pointing to a field in TABLE.
 		N = 0,           -- Maximum counter value.
-		JA = 0,          -- Jump address.
 	}
 
 	while R.PC <= PN do
@@ -818,7 +831,7 @@ function Codec.__index:Dump()
 		end
 		table.insert(s, {addr, opcode, args})
 	end
-	local fmt = "%0" .. math.ceil(math.log(#self.list+1, 16)) .. "X: %-" .. width[0] .. "s ( "
+	local fmt = "%0" .. math.ceil(math.log(#self.list+1, 10)) .. "d: %-" .. width[0] .. "s ( "
 	for i, w in ipairs(width) do
 		if i > 1 then
 			fmt = fmt .. " | "
