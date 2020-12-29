@@ -103,6 +103,10 @@
 --         the parameter. Does not read or write any value (filters are
 --         ignored).
 --
+--     {"const", any?}
+--         A constant value. The parameter is the value. This type is neither
+--         encoded nor decoded.
+--
 --     {"bool", number?}
 --         A boolean. The parameter is the number of bits used to represent the
 --         value, defaulting to 1.
@@ -383,6 +387,19 @@ Types["align"] = function(list, dfilter, efilter, size)
 			end
 		)
 	end
+end
+
+Types["const"] = function(list, dfilter, efilter, value)
+	append(list, "SET",
+		function(buf)
+			local v = value
+			v = dfilter(v)
+			return v
+		end,
+		function(buf, v)
+			v = efilter(v)
+		end
+	)
 end
 
 Types["bool"] = function(list, dfilter, efilter, size)

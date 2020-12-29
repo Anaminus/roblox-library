@@ -150,6 +150,10 @@ The following types are defined:
         the parameter. Does not read or write any value (filters are
         ignored).
 
+    {"const", any?}
+        A constant value. The parameter is the value. This type is neither
+        encoded nor decoded.
+
     {"bool", number?}
         A boolean. The parameter is the number of bits used to represent the
         value, defaulting to 1.
