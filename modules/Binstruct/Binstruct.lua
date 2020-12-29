@@ -168,7 +168,7 @@
 --
 --         The zero for this type is an empty struct.
 --
---     {"array", number|any, TypeDef}
+--     {"array", number|any, TypeDef, level: number?}
 --         A list of unnamed fields.
 --
 --         The first parameter is the *size* of the array. If *size* is a
@@ -178,6 +178,11 @@
 --         non-number.
 --
 --         The second parameter is the type of each element in the array.
+--
+--         If the *level* field is specified, then it indicates the ancestor
+--         struct where *size* will be searched. If *level* is less than 1 or
+--         greater than the number of ancestors, then *size* evaluates to 0.
+--         Defaults to 1.
 --
 --         The zero for this type is an empty array.
 --
@@ -314,9 +319,15 @@ Instructions.FORC = {op=6,
 -- parent structure.
 Instructions.FORF = {op=7,
 	function(R, f)
+		-- f: {field, level}
 		R.JA = R.PC
 		R.KEY = 1
-		local top = R.STACK[#R.STACK]
+		local level = #R.STACK-f[2]+1
+		if level <= 1 then
+			R.N = 0
+			return
+		end
+		local top = R.STACK[level]
 		if not top then
 			R.N = 0
 			return
@@ -326,7 +337,7 @@ Instructions.FORF = {op=7,
 			R.N = 0
 			return
 		end
-		local v = parent[f]
+		local v = parent[f[1]]
 		if type(v) ~= "number" then
 			R.N = 0
 			return
@@ -627,7 +638,12 @@ Types["array"] = function(list, def)
 	elseif size == nil then
 		return "array size cannot be nil"
 	else
-		append(list, "FORF", size, size)
+		local level = def.level or 1
+		if level < 0 then
+			level = 0
+		end
+		local f = {size, level}
+		append(list, "FORF", f, f)
 	end
 	local err = parseDef(typ, list)
 	if err ~= nil then
@@ -778,6 +794,8 @@ local function formatArg(arg)
 		return "<f>"
 	elseif type(arg) == "string" then
 		return string.format("%q", arg)
+	elseif type(arg) == "table" then
+		return "{"..table.concat(arg, ", ").."}"
 	end
 	return tostring(arg)
 end

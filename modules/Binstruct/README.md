@@ -215,7 +215,7 @@ The following types are defined:
 
         The zero for this type is an empty struct.
 
-    {"array", number|any, TypeDef}
+    {"array", number|any, TypeDef, level: number?}
         A list of unnamed fields.
 
         The first parameter is the *size* of the array. If *size* is a
@@ -225,6 +225,11 @@ The following types are defined:
         non-number.
 
         The second parameter is the type of each element in the array.
+
+        If the *level* field is specified, then it indicates the ancestor
+        struct where *size* will be searched. If *level* is less than 1 or
+        greater than the number of ancestors, then *size* evaluates to 0.
+        Defaults to 1.
 
         The zero for this type is an empty array.
 
