@@ -361,9 +361,14 @@ local function append(list, opcode, ...)
 	table.insert(list, {op = Instructions[opcode].op, n = select("#", ...), ...})
 end
 
+local function nop(v)
+	return v
+end
+
 local parseDef
 
-Types["pad"] = function(list, dfilter, efilter, size)
+Types["pad"] = function(list, def)
+	local size = def[1]
 	if size and size > 0 then
 		append(list, "CALL",
 			function(buf)
@@ -376,7 +381,8 @@ Types["pad"] = function(list, dfilter, efilter, size)
 	end
 end
 
-Types["align"] = function(list, dfilter, efilter, size)
+Types["align"] = function(list, def)
+	local size = def[1]
 	if size and size > 0 then
 		append(list, "CALL",
 			function(buf)
@@ -389,7 +395,10 @@ Types["align"] = function(list, dfilter, efilter, size)
 	end
 end
 
-Types["const"] = function(list, dfilter, efilter, value)
+Types["const"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local value = def[1]
 	append(list, "SET",
 		function(buf)
 			local v = value
@@ -402,7 +411,10 @@ Types["const"] = function(list, dfilter, efilter, value)
 	)
 end
 
-Types["bool"] = function(list, dfilter, efilter, size)
+Types["bool"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local size = def[1]
 	if size then
 		size -= 1
 	else
@@ -439,7 +451,10 @@ Types["bool"] = function(list, dfilter, efilter, size)
 	)
 end
 
-Types["uint"] = function(list, dfilter, efilter, size)
+Types["uint"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local size = def[1]
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadUint(size)
@@ -454,7 +469,10 @@ Types["uint"] = function(list, dfilter, efilter, size)
 	)
 end
 
-Types["int"] = function(list, dfilter, efilter, size)
+Types["int"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local size = def[1]
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadInt(size)
@@ -469,7 +487,9 @@ Types["int"] = function(list, dfilter, efilter, size)
 	)
 end
 
-Types["byte"] = function(list, dfilter, efilter)
+Types["byte"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadByte()
@@ -484,8 +504,10 @@ Types["byte"] = function(list, dfilter, efilter)
 	)
 end
 
-Types["float"] = function(list, dfilter, efilter, size)
-	size = size or 64
+Types["float"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local size = def[1] or 64
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadFloat(size)
@@ -500,7 +522,11 @@ Types["float"] = function(list, dfilter, efilter, size)
 	)
 end
 
-Types["ufixed"] = function(list, dfilter, efilter, i, f)
+Types["ufixed"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local i = def[1]
+	local f = def[2]
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadUfixed(i, f)
@@ -515,7 +541,11 @@ Types["ufixed"] = function(list, dfilter, efilter, i, f)
 	)
 end
 
-Types["fixed"] = function(list, dfilter, efilter, i, f)
+Types["fixed"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local i = def[1]
+	local f = def[2]
 	append(list, "SET",
 		function(buf)
 			local v = buf:ReadFixed(i, f)
@@ -530,7 +560,10 @@ Types["fixed"] = function(list, dfilter, efilter, i, f)
 	)
 end
 
-Types["string"] = function(list, dfilter, efilter, size)
+Types["string"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local size = def[1]
 	append(list, "SET",
 		function(buf)
 			local len = buf:ReadUint(size)
@@ -547,20 +580,21 @@ Types["string"] = function(list, dfilter, efilter, size)
 	)
 end
 
-Types["struct"] = function(list, dfilter, efilter, ...)
-	local fields = table.pack(...)
+Types["struct"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
 	append(list, "PUSH",
 		function(buf)
 			return {}
 		end,
 		function(buf, v)
 			if v == nil then v = {} end
-			v = efilter(v, table.unpack(fields, 1, fields.n))
+			v = efilter(v, unpack(def, 1, #def))
 			return v
 		end
 	)
-	for i = 1, fields.n do
-		local field = fields[i]
+	for i = 1, #def do
+		local field = def[i]
 		if type(field) == "table" then
 			local name = field[1]
 			append(list, "FIELD", name, name)
@@ -570,10 +604,14 @@ Types["struct"] = function(list, dfilter, efilter, ...)
 			end
 		end
 	end
-	append(list, "POP", function(v) return dfilter(v, table.unpack(fields, 1, fields.n)) end, nil)
+	append(list, "POP", function(v) return dfilter(v, unpack(def, 1, #def)) end, nil)
 end
 
-Types["array"] = function(list, dfilter, efilter, size, typ)
+Types["array"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local size = def[1]
+	local typ = def[2]
 	append(list, "PUSH",
 		function(buf)
 			return {}
@@ -599,20 +637,22 @@ Types["array"] = function(list, dfilter, efilter, size, typ)
 	append(list, "POP", function(v) return dfilter(v, size, typ) end, nil)
 end
 
-Types["instance"] = function(list, dfilter, efilter, class, ...)
-	local properties = table.pack(...)
+Types["instance"] = function(list, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local class = def[1]
 	append(list, "PUSH",
 		function(buf)
 			return Instance.new(class)
 		end,
 		function(buf, v)
 			if v == nil then v = Instance.new(class) end
-			v = efilter(v, table.unpack(properties, 1, properties.n))
+			v = efilter(v, unpack(def, 2, #def))
 			return v
 		end
 	)
-	for i = 1, properties.n do
-		local property = properties[i]
+	for i = 2, #def do
+		local property = def[i]
 		if type(property) == "table" then
 			local name = property[1]
 			append(list, "FIELD", name, name)
@@ -622,7 +662,7 @@ Types["instance"] = function(list, dfilter, efilter, class, ...)
 			end
 		end
 	end
-	append(list, "POP", function(v) return dfilter(v, table.unpack(properties, 1, properties.n)) end, nil)
+	append(list, "POP", function(v) return dfilter(v, unpack(def, 2, #def)) end, nil)
 end
 
 --------------------------------------------------------------------------------
@@ -641,7 +681,6 @@ for opcode, data in pairs(Instructions) do
 	opcodes[data.op] = opcode
 end
 
-local function nop(v) return v end
 function parseDef(def, list)
 	if type(def) ~= "table" then
 		return "table expected"
@@ -657,9 +696,14 @@ function parseDef(def, list)
 	if def.encode ~= nil and type(def.encode) ~= "function" then
 		return "encode filter must be a function"
 	end
-	local decode = def.decode or nop
-	local encode = def.encode or nop
-	return t(list, decode, encode, unpack(def, 2))
+	local fields = table.create(#def-1)
+	table.move(def, 2, #def, 1, fields)
+	for k, v in pairs(def) do
+		if type(k) ~= "number" then
+			fields[k] = v
+		end
+	end
+	return t(list, fields)
 end
 
 --@sec: Codec
