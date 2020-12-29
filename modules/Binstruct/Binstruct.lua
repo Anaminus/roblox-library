@@ -632,7 +632,7 @@ function parseDef(def, list)
 	local name = def[1]
 	local t = Types[name]
 	if not t then
-		return string.format("unknown type %q", tostring(t))
+		return string.format("unknown type %q", tostring(name))
 	end
 	if def.decode ~= nil and type(def.decode) ~= "function" then
 		return "decode filter must be a function"
