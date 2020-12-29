@@ -364,18 +364,18 @@ local Types = {}
 -- Appends to *list* the instruction corresponding to *opcode*. Each remaining
 -- argument corresponds to an argument to be passed to the corresponding
 -- instruction column. Returns the address of the appended instruction.
-local function append(list, opcode, ...)
-	table.insert(list, {op = Instructions[opcode].op, n = select("#", ...), ...})
-	return #list
+local function append(program, opcode, ...)
+	table.insert(program, {op = Instructions[opcode].op, n = select("#", ...), ...})
+	return #program
 end
 
 -- Sets the first element of each column of the instruction at *addr* to the
 -- address of the the last instruction. Expects each column argument to be a
 -- table.
-local function setjump(list, addr)
-	local instr = list[addr]
+local function setjump(program, addr)
+	local instr = program[addr]
 	for i = 1, instr.n do
-		instr[i][1] = #list
+		instr[i][1] = #program
 	end
 end
 
@@ -385,10 +385,10 @@ end
 
 local parseDef
 
-Types["pad"] = function(list, def)
+Types["pad"] = function(program, def)
 	local size = def[1]
 	if size and size > 0 then
-		append(list, "CALL",
+		append(program, "CALL",
 			function(buf)
 				buf:Pad(size)
 			end,
@@ -399,10 +399,10 @@ Types["pad"] = function(list, def)
 	end
 end
 
-Types["align"] = function(list, def)
+Types["align"] = function(program, def)
 	local size = def[1]
 	if size and size > 0 then
-		append(list, "CALL",
+		append(program, "CALL",
 			function(buf)
 				buf:Align(size)
 			end,
@@ -413,11 +413,11 @@ Types["align"] = function(list, def)
 	end
 end
 
-Types["const"] = function(list, def)
+Types["const"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local value = def[1]
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local v = value
 			v = dfilter(v)
@@ -429,7 +429,7 @@ Types["const"] = function(list, def)
 	)
 end
 
-Types["bool"] = function(list, def)
+Types["bool"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
@@ -439,7 +439,7 @@ Types["bool"] = function(list, def)
 		size = 0
 	end
 	if size > 0 then
-		append(list, "SET",
+		append(program, "SET",
 			function(buf)
 				local v = buf:ReadBool()
 				v = dfilter(v, size)
@@ -453,7 +453,7 @@ Types["bool"] = function(list, def)
 		)
 		return
 	end
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local v = buf:ReadBool()
 			v = dfilter(v, size)
@@ -469,11 +469,11 @@ Types["bool"] = function(list, def)
 	)
 end
 
-Types["uint"] = function(list, def)
+Types["uint"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local v = buf:ReadUint(size)
 			v = dfilter(v, size)
@@ -487,11 +487,11 @@ Types["uint"] = function(list, def)
 	)
 end
 
-Types["int"] = function(list, def)
+Types["int"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local v = buf:ReadInt(size)
 			v = dfilter(v, size)
@@ -505,10 +505,10 @@ Types["int"] = function(list, def)
 	)
 end
 
-Types["byte"] = function(list, def)
+Types["byte"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local v = buf:ReadByte()
 			v = dfilter(v)
@@ -522,11 +522,11 @@ Types["byte"] = function(list, def)
 	)
 end
 
-Types["float"] = function(list, def)
+Types["float"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1] or 64
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local v = buf:ReadFloat(size)
 			v = dfilter(v, size)
@@ -540,12 +540,12 @@ Types["float"] = function(list, def)
 	)
 end
 
-Types["ufixed"] = function(list, def)
+Types["ufixed"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local i = def[1]
 	local f = def[2]
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local v = buf:ReadUfixed(i, f)
 			v = dfilter(v, i, f)
@@ -559,12 +559,12 @@ Types["ufixed"] = function(list, def)
 	)
 end
 
-Types["fixed"] = function(list, def)
+Types["fixed"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local i = def[1]
 	local f = def[2]
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local v = buf:ReadFixed(i, f)
 			v = dfilter(v, i, f)
@@ -578,11 +578,11 @@ Types["fixed"] = function(list, def)
 	)
 end
 
-Types["string"] = function(list, def)
+Types["string"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
-	append(list, "SET",
+	append(program, "SET",
 		function(buf)
 			local len = buf:ReadUint(size)
 			local v = buf:ReadBytes(len)
@@ -598,10 +598,10 @@ Types["string"] = function(list, def)
 	)
 end
 
-Types["struct"] = function(list, def)
+Types["struct"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
-	append(list, "PUSH",
+	append(program, "PUSH",
 		function(buf)
 			return {}
 		end,
@@ -615,17 +615,17 @@ Types["struct"] = function(list, def)
 		local field = def[i]
 		if type(field) == "table" then
 			local name = field[1]
-			append(list, "FIELD", name, name)
-			local err = parseDef(field[2], list)
+			append(program, "FIELD", name, name)
+			local err = parseDef(field[2], program)
 			if err ~= nil then
 				return string.format("field %q: %s", name, tostring(err))
 			end
 		end
 	end
-	append(list, "POP", function(v) return dfilter(v, unpack(def, 1, #def)) end, nil)
+	append(program, "POP", function(v) return dfilter(v, unpack(def, 1, #def)) end, nil)
 end
 
-Types["array"] = function(list, def)
+Types["array"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
@@ -634,7 +634,7 @@ Types["array"] = function(list, def)
 		-- Array is constantly empty.
 		return nil
 	end
-	append(list, "PUSH",
+	append(program, "PUSH",
 		function(buf)
 			return {}
 		end,
@@ -647,7 +647,7 @@ Types["array"] = function(list, def)
 	local ja
 	if type(size) == "number" then
 		local params = {nil, size}
-		ja = append(list, "FORC", params, params)
+		ja = append(program, "FORC", params, params)
 	elseif size == nil then
 		return "array size cannot be nil"
 	else
@@ -656,22 +656,22 @@ Types["array"] = function(list, def)
 			level = 0
 		end
 		local params = {nil, size, level}
-		ja = append(list, "FORF", params, params)
+		ja = append(program, "FORF", params, params)
 	end
-	local err = parseDef(typ, list)
+	local err = parseDef(typ, program)
 	if err ~= nil then
 		return string.format("array[%s]: %s", tostring(size), tostring(err))
 	end
-	append(list, "JMPN", ja, ja)
-	setjump(list, ja)
-	append(list, "POP", function(v) return dfilter(v, size, typ) end, nil)
+	append(program, "JMPN", ja, ja)
+	setjump(program, ja)
+	append(program, "POP", function(v) return dfilter(v, size, typ) end, nil)
 end
 
-Types["instance"] = function(list, def)
+Types["instance"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local class = def[1]
-	append(list, "PUSH",
+	append(program, "PUSH",
 		function(buf)
 			return Instance.new(class)
 		end,
@@ -685,14 +685,14 @@ Types["instance"] = function(list, def)
 		local property = def[i]
 		if type(property) == "table" then
 			local name = property[1]
-			append(list, "FIELD", name, name)
-			local err = parseDef(property[2], list)
+			append(program, "FIELD", name, name)
+			local err = parseDef(property[2], program)
 			if err ~= nil then
 				return string.format("property %q: %s", name, tostring(err))
 			end
 		end
 	end
-	append(list, "POP", function(v) return dfilter(v, unpack(def, 2, #def)) end, nil)
+	append(program, "POP", function(v) return dfilter(v, unpack(def, 2, #def)) end, nil)
 end
 
 --------------------------------------------------------------------------------
@@ -711,7 +711,7 @@ for opcode, data in pairs(Instructions) do
 	opcodes[data.op] = opcode
 end
 
-function parseDef(def, list)
+function parseDef(def, program)
 	if type(def) ~= "table" then
 		return "table expected"
 	end
@@ -733,7 +733,7 @@ function parseDef(def, list)
 			fields[k] = v
 		end
 	end
-	return t(list, fields)
+	return t(program, fields)
 end
 
 --@sec: Codec
@@ -745,20 +745,20 @@ local Codec = {__index={}}
 --@def: Binstruct.new(def: TypeDef): Codec
 --@doc: new constructs a Codec from the given definition.
 function Binstruct.new(def)
-	local list = {}
-	local err = parseDef(def, list)
+	local program = {}
+	local err = parseDef(def, program)
 	if err ~= nil then
 		return err, nil
 	end
-	local self = {list = list}
+	local self = {program = program}
 	return nil, setmetatable(self, Codec)
 end
 
--- Executes the instructions in *list*. *k* selects the instruction argument
+-- Executes the instructions in *program*. *k* selects the instruction argument
 -- column. *buffer* is the bit buffer to use. *data* is the data on which to
 -- operate.
-local function execute(list, k, buffer, data)
-	local PN = #list
+local function execute(program, k, buffer, data)
+	local PN = #program
 
 	-- Registers.
 	local R = {
@@ -771,7 +771,7 @@ local function execute(list, k, buffer, data)
 	}
 
 	while R.PC <= PN do
-		local inst = list[R.PC]
+		local inst = program[R.PC]
 		local op = inst.op
 		local exec = instructions[op]
 		if not exec then
@@ -790,7 +790,7 @@ end
 --@doc: Decode decodes a binary string into a value according to the codec.
 function Codec.__index:Decode(buffer)
 	local buf = Bitbuf.fromString(buffer)
-	return execute(self.list, 1, buf, nil)
+	return execute(self.program, 1, buf, nil)
 end
 
 --@sec: Codec.Encode
@@ -798,7 +798,7 @@ end
 --@doc: Encode encodes a value into a binary string according to the codec.
 function Codec.__index:Encode(data)
 	local buf = Bitbuf.new()
-	execute(self.list, 2, buf, data)
+	execute(self.program, 2, buf, data)
 	return buf:String()
 end
 
@@ -817,7 +817,7 @@ end
 function Codec.__index:Dump()
 	local s = {}
 	local width = {}
-	for addr, inst in ipairs(self.list) do
+	for addr, inst in ipairs(self.program) do
 		local opcode = opcodes[inst.op]
 		local args = table.create(inst.n)
 		for i = 1, inst.n do
@@ -831,7 +831,7 @@ function Codec.__index:Dump()
 		end
 		table.insert(s, {addr, opcode, args})
 	end
-	local fmt = "%0" .. math.ceil(math.log(#self.list+1, 10)) .. "d: %-" .. width[0] .. "s ( "
+	local fmt = "%0" .. math.ceil(math.log(#self.program+1, 10)) .. "d: %-" .. width[0] .. "s ( "
 	for i, w in ipairs(width) do
 		if i > 1 then
 			fmt = fmt .. " | "
