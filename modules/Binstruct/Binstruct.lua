@@ -168,6 +168,10 @@
 --
 --         The zero for this type is the empty string.
 --
+--     {"union", ...TypeDef}
+--
+--         One of several types. Hooks can be used to select a single type.
+--
 --     {"struct", ...{any?, TypeDef}}
 --         A set of named fields. Each parameter is a table defining a field of
 --         the struct.
@@ -698,6 +702,17 @@ Types["string"] = function(program, def)
 			buf:WriteBytes(v)
 		end
 	)
+	setJump(program, hookaddr)
+end
+
+Types["union"] = function(program, def)
+	local hookaddr = prepareHook(program, def)
+	for i, subtype in ipairs(def) do
+		local err = parseDef(subtype, program)
+		if err ~= nil then
+			return string.format("union[%d]: %s", i, tostring(err))
+		end
+	end
 	setJump(program, hookaddr)
 end
 

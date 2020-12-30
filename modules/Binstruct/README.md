@@ -215,6 +215,10 @@ The following types are defined:
 
         The zero for this type is the empty string.
 
+    {"union", ...TypeDef}
+
+        One of several types. Hooks can be used to select a single type.
+
     {"struct", ...{any?, TypeDef}}
         A set of named fields. Each parameter is a table defining a field of
         the struct.
