@@ -147,6 +147,9 @@ far down to search the stack. level 0 searches the current structure. The
 second argument to *stack* is the *key* to index in the found structure.
 Returns nil if *level* is out of bounds, or if *key* could not be found.
 
+The hook also receives the accumulated result of each hook in the same scope.
+It will be true only if no other hooks returned true.
+
 When a type encodes the value `nil`, the zero-value for the type is used.
 
 The following types are defined:

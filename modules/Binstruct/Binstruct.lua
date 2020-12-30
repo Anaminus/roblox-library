@@ -100,6 +100,9 @@
 -- second argument to *stack* is the *key* to index in the found structure.
 -- Returns nil if *level* is out of bounds, or if *key* could not be found.
 --
+-- The hook also receives the accumulated result of each hook in the same scope.
+-- It will be true only if no other hooks returned true.
+--
 -- When a type encodes the value `nil`, the zero-value for the type is used.
 --
 -- The following types are defined:
@@ -244,6 +247,7 @@ local frameRegisters = {
 	TABLE = true,
 	KEY   = true,
 	N     = true,
+	H     = true,
 }
 
 -- Copies registers in *from* to *to*, or a new frame if *to* is unspecified.
@@ -297,6 +301,7 @@ Instructions.PUSH = {op=3,
 		local v = fn(R.BUFFER)
 		table.insert(R.STACK, copyFrame(R))
 		R.TABLE = v
+		R.H = true
 	end,
 	function(R, fn)
 		-- *fn* must return a structural value to scope into.
@@ -304,6 +309,7 @@ Instructions.PUSH = {op=3,
 		v = fn(R.BUFFER, v)
 		table.insert(R.STACK, copyFrame(R))
 		R.TABLE = v
+		R.H = true
 	end,
 }
 
@@ -407,7 +413,9 @@ end
 Instructions.HOOK = {op=9,
 	function(R, params)
 		-- params: {jumpaddr, hook}
-		if not params[2](stackFn(R.STACK, R.TABLE)) then
+		local r = not params[2](stackFn(R.STACK, R.TABLE), R.H)
+		R.H = R.H and r
+		if r then
 			R.PC = params[1]
 		end
 	end,
@@ -894,6 +902,7 @@ local function execute(program, k, buffer, data)
 		TABLE = {data},  -- The working table.
 		KEY = 1,         -- A key pointing to a field in TABLE.
 		N = 0,           -- Maximum counter value.
+		H = true,        -- Accumulated result of each hook.
 	}
 
 	while R.PC <= PN do
