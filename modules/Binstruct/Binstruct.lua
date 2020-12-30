@@ -81,6 +81,7 @@
 -- Additionally, the following optional named fields can be specified:
 -- - `encode`: A filter that transforms a structural value before encoding.
 -- - `decode`: A filter that transforms a structural value after decoding.
+-- - `hook`: A function that determines whether the type should be used.
 --
 -- Within a decode filter, only the top-level value is structural; components of
 -- the value will have already been transformed (if defined to do so). Likewise,
@@ -89,6 +90,15 @@
 -- definition. Each component's definition will eventually transform the
 -- component itself, so the outer definition must avoid making transformations
 -- on the component.
+--
+-- A hook indicates whether the type will be handled. If it returns true, then
+-- the type is handled normally. If false is returned, then the type is skipped.
+--
+-- The hook receives a *stack* function, which is used to index keys in the
+-- stack. The first parameter to *stack* is the *level*, which determines how
+-- far down to search the stack. level 0 searches the current structure. The
+-- second argument to *stack* is the *key* to index in the found structure.
+-- Returns nil if *level* is out of bounds, or if *key* could not be found.
 --
 -- When a type encodes the value `nil`, the zero-value for the type is used.
 --
@@ -165,6 +175,10 @@
 --         received, so the zero-value of the field's type will be used.
 --
 --         The second element of a field definition is the type of the field.
+--
+--         A field definition may also specify a "hook" field, which is
+--         described above. If the hook returns false, then the field is
+--         skipped.
 --
 --         The zero for this type is an empty struct.
 --
@@ -368,6 +382,38 @@ Instructions.JMPN = {op=8,
 	true,
 }
 
+-- Prepare a function that indexes stack. If level is 0, then tab is indexed.
+local function stackFn(stack, tab)
+	local n = #stack
+	return function(level, key)
+		if level == 0 then
+			return tab[key]
+		end
+		local i = n-level+1
+		if i > 1 then
+			local top = stack[i]
+			if top then
+				local tab = top.TABLE
+				if tab then
+					return tab[key]
+				end
+			end
+		end
+		return nil
+	end
+end
+
+-- Call hook, jump to addr if false is returned.
+Instructions.HOOK = {op=9,
+	function(R, params)
+		-- params: {jumpaddr, hook}
+		if not params[2](stackFn(R.STACK, R.TABLE)) then
+			R.PC = params[1]
+		end
+	end,
+	true,
+}
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Set of value types. Each key is a type name. Each value is a function that
@@ -386,11 +432,22 @@ end
 -- Sets the first element of each column of the instruction at *addr* to the
 -- address of the the last instruction. Expects each column argument to be a
 -- table.
-local function setjump(program, addr)
+local function setJump(program, addr)
+	if addr == nil then
+		return
+	end
 	local instr = program[addr]
 	for i = 1, instr.n do
 		instr[i][1] = #program
 	end
+end
+
+local function prepareHook(program, def)
+	if type(def.hook) ~= "function" then
+		return nil
+	end
+	local params = {nil, def.hook}
+	return append(program, "HOOK", params, params)
 end
 
 local function nop(v)
@@ -402,6 +459,7 @@ local parseDef
 Types["pad"] = function(program, def)
 	local size = def[1]
 	if size and size > 0 then
+		local hookaddr = prepareHook(program, def)
 		append(program, "CALL",
 			function(buf)
 				buf:Pad(size)
@@ -410,12 +468,14 @@ Types["pad"] = function(program, def)
 				buf:Pad(size, true)
 			end
 		)
+		setJump(program, hookaddr)
 	end
 end
 
 Types["align"] = function(program, def)
 	local size = def[1]
 	if size and size > 0 then
+		local hookaddr = prepareHook(program, def)
 		append(program, "CALL",
 			function(buf)
 				buf:Align(size)
@@ -424,6 +484,7 @@ Types["align"] = function(program, def)
 				buf:Align(size, true)
 			end
 		)
+		setJump(program, hookaddr)
 	end
 end
 
@@ -431,6 +492,7 @@ Types["const"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local value = def[1]
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local v = value
@@ -441,6 +503,7 @@ Types["const"] = function(program, def)
 			v = efilter(v)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["bool"] = function(program, def)
@@ -453,6 +516,7 @@ Types["bool"] = function(program, def)
 		size = 0
 	end
 	if size > 0 then
+		local hookaddr = prepareHook(program, def)
 		append(program, "SET",
 			function(buf)
 				local v = buf:ReadBool()
@@ -465,8 +529,10 @@ Types["bool"] = function(program, def)
 				buf:WriteBool(v)
 			end
 		)
+		setJump(program, hookaddr)
 		return
 	end
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local v = buf:ReadBool()
@@ -481,12 +547,14 @@ Types["bool"] = function(program, def)
 			buf:Pad(size, false)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["uint"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local v = buf:ReadUint(size)
@@ -499,12 +567,14 @@ Types["uint"] = function(program, def)
 			buf:WriteUint(size, v)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["int"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local v = buf:ReadInt(size)
@@ -517,11 +587,13 @@ Types["int"] = function(program, def)
 			buf:WriteInt(size, v)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["byte"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local v = buf:ReadByte()
@@ -534,12 +606,14 @@ Types["byte"] = function(program, def)
 			buf:WriteByte(v)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["float"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1] or 64
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local v = buf:ReadFloat(size)
@@ -552,6 +626,7 @@ Types["float"] = function(program, def)
 			buf:WriteFloat(size, v)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["ufixed"] = function(program, def)
@@ -559,6 +634,7 @@ Types["ufixed"] = function(program, def)
 	local efilter = def.encode or nop
 	local i = def[1]
 	local f = def[2]
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local v = buf:ReadUfixed(i, f)
@@ -571,6 +647,7 @@ Types["ufixed"] = function(program, def)
 			buf:WriteUfixed(i, f, v)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["fixed"] = function(program, def)
@@ -578,6 +655,7 @@ Types["fixed"] = function(program, def)
 	local efilter = def.encode or nop
 	local i = def[1]
 	local f = def[2]
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local v = buf:ReadFixed(i, f)
@@ -590,12 +668,14 @@ Types["fixed"] = function(program, def)
 			buf:WriteFixed(i, f, v)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["string"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
+	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
 			local len = buf:ReadUint(size)
@@ -610,11 +690,13 @@ Types["string"] = function(program, def)
 			buf:WriteBytes(v)
 		end
 	)
+	setJump(program, hookaddr)
 end
 
 Types["struct"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
+	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH",
 		function(buf)
 			return {}
@@ -629,14 +711,17 @@ Types["struct"] = function(program, def)
 		local field = def[i]
 		if type(field) == "table" then
 			local name = field[1]
+			local hookaddr = prepareHook(program, field)
 			append(program, "FIELD", name, name)
 			local err = parseDef(field[2], program)
 			if err ~= nil then
 				return string.format("field %q: %s", name, tostring(err))
 			end
+			setJump(program, hookaddr)
 		end
 	end
 	append(program, "POP", function(v) return dfilter(v, unpack(def, 1, #def)) end, nil)
+	setJump(program, hookaddr)
 end
 
 Types["array"] = function(program, def)
@@ -648,6 +733,7 @@ Types["array"] = function(program, def)
 		-- Array is constantly empty.
 		return nil
 	end
+	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH",
 		function(buf)
 			return {}
@@ -665,8 +751,9 @@ Types["array"] = function(program, def)
 		return string.format("array[%d]: %s", size, tostring(err))
 	end
 	append(program, "JMPN", jumpaddr, jumpaddr)
-	setjump(program, jumpaddr)
+	setJump(program, jumpaddr)
 	append(program, "POP", function(v) return dfilter(v, size, vtype) end, nil)
+	setJump(program, hookaddr)
 end
 
 Types["vector"] = function(program, def)
@@ -677,6 +764,7 @@ Types["vector"] = function(program, def)
 	if size == nil then
 		return "vector size cannot be nil"
 	end
+	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH",
 		function(buf)
 			return {}
@@ -698,14 +786,16 @@ Types["vector"] = function(program, def)
 		return string.format("vector[%s]: %s", tostring(size), tostring(err))
 	end
 	append(program, "JMPN", jumpaddr, jumpaddr)
-	setjump(program, jumpaddr)
+	setJump(program, jumpaddr)
 	append(program, "POP", function(v) return dfilter(v, size, vtype) end, nil)
+	setJump(program, hookaddr)
 end
 
 Types["instance"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local class = def[1]
+	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH",
 		function(buf)
 			return Instance.new(class)
@@ -728,6 +818,7 @@ Types["instance"] = function(program, def)
 		end
 	end
 	append(program, "POP", function(v) return dfilter(v, unpack(def, 2, #def)) end, nil)
+	setJump(program, hookaddr)
 end
 
 --------------------------------------------------------------------------------
@@ -843,7 +934,11 @@ local function formatArg(arg)
 	elseif type(arg) == "string" then
 		return string.format("%q", arg)
 	elseif type(arg) == "table" then
-		return "{"..table.concat(arg, ", ").."}"
+		local s = table.create(#arg)
+		for i, v in ipairs(arg) do
+			s[i] = formatArg(v)
+		end
+		return "{"..table.concat(s, ", ").."}"
 	end
 	return tostring(arg)
 end

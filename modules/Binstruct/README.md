@@ -128,6 +128,7 @@ determines the remaining structure of the table.
 Additionally, the following optional named fields can be specified:
 - `encode`: A filter that transforms a structural value before encoding.
 - `decode`: A filter that transforms a structural value after decoding.
+- `hook`: A function that determines whether the type should be used.
 
 Within a decode filter, only the top-level value is structural; components of
 the value will have already been transformed (if defined to do so). Likewise,
@@ -136,6 +137,15 @@ contains transformed components as expected by the component's type
 definition. Each component's definition will eventually transform the
 component itself, so the outer definition must avoid making transformations
 on the component.
+
+A hook indicates whether the type will be handled. If it returns true, then
+the type is handled normally. If false is returned, then the type is skipped.
+
+The hook receives a *stack* function, which is used to index keys in the
+stack. The first parameter to *stack* is the *level*, which determines how
+far down to search the stack. level 0 searches the current structure. The
+second argument to *stack* is the *key* to index in the found structure.
+Returns nil if *level* is out of bounds, or if *key* could not be found.
 
 When a type encodes the value `nil`, the zero-value for the type is used.
 
@@ -213,13 +223,17 @@ The following types are defined:
 
         The second element of a field definition is the type of the field.
 
+        A field definition may also specify a "hook" field, which is
+        described above. If the hook returns false, then the field is
+        skipped.
+
         The zero for this type is an empty struct.
 
     {"array", number, TypeDef, level: number?}
         A constant-size list of unnamed fields.
 
-        The first parameter is the *size* of the array, which indicates a
-        constant size.
+        The first parameter is the *size* of the array, indicating a constant
+        size.
 
         The second parameter is the type of each element in the array.
 
@@ -234,16 +248,16 @@ The following types are defined:
         A dynamically sized list of unnamed fields.
 
         The first parameter is the *size* of the vector, which indicates the
-        name of a field in the parent struct from which the size is
+        key of a field in the parent struct from which the size is
         determined. Evaluates to 0 if this field cannot be determined or is a
         non-number.
 
         The second parameter is the type of each element in the vector.
 
         If the *level* field is specified, then it indicates the ancestor
-        struct where *size* will be searched. If *level* is less than 1 or
+        structure where *size* will be searched. If *level* is less than 1 or
         greater than the number of ancestors, then *size* evaluates to 0.
-        Defaults to 1.
+        Defaults to 1, indicating the parent structure.
 
         The zero for this type is an empty vector.
 
