@@ -530,38 +530,35 @@ Types["bool"] = function(program, def)
 	else
 		size = 0
 	end
+	local decode
+	local encode
 	if size > 0 then
-		local hookaddr = prepareHook(program, def)
-		append(program, "SET",
-			function(buf)
-				local v = buf:ReadBool()
-				v = dfilter(v, size)
-				return v
-			end,
-			function(buf, v)
-				if v == nil then v = false end
-				v = efilter(v, size)
-				buf:WriteBool(v)
-			end
-		)
-		setJump(program, hookaddr)
-		return nil
-	end
-	local hookaddr = prepareHook(program, def)
-	append(program, "SET",
-		function(buf)
+		decode = function(buf)
+			local v = buf:ReadBool()
+			v = dfilter(v, size)
+			return v
+		end
+		encode = function(buf, v)
+			if v == nil then v = false end
+			v = efilter(v, size)
+			buf:WriteBool(v)
+		end
+	else
+		decode = function(buf)
 			local v = buf:ReadBool()
 			v = dfilter(v, size)
 			buf:Pad(size)
 			return v
 		end,
-		function(buf, v)
+		encode = function(buf, v)
 			if v == nil then v = false end
 			v = efilter(v, size)
 			buf:WriteBool(v)
 			buf:Pad(size, false)
 		end
-	)
+	end
+	local hookaddr = prepareHook(program, def)
+	append(program, "SET", decode, encode)
 	setJump(program, hookaddr)
 	return nil
 end
