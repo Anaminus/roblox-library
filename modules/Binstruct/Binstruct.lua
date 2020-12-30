@@ -549,7 +549,7 @@ Types["bool"] = function(program, def)
 			v = dfilter(v, size)
 			buf:Pad(size)
 			return v
-		end,
+		end
 		encode = function(buf, v)
 			if v == nil then v = false end
 			v = efilter(v, size)
