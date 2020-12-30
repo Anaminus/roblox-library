@@ -470,6 +470,10 @@ local parseDef
 
 Types["pad"] = function(program, def)
 	local size = def[1]
+	if size ~= nil and type(size) ~= "number" then
+		return "size must be a number or nil"
+	end
+
 	if size and size > 0 then
 		local hookaddr = prepareHook(program, def)
 		append(program, "CALL",
@@ -487,6 +491,10 @@ end
 
 Types["align"] = function(program, def)
 	local size = def[1]
+	if size ~= nil and type(size) ~= "number" then
+		return "size must be a number or nil"
+	end
+
 	if size and size > 0 then
 		local hookaddr = prepareHook(program, def)
 		append(program, "CALL",
@@ -506,6 +514,7 @@ Types["const"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local value = def[1]
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
@@ -525,6 +534,10 @@ Types["bool"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
+	if size ~= nil and type(size) ~= "number" then
+		return "size must be a number or nil"
+	end
+
 	if size then
 		size -= 1
 	else
@@ -557,6 +570,7 @@ Types["bool"] = function(program, def)
 			buf:Pad(size, false)
 		end
 	end
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", decode, encode)
 	setJump(program, hookaddr)
@@ -567,6 +581,10 @@ Types["uint"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
+	if type(size) ~= "number" then
+		return "size must be a number"
+	end
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
@@ -588,6 +606,10 @@ Types["int"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
+	if type(size) ~= "number" then
+		return "size must be a number"
+	end
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
@@ -608,6 +630,7 @@ end
 Types["byte"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
@@ -628,7 +651,12 @@ end
 Types["float"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
-	local size = def[1] or 64
+	local size = def[1]
+	if size ~= nil and type(size) ~= "number" then
+		return "size must be a number or nil"
+	end
+	size = size or 64
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
@@ -651,6 +679,13 @@ Types["ufixed"] = function(program, def)
 	local efilter = def.encode or nop
 	local i = def[1]
 	local f = def[2]
+	if type(i) ~= "number" then
+		return "integer part must be a number"
+	end
+	if type(f) ~= "number" then
+		return "fractional part must be a number"
+	end
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
@@ -673,6 +708,13 @@ Types["fixed"] = function(program, def)
 	local efilter = def.encode or nop
 	local i = def[1]
 	local f = def[2]
+	if type(i) ~= "number" then
+		return "integer part must be a number"
+	end
+	if type(f) ~= "number" then
+		return "fractional part must be a number"
+	end
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
@@ -694,6 +736,10 @@ Types["string"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
+	if type(size) ~= "number" then
+		return "size must be a number"
+	end
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
 		function(buf)
@@ -728,6 +774,7 @@ end
 Types["struct"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH",
 		function(buf)
@@ -742,6 +789,10 @@ Types["struct"] = function(program, def)
 	for _, field in ipairs(def) do
 		if type(field) == "table" then
 			local name = field[1]
+			if field.hook ~= nil and type(field.hook) ~= "function" then
+				return string.format("field %q: hook must be a function", name)
+			end
+
 			local hookaddr = prepareHook(program, field)
 			append(program, "FIELD", name, name)
 			local err = parseDef(field[2], program)
@@ -761,6 +812,10 @@ Types["array"] = function(program, def)
 	local efilter = def.encode or nop
 	local size = def[1]
 	local vtype = def[2]
+	if type(size) ~= "number" then
+		return "size must be a number"
+	end
+
 	if size <= 0 then
 		-- Array is constantly empty.
 		return nil
@@ -797,6 +852,7 @@ Types["vector"] = function(program, def)
 	if size == nil then
 		return "vector size cannot be nil"
 	end
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH",
 		function(buf)
@@ -829,6 +885,10 @@ Types["instance"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local class = def[1]
+	if type(class) ~= "string" then
+		return "class must be a string"
+	end
+
 	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH",
 		function(buf)
@@ -874,12 +934,15 @@ end
 
 function parseDef(def, program)
 	if type(def) ~= "table" then
-		return "table expected"
+		return "type definition must be a table"
 	end
 	local name = def[1]
 	local t = Types[name]
 	if not t then
 		return string.format("unknown type %q", tostring(name))
+	end
+	if def.hook ~= nil and type(def.hook) ~= "function" then
+		return "hook must be a function"
 	end
 	if def.decode ~= nil and type(def.decode) ~= "function" then
 		return "decode filter must be a function"
@@ -906,6 +969,7 @@ local Codec = {__index={}}
 --@def: Binstruct.new(def: TypeDef): Codec
 --@doc: new constructs a Codec from the given definition.
 function Binstruct.new(def)
+	assert(type(def) == "table", "table expected")
 	local program = {}
 	local err = parseDef(def, program)
 	if err ~= nil then
