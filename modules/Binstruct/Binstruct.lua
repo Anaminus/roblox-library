@@ -715,8 +715,7 @@ Types["struct"] = function(program, def)
 			return v
 		end
 	)
-	for i = 1, #def do
-		local field = def[i]
+	for _, field in ipairs(def) do
 		if type(field) == "table" then
 			local name = field[1]
 			local hookaddr = prepareHook(program, field)
