@@ -966,7 +966,7 @@ end
 local Codec = {__index={}}
 
 --@sec: Binstruct.new
---@def: Binstruct.new(def: TypeDef): Codec
+--@def: Binstruct.new(def: TypeDef): (err: string?, codec: Codec)
 --@doc: new constructs a Codec from the given definition.
 function Binstruct.new(def)
 	assert(type(def) == "table", "table expected")

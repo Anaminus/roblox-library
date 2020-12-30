@@ -72,7 +72,7 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 ## Binstruct.new
 [Binstruct.new]: #user-content-binstructnew
 ```
-Binstruct.new(def: TypeDef): Codec
+Binstruct.new(def: TypeDef): (err: string?, codec: Codec)
 ```
 
 new constructs a Codec from the given definition.
