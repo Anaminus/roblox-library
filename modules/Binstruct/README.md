@@ -92,6 +92,17 @@ Codec:Decode(buffer: string): any
 ```
 
 Decode decodes a binary string into a value according to the codec.
+Returns the decoded value.
+
+## Codec.DecodeBuffer
+[Codec.DecodeBuffer]: #user-content-codecdecodebuffer
+```
+Codec:DecodeBuffer(buffer: Bitbuf.Buffer?): any
+```
+
+DecodeBuffer decodes a binary string into a value according to the
+codec. *buffer* is an optional buffer to read from. Returns the decoded
+value.
 
 ## Codec.Encode
 [Codec.Encode]: #user-content-codecencode
@@ -100,6 +111,17 @@ Codec:Encode(data: any): string
 ```
 
 Encode encodes a value into a binary string according to the codec.
+Returns the encoded string.
+
+## Codec.EncodeBuffer
+[Codec.EncodeBuffer]: #user-content-codecencodebuffer
+```
+Codec:EncodeBuffer(data: any, buffer: Bitbuf.Buffer?): Bitbuf.Buffer
+```
+
+EncodeBuffer encodes a value into a binary string according to the
+codec. *buffer* is an optional Buffer to write to. Returns a Buffer with the
+written data.
 
 # Filter
 [Filter]: #user-content-filter

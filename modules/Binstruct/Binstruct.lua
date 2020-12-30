@@ -950,7 +950,9 @@ end
 --@sec: Codec.Decode
 --@def: Codec:Decode(buffer: string): any
 --@doc: Decode decodes a binary string into a value according to the codec.
+-- Returns the decoded value.
 function Codec.__index:Decode(buffer)
+	assert(type(buffer) == "string", "string expected")
 	local buf = Bitbuf.fromString(buffer)
 	return execute(self.program, 1, buf, nil)
 end
@@ -958,10 +960,41 @@ end
 --@sec: Codec.Encode
 --@def: Codec:Encode(data: any): string
 --@doc: Encode encodes a value into a binary string according to the codec.
+-- Returns the encoded string.
 function Codec.__index:Encode(data)
 	local buf = Bitbuf.new()
 	execute(self.program, 2, buf, data)
 	return buf:String()
+end
+
+local function assertBuffer(buffer)
+	if buffer == nil then
+		return Bitbuf.new()
+	elseif Bitbuf.isBuffer(buffer) then
+		return buffer
+	end
+	error(string.format("Buffer expected, got %s", typeof(buffer)), 3)
+end
+
+--@sec: Codec.DecodeBuffer
+--@def: Codec:DecodeBuffer(buffer: Bitbuf.Buffer?): any
+--@doc: DecodeBuffer decodes a binary string into a value according to the
+-- codec. *buffer* is an optional buffer to read from. Returns the decoded
+-- value.
+function Codec.__index:DecodeBuffer(buffer)
+	local buf = assertBuffer(buffer)
+	return execute(self.program, 1, buf, nil)
+end
+
+--@sec: Codec.EncodeBuffer
+--@def: Codec:EncodeBuffer(data: any, buffer: Bitbuf.Buffer?): Bitbuf.Buffer
+--@doc: EncodeBuffer encodes a value into a binary string according to the
+-- codec. *buffer* is an optional Buffer to write to. Returns a Buffer with the
+-- written data.
+function Codec.__index:EncodeBuffer(data, buffer)
+	local buf = assertBuffer(buffer)
+	execute(self.program, 2, buf, data)
+	return buf
 end
 
 local function formatArg(arg)
