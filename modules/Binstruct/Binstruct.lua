@@ -482,6 +482,7 @@ Types["pad"] = function(program, def)
 		)
 		setJump(program, hookaddr)
 	end
+	return nil
 end
 
 Types["align"] = function(program, def)
@@ -498,6 +499,7 @@ Types["align"] = function(program, def)
 		)
 		setJump(program, hookaddr)
 	end
+	return nil
 end
 
 Types["const"] = function(program, def)
@@ -516,6 +518,7 @@ Types["const"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["bool"] = function(program, def)
@@ -542,7 +545,7 @@ Types["bool"] = function(program, def)
 			end
 		)
 		setJump(program, hookaddr)
-		return
+		return nil
 	end
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET",
@@ -560,6 +563,7 @@ Types["bool"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["uint"] = function(program, def)
@@ -580,6 +584,7 @@ Types["uint"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["int"] = function(program, def)
@@ -600,6 +605,7 @@ Types["int"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["byte"] = function(program, def)
@@ -619,6 +625,7 @@ Types["byte"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["float"] = function(program, def)
@@ -639,6 +646,7 @@ Types["float"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["ufixed"] = function(program, def)
@@ -660,6 +668,7 @@ Types["ufixed"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["fixed"] = function(program, def)
@@ -681,6 +690,7 @@ Types["fixed"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["string"] = function(program, def)
@@ -703,6 +713,7 @@ Types["string"] = function(program, def)
 		end
 	)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["union"] = function(program, def)
@@ -714,6 +725,7 @@ Types["union"] = function(program, def)
 		end
 	end
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["struct"] = function(program, def)
@@ -744,6 +756,7 @@ Types["struct"] = function(program, def)
 	end
 	append(program, "POP", function(v) return dfilter(v, unpack(def, 1, #def)) end, nil)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["array"] = function(program, def)
@@ -776,6 +789,7 @@ Types["array"] = function(program, def)
 	setJump(program, jumpaddr)
 	append(program, "POP", function(v) return dfilter(v, size, vtype) end, nil)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["vector"] = function(program, def)
@@ -811,6 +825,7 @@ Types["vector"] = function(program, def)
 	setJump(program, jumpaddr)
 	append(program, "POP", function(v) return dfilter(v, size, vtype) end, nil)
 	setJump(program, hookaddr)
+	return nil
 end
 
 Types["instance"] = function(program, def)
@@ -841,6 +856,7 @@ Types["instance"] = function(program, def)
 	end
 	append(program, "POP", function(v) return dfilter(v, unpack(def, 2, #def)) end, nil)
 	setJump(program, hookaddr)
+	return nil
 end
 
 --------------------------------------------------------------------------------
