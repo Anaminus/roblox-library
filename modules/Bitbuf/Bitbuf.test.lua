@@ -1130,4 +1130,12 @@ function T.TestBuffer_ReadFixed(t, require)
 	--TODO: ReadFixed
 end
 
+function T.TestIsBuffer(t, require)
+	local Bitbuf = require()
+
+	pass(t, Bitbuf.isBuffer(42) == false, "42 is not a Buffer")
+	pass(t, Bitbuf.isBuffer(Bitbuf.new()) == true, "result of new is a Buffer")
+	pass(t, Bitbuf.isBuffer(Bitbuf.fromString("")) == true, "result of fromString is a Buffer")
+end
+
 return T

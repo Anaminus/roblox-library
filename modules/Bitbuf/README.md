@@ -13,6 +13,14 @@ function Bitbuf.fromString(s: string): Buffer
 fromString returns a Buffer with the contents initialized with the bits
 of *s*.
 
+## Bitbuf.isBuffer
+[Bitbuf.isBuffer]: #user-content-bitbufisbuffer
+```
+function Bitbuf.isBuffer(value: any): boolean
+```
+
+isBuffer returns whether *value* is a Buffer.
+
 ## Bitbuf.new
 [Bitbuf.new]: #user-content-bitbufnew
 ```

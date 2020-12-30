@@ -649,4 +649,11 @@ function Buffer.__index:ReadFixed(i, f)
 	return float_from_fixed(i, f, self:ReadInt(i + f))
 end
 
+--@sec: Bitbuf.isBuffer
+--@def: function Bitbuf.isBuffer(value: any): boolean
+--@doc: isBuffer returns whether *value* is a Buffer.
+function Bitbuf.isBuffer(value)
+	return getmetatable(value) == Buffer
+end
+
 return Bitbuf
