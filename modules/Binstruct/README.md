@@ -215,14 +215,11 @@ The following types are defined:
 
         The zero for this type is an empty struct.
 
-    {"array", number|any, TypeDef, level: number?}
-        A list of unnamed fields.
+    {"array", number, TypeDef, level: number?}
+        A constant-size list of unnamed fields.
 
-        The first parameter is the *size* of the array. If *size* is a
-        number, this indicates a constant size. Otherwise, *size* indicates
-        the name of a field in the parent struct from which the size is
-        determined. Evaluates to 0 if this field cannot be determined or is a
-        non-number.
+        The first parameter is the *size* of the array, which indicates a
+        constant size.
 
         The second parameter is the type of each element in the array.
 
@@ -232,6 +229,23 @@ The following types are defined:
         Defaults to 1.
 
         The zero for this type is an empty array.
+
+    {"vector", any, TypeDef, level: number?}
+        A dynamically sized list of unnamed fields.
+
+        The first parameter is the *size* of the vector, which indicates the
+        name of a field in the parent struct from which the size is
+        determined. Evaluates to 0 if this field cannot be determined or is a
+        non-number.
+
+        The second parameter is the type of each element in the vector.
+
+        If the *level* field is specified, then it indicates the ancestor
+        struct where *size* will be searched. If *level* is less than 1 or
+        greater than the number of ancestors, then *size* evaluates to 0.
+        Defaults to 1.
+
+        The zero for this type is an empty vector.
 
     {"instance", string, ...{any?, TypeDef}}
         A Roblox instance. The first parameter is the name of a Roblox class.

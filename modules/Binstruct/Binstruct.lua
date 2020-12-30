@@ -168,14 +168,11 @@
 --
 --         The zero for this type is an empty struct.
 --
---     {"array", number|any, TypeDef, level: number?}
---         A list of unnamed fields.
+--     {"array", number, TypeDef, level: number?}
+--         A constant-size list of unnamed fields.
 --
---         The first parameter is the *size* of the array. If *size* is a
---         number, this indicates a constant size. Otherwise, *size* indicates
---         the name of a field in the parent struct from which the size is
---         determined. Evaluates to 0 if this field cannot be determined or is a
---         non-number.
+--         The first parameter is the *size* of the array, indicating a constant
+--         size.
 --
 --         The second parameter is the type of each element in the array.
 --
@@ -185,6 +182,23 @@
 --         Defaults to 1.
 --
 --         The zero for this type is an empty array.
+--
+--     {"vector", any, TypeDef, level: number?}
+--         A dynamically sized list of unnamed fields.
+--
+--         The first parameter is the *size* of the vector, which indicates the
+--         key of a field in the parent struct from which the size is
+--         determined. Evaluates to 0 if this field cannot be determined or is a
+--         non-number.
+--
+--         The second parameter is the type of each element in the vector.
+--
+--         If the *level* field is specified, then it indicates the ancestor
+--         structure where *size* will be searched. If *level* is less than 1 or
+--         greater than the number of ancestors, then *size* evaluates to 0.
+--         Defaults to 1, indicating the parent structure.
+--
+--         The zero for this type is an empty vector.
 --
 --     {"instance", string, ...{any?, TypeDef}}
 --         A Roblox instance. The first parameter is the name of a Roblox class.
@@ -629,8 +643,8 @@ Types["array"] = function(program, def)
 	local dfilter = def.decode or nop
 	local efilter = def.encode or nop
 	local size = def[1]
-	local typ = def[2]
-	if type(size) == "number" and size <= 0 then
+	local vtype = def[2]
+	if size <= 0 then
 		-- Array is constantly empty.
 		return nil
 	end
@@ -640,31 +654,52 @@ Types["array"] = function(program, def)
 		end,
 		function(buf, v)
 			if v == nil then v = {} end
-			v = efilter(v, size, typ)
+			v = efilter(v, size, vtype)
 			return v
 		end
 	)
-	local ja
-	if type(size) == "number" then
-		local params = {nil, size}
-		ja = append(program, "FORC", params, params)
-	elseif size == nil then
-		return "array size cannot be nil"
-	else
-		local level = def.level or 1
-		if level < 0 then
-			level = 0
-		end
-		local params = {nil, size, level}
-		ja = append(program, "FORF", params, params)
-	end
-	local err = parseDef(typ, program)
+	local params = {nil, size}
+	local jumpaddr = append(program, "FORC", params, params)
+	local err = parseDef(vtype, program)
 	if err ~= nil then
-		return string.format("array[%s]: %s", tostring(size), tostring(err))
+		return string.format("array[%d]: %s", size, tostring(err))
 	end
-	append(program, "JMPN", ja, ja)
-	setjump(program, ja)
-	append(program, "POP", function(v) return dfilter(v, size, typ) end, nil)
+	append(program, "JMPN", jumpaddr, jumpaddr)
+	setjump(program, jumpaddr)
+	append(program, "POP", function(v) return dfilter(v, size, vtype) end, nil)
+end
+
+Types["vector"] = function(program, def)
+	local dfilter = def.decode or nop
+	local efilter = def.encode or nop
+	local size = def[1]
+	local vtype = def[2]
+	if size == nil then
+		return "vector size cannot be nil"
+	end
+	append(program, "PUSH",
+		function(buf)
+			return {}
+		end,
+		function(buf, v)
+			if v == nil then v = {} end
+			v = efilter(v, size, vtype)
+			return v
+		end
+	)
+	local level = def.level or 1
+	if level < 0 then
+		level = 0
+	end
+	local params = {nil, size, level}
+	local jumpaddr = append(program, "FORF", params, params)
+	local err = parseDef(vtype, program)
+	if err ~= nil then
+		return string.format("vector[%s]: %s", tostring(size), tostring(err))
+	end
+	append(program, "JMPN", jumpaddr, jumpaddr)
+	setjump(program, jumpaddr)
+	append(program, "POP", function(v) return dfilter(v, size, vtype) end, nil)
 end
 
 Types["instance"] = function(program, def)
