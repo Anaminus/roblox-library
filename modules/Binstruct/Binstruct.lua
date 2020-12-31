@@ -94,11 +94,10 @@
 -- A hook indicates whether the type will be handled. If it returns true, then
 -- the type is handled normally. If false is returned, then the type is skipped.
 --
--- The hook receives a *stack* function, which is used to index keys in the
--- stack. The first parameter to *stack* is the *level*, which determines how
--- far down to search the stack. level 0 searches the current structure. The
--- second argument to *stack* is the *key* to index in the found structure.
--- Returns nil if *level* is out of bounds, or if *key* could not be found.
+-- The hook receives a *stack* function, which is used to index structures in
+-- the stack. The first parameter to *stack* is the *level*, which determines
+-- how far down to index the stack. level 0 gets the current structure. Returns
+-- nil if *level* is out of bounds.
 --
 -- The hook also receives the accumulated result of each hook in the same scope.
 -- It will be true only if no other hooks returned true.
@@ -395,18 +394,15 @@ Instructions.JMPN = {op=8,
 -- Prepare a function that indexes stack. If level is 0, then tab is indexed.
 local function stackFn(stack, tab)
 	local n = #stack
-	return function(level, key)
+	return function(level)
 		if level == 0 then
-			return tab[key]
+			return tab
 		end
 		local i = n-level+1
 		if i > 1 then
 			local top = stack[i]
 			if top then
-				local tab = top.TABLE
-				if tab then
-					return tab[key]
-				end
+				return top.TABLE
 			end
 		end
 		return nil
@@ -417,7 +413,11 @@ end
 Instructions.HOOK = {op=9,
 	function(R, params)
 		-- params: {jumpaddr, hook}
-		local r = not params[2](stackFn(R.STACK, R.TABLE), R.H)
+		local tab = nil
+		if #R.STACK > 0 then
+			tab = R.TABLE
+		end
+		local r = not params[2](stackFn(R.STACK, tab), R.H)
 		R.H = R.H and r
 		if r then
 			R.PC = params[1]

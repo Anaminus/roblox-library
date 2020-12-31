@@ -163,11 +163,10 @@ on the component.
 A hook indicates whether the type will be handled. If it returns true, then
 the type is handled normally. If false is returned, then the type is skipped.
 
-The hook receives a *stack* function, which is used to index keys in the
-stack. The first parameter to *stack* is the *level*, which determines how
-far down to search the stack. level 0 searches the current structure. The
-second argument to *stack* is the *key* to index in the found structure.
-Returns nil if *level* is out of bounds, or if *key* could not be found.
+The hook receives a *stack* function, which is used to index structures in
+the stack. The first parameter to *stack* is the *level*, which determines
+how far down to index the stack. level 0 gets the current structure. Returns
+nil if *level* is out of bounds.
 
 The hook also receives the accumulated result of each hook in the same scope.
 It will be true only if no other hooks returned true.
