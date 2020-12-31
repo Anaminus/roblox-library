@@ -131,8 +131,8 @@ type Filter = (value: any?, params: ...any) -> (any?, error?)
 Filter applies to a TypeDef by transforming *value* before encoding, or
 after decoding. Should return the transformed *value*.
 
-*params* are the elements of the TypeDef. Only primitive types are passed.
-
+The *params* received depend on the type, but are usually the elements of the
+TypeDef.
 
 A non-nil error causes the program to halt, returning the given value.
 
@@ -214,20 +214,26 @@ The following types are defined:
         encoded nor decoded.
 
     {"bool", number?}
-        A boolean. The parameter is the number of bits used to represent the
-        value, defaulting to 1.
+        A boolean. The parameter is *size*, or the number of bits used to
+        represent the value, defaulting to 1.
+
+        *size* is passed to filters as additional arguments.
 
         The zero for this type is `false`.
 
     {"int", number}
-        A signed integer. The parameter is the number of bits used to
-        represent the value.
+        A signed integer. The parameter is *size*, or the number of bits used
+        to represent the value.
+
+        *size* is passed to filters as additional arguments.
 
         The zero for this type is `0`.
 
     {"uint", number}
-        An unsigned integer. The parameter is the number of bits used to
-        represent the value.
+        An unsigned integer. The parameter is *size*, or the number of bits
+        used to represent the value.
+
+        *size* is passed to filters as additional arguments.
 
         The zero for this type is `0`.
 
@@ -235,29 +241,41 @@ The following types are defined:
         Shorthand for `{"uint", 8}`.
 
     {"float", number?}
-        A floating-point number. The parameter is the number of bits used to
-        represent the value, and must be 32 or 64. Defaults to 64.
+        A floating-point number. The parameter is *size*, or the number of
+        bits used to represent the value, and must be 32 or 64. Defaults to
+        64.
+
+        *size* is passed to filters as additional arguments.
 
         The zero for this type is `0`.
 
     {"fixed", number, number}
-        A signed fixed-point number. The first parameter is the number of
-        bits used to represent the integer part, and the second parameter is
-        the number of bits used to represent the fractional part.
+        A signed fixed-point number. The first parameter is *i*, or the
+        number of bits used to represent the integer part. The second
+        parameter is *f*, or the number of bits used to represent the
+        fractional part.
+
+        *i* and *f* are passed to filters as additional arguments.
 
         The zero for this type is `0`.
 
     {"ufixed", number, number}
-        An unsigned fixed-point number. The first parameter is the number of
-        bits used to represent the integer part, and the second parameter is
-        the number of bits used to represent the fractional part.
+        An unsigned fixed-point number. The first parameter is *i*, or the
+        number of bits used to represent the integer part. The second
+        parameter is *f*, or the number of bits used to represent the
+        fractional part.
+
+        *i* and *f* are passed to filters as additional arguments.
 
         The zero for this type is `0`.
 
     {"string", number}
         A sequence of characters. Encoded as an unsigned integer indicating
         the length of the string, followed by the raw bytes of the string.
-        The parameter is the number of bits used to represent the length.
+        The parameter is *size*, or the number of bits used to represent the
+        length.
+
+        *size* is passed to filters as additional arguments.
 
         The zero for this type is the empty string.
 
@@ -299,6 +317,8 @@ The following types are defined:
         greater than the number of ancestors, then *size* evaluates to 0.
         Defaults to 1.
 
+        *size* is passed to filters as additional arguments.
+
         The zero for this type is an empty array.
 
     {"vector", any, TypeDef, level: number?}
@@ -316,12 +336,14 @@ The following types are defined:
         greater than the number of ancestors, then *size* evaluates to 0.
         Defaults to 1, indicating the parent structure.
 
+        *size* is passed to filters as additional arguments.
+
         The zero for this type is an empty vector.
 
     {"instance", string, ...{any?, TypeDef}}
-        A Roblox instance. The first parameter is the name of a Roblox class.
-        Each remaining parameter is a table defining a property of the
-        instance.
+        A Roblox instance. The first parameter is *class*, or the name of a
+        Roblox class. Each remaining parameter is a table defining a property
+        of the instance.
 
         The first element of a property definition is the name used to index
         the property. If nil, the value will be processed, but the field will
@@ -330,6 +352,8 @@ The following types are defined:
 
         The second element of a property definition is the type of the
         property.
+
+        *class* is passed to filters as additional arguments.
 
         The zero for this type is a new instance of the class.
 

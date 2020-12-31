@@ -118,20 +118,26 @@
 --         encoded nor decoded.
 --
 --     {"bool", number?}
---         A boolean. The parameter is the number of bits used to represent the
---         value, defaulting to 1.
+--         A boolean. The parameter is *size*, or the number of bits used to
+--         represent the value, defaulting to 1.
+--
+--         *size* is passed to filters as additional arguments.
 --
 --         The zero for this type is `false`.
 --
 --     {"int", number}
---         A signed integer. The parameter is the number of bits used to
---         represent the value.
+--         A signed integer. The parameter is *size*, or the number of bits used
+--         to represent the value.
+--
+--         *size* is passed to filters as additional arguments.
 --
 --         The zero for this type is `0`.
 --
 --     {"uint", number}
---         An unsigned integer. The parameter is the number of bits used to
---         represent the value.
+--         An unsigned integer. The parameter is *size*, or the number of bits
+--         used to represent the value.
+--
+--         *size* is passed to filters as additional arguments.
 --
 --         The zero for this type is `0`.
 --
@@ -139,29 +145,41 @@
 --         Shorthand for `{"uint", 8}`.
 --
 --     {"float", number?}
---         A floating-point number. The parameter is the number of bits used to
---         represent the value, and must be 32 or 64. Defaults to 64.
+--         A floating-point number. The parameter is *size*, or the number of
+--         bits used to represent the value, and must be 32 or 64. Defaults to
+--         64.
+--
+--         *size* is passed to filters as additional arguments.
 --
 --         The zero for this type is `0`.
 --
 --     {"fixed", number, number}
---         A signed fixed-point number. The first parameter is the number of
---         bits used to represent the integer part, and the second parameter is
---         the number of bits used to represent the fractional part.
+--         A signed fixed-point number. The first parameter is *i*, or the
+--         number of bits used to represent the integer part. The second
+--         parameter is *f*, or the number of bits used to represent the
+--         fractional part.
+--
+--         *i* and *f* are passed to filters as additional arguments.
 --
 --         The zero for this type is `0`.
 --
 --     {"ufixed", number, number}
---         An unsigned fixed-point number. The first parameter is the number of
---         bits used to represent the integer part, and the second parameter is
---         the number of bits used to represent the fractional part.
+--         An unsigned fixed-point number. The first parameter is *i*, or the
+--         number of bits used to represent the integer part. The second
+--         parameter is *f*, or the number of bits used to represent the
+--         fractional part.
+--
+--         *i* and *f* are passed to filters as additional arguments.
 --
 --         The zero for this type is `0`.
 --
 --     {"string", number}
 --         A sequence of characters. Encoded as an unsigned integer indicating
 --         the length of the string, followed by the raw bytes of the string.
---         The parameter is the number of bits used to represent the length.
+--         The parameter is *size*, or the number of bits used to represent the
+--         length.
+--
+--         *size* is passed to filters as additional arguments.
 --
 --         The zero for this type is the empty string.
 --
@@ -203,6 +221,8 @@
 --         greater than the number of ancestors, then *size* evaluates to 0.
 --         Defaults to 1.
 --
+--         *size* is passed to filters as additional arguments.
+--
 --         The zero for this type is an empty array.
 --
 --     {"vector", any, TypeDef, level: number?}
@@ -220,12 +240,14 @@
 --         greater than the number of ancestors, then *size* evaluates to 0.
 --         Defaults to 1, indicating the parent structure.
 --
+--         *size* is passed to filters as additional arguments.
+--
 --         The zero for this type is an empty vector.
 --
 --     {"instance", string, ...{any?, TypeDef}}
---         A Roblox instance. The first parameter is the name of a Roblox class.
---         Each remaining parameter is a table defining a property of the
---         instance.
+--         A Roblox instance. The first parameter is *class*, or the name of a
+--         Roblox class. Each remaining parameter is a table defining a property
+--         of the instance.
 --
 --         The first element of a property definition is the name used to index
 --         the property. If nil, the value will be processed, but the field will
@@ -235,6 +257,8 @@
 --         The second element of a property definition is the type of the
 --         property.
 --
+--         *class* is passed to filters as additional arguments.
+--
 --         The zero for this type is a new instance of the class.
 
 --@sec: Filter
@@ -242,8 +266,8 @@
 --@doc: Filter applies to a TypeDef by transforming *value* before encoding, or
 -- after decoding. Should return the transformed *value*.
 --
--- *params* are the elements of the TypeDef. Only primitive types are passed.
---
+-- The *params* received depend on the type, but are usually the elements of the
+-- TypeDef.
 --
 -- A non-nil error causes the program to halt, returning the given value.
 
@@ -583,11 +607,11 @@ Types["const"] = function(program, def)
 	append(program, "SET", {
 		decode = function(buf)
 			local v = value
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v, value)
 			return v, err
 		end,
 		encode = function(buf, v)
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, value)
 			return err
 		end,
 	})
@@ -657,12 +681,12 @@ Types["uint"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadUint(size)
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v, size)
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, size)
 			buf:WriteUint(size, v)
 			return err
 		end,
@@ -685,12 +709,12 @@ Types["int"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadInt(size)
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v, size)
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, size)
 			buf:WriteInt(size, v)
 			return err
 		end,
@@ -709,12 +733,12 @@ Types["byte"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(8) then return nil, EOF end
 			local v = buf:ReadByte()
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v)
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v)
 			buf:WriteByte(v)
 		end,
 	})
@@ -737,12 +761,12 @@ Types["float"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadFloat(size)
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v, size)
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, size)
 			buf:WriteFloat(size, v)
 			return err
 		end,
@@ -769,12 +793,12 @@ Types["ufixed"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(i+f) then return nil, EOF end
 			local v = buf:ReadUfixed(i, f)
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v, i, f)
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, i, f)
 			buf:WriteUfixed(i, f, v)
 			return err
 		end,
@@ -801,12 +825,12 @@ Types["fixed"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(i+f) then return nil, EOF end
 			local v = buf:ReadFixed(i, f)
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v, i, f)
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, i, f)
 			buf:WriteFixed(i, f, v)
 			return err
 		end,
@@ -831,12 +855,12 @@ Types["string"] = function(program, def)
 			local len = buf:ReadUint(size)
 			if not buf:Fits(len) then return nil, EOF end
 			local v = buf:ReadBytes(len)
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v, size)
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = "" end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, size)
 			buf:WriteUint(size, #v)
 			buf:WriteBytes(v)
 			return err
@@ -923,7 +947,7 @@ Types["array"] = function(program, def)
 		end,
 		encode = function(buf, v)
 			if v == nil then v = {} end
-			local v, err = efilter(v, unpack(def, 1, 1))
+			local v, err = efilter(v, size)
 			return v, err
 		end,
 	})
@@ -937,7 +961,7 @@ Types["array"] = function(program, def)
 	setJump(program, jumpaddr)
 	append(program, "POP", {
 		decode = function(v)
-			local v, err = dfilter(v, unpack(def, 1, 1))
+			local v, err = dfilter(v, size)
 			return v, err
 		end,
 		encode = nil,
@@ -963,7 +987,7 @@ Types["vector"] = function(program, def)
 		end,
 		encode = function(buf, v)
 			if v == nil then v = {} end
-			local v, err = efilter(v, unpack(def, 1, 1))
+			local v, err = efilter(v, size)
 			return v, err
 		end,
 	})
@@ -981,7 +1005,7 @@ Types["vector"] = function(program, def)
 	setJump(program, jumpaddr)
 	append(program, "POP", {
 		decode = function(v)
-			local v, err = dfilter(v, unpack(def, 1, 1))
+			local v, err = dfilter(v, size)
 			return v, err
 		end,
 		encode = nil,
@@ -1006,7 +1030,7 @@ Types["instance"] = function(program, def)
 		end,
 		encode = function(buf, v)
 			if v == nil then v = Instance.new(class) end
-			local v, err = efilter(v, unpack(def, 1, 1))
+			local v, err = efilter(v, class)
 			return v, err
 		end,
 	})
@@ -1023,7 +1047,7 @@ Types["instance"] = function(program, def)
 	end
 	append(program, "POP", {
 		decode = function(v)
-			local v, err = dfilter(v, unpack(def, 1, 1))
+			local v, err = dfilter(v, class)
 			return v, err
 		end,
 		encode = nil,
