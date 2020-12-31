@@ -531,22 +531,22 @@ Types["pad"] = function(program, def)
 		return "size must be a number or nil"
 	end
 
-	if size and size > 0 then
-		local hookaddr = prepareHook(program, def)
-		append(program, "CALL", {
-			decode = function(buf)
-				if not buf:Fits(size) then return EOF end
-				buf:Pad(size)
-				return nil
-			end,
-			encode = function(buf)
-				buf:Pad(size, true)
-				return nil
-			end,
-		})
-		setJump(program, hookaddr)
+	if not size or size <= 0 then
+		return nil
 	end
-	return nil
+	local hookaddr = prepareHook(program, def)
+	append(program, "CALL", {
+		decode = function(buf)
+			if not buf:Fits(size) then return EOF end
+			buf:Pad(size)
+			return nil
+		end,
+		encode = function(buf)
+			buf:Pad(size, true)
+			return nil
+		end,
+	})
+	setJump(program, hookaddr)
 end
 
 Types["align"] = function(program, def)
@@ -555,21 +555,22 @@ Types["align"] = function(program, def)
 		return "size must be a number or nil"
 	end
 
-	if size and size > 0 then
-		local hookaddr = prepareHook(program, def)
-		append(program, "CALL", {
-			decode = function(buf)
-				if not buf:Fits(size) then return EOF end
-				buf:Align(size)
-				return nil
-			end,
-			encode = function(buf)
-				buf:Align(size, true)
-				return nil
-			end,
-		})
-		setJump(program, hookaddr)
+	if not size or size <= 0 then
+		return nil
 	end
+	local hookaddr = prepareHook(program, def)
+	append(program, "CALL", {
+		decode = function(buf)
+			if not buf:Fits(size) then return EOF end
+			buf:Align(size)
+			return nil
+		end,
+		encode = function(buf)
+			buf:Align(size, true)
+			return nil
+		end,
+	})
+	setJump(program, hookaddr)
 	return nil
 end
 
