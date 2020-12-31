@@ -134,12 +134,37 @@ transformed *value*.
 
 A non-nil error causes the program to halt, returning the given value.
 
+# Hook
+[Hook]: #user-content-hook
+```
+type Hook = (stack: (level: number)->any, global: table, h: boolean) -> (boolean, error?)
+```
+
+Hook applies to a TypeDef by transforming *value* before encoding, or
+after decoding. *params* are the parameters of the TypeDef. Should return the
+transformed *value*.
+
+Hook indicates whether a type is traversed. If it returns true, then the type
+is traversed normally. If false is returned, then the type is skipped. If an
+error is returned, the program halts, returning the error.
+
+*stack* is used to index structures in the stack. *level* determines how far
+down to index the stack. level 0 returns the current structure. Returns nil
+if *level* is out of bounds.
+
+*global* is the global table. This can be used to compare against globally
+assigned values.
+
+*h* is the accumulated result of each hook in the same scope. It will be true
+only if no other hooks returned true.
+
 # TypeDef
 [TypeDef]: #user-content-typedef
 ```
 type TypeDef = {
 	encode = Filter?,
 	decode = Filter?,
+	hook   = Hook?,
 	[1]: string,
 	...,
 }
@@ -164,17 +189,6 @@ on the component.
 
 A hook indicates whether the type will be handled. If it returns true, then
 the type is handled normally. If false is returned, then the type is skipped.
-
-The hook receives a *stack* function as its first parameter, which is used to
-index structures in the stack. The first parameter to *stack* is the *level*,
-which determines how far down to index the stack. level 0 gets the current
-structure. Returns nil if *level* is out of bounds.
-
-The hook receives the global table as its second parameter. This can be used
-to compare against globally assigned values.
-
-The hook receives as its third parameter the accumulated result of each hook
-in the same scope. It will be true only if no other hooks returned true.
 
 Specifying a global key causes the value of a non-skipped type to be assigned
 to the global table, which may then be accessed by the remainder of the
