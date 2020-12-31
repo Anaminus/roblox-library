@@ -88,7 +88,7 @@ Codec contains instructions for encoding and decoding binary data.
 ## Codec.Decode
 [Codec.Decode]: #user-content-codecdecode
 ```
-Codec:Decode(buffer: string): any
+Codec:Decode(buffer: string): (error, any)
 ```
 
 Decode decodes a binary string into a value according to the codec.
@@ -97,17 +97,16 @@ Returns the decoded value.
 ## Codec.DecodeBuffer
 [Codec.DecodeBuffer]: #user-content-codecdecodebuffer
 ```
-Codec:DecodeBuffer(buffer: Bitbuf.Buffer?): any
+Codec:DecodeBuffer(buffer: Bitbuf.Buffer): (error, any)
 ```
 
 DecodeBuffer decodes a binary string into a value according to the
-codec. *buffer* is an optional buffer to read from. Returns the decoded
-value.
+codec. *buffer* is the buffer to read from. Returns the decoded value.
 
 ## Codec.Encode
 [Codec.Encode]: #user-content-codecencode
 ```
-Codec:Encode(data: any): string
+Codec:Encode(data: any): (error, string)
 ```
 
 Encode encodes a value into a binary string according to the codec.
@@ -116,22 +115,24 @@ Returns the encoded string.
 ## Codec.EncodeBuffer
 [Codec.EncodeBuffer]: #user-content-codecencodebuffer
 ```
-Codec:EncodeBuffer(data: any, buffer: Bitbuf.Buffer?): Bitbuf.Buffer
+Codec:EncodeBuffer(data: any, buffer: Bitbuf.Buffer?): (error, Bitbuf.Buffer)
 ```
 
 EncodeBuffer encodes a value into a binary string according to the
-codec. *buffer* is an optional Buffer to write to. Returns a Buffer with the
-written data.
+codec. *buffer* is an optional Buffer to write to. Returns the Buffer with
+the written data.
 
 # Filter
 [Filter]: #user-content-filter
 ```
-type Filter = (value: any?, params: ...any) -> any?
+type Filter = (value: any?, params: ...any) -> (any?, error?)
 ```
 
 Filter applies to a TypeDef by transforming *value* before encoding, or
 after decoding. *params* are the parameters of the TypeDef. Should return the
 transformed *value*.
+
+A non-nil error causes the program to halt, returning the given value.
 
 # TypeDef
 [TypeDef]: #user-content-typedef
