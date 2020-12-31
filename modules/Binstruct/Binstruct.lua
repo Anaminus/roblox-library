@@ -604,39 +604,35 @@ Types["bool"] = function(program, def)
 		return "size must be a number or nil"
 	end
 
-	if size then
-		size -= 1
-	else
-		size = 0
-	end
+	size = size or 1
 	local decode
 	local encode
-	if size > 0 then
+	if size == 1 then
 		decode = function(buf)
 			if not buf:Fits(1) then return nil, EOF end
 			local v = buf:ReadBool()
-			local v, err = dfilter(v, unpack(def))
+			local v, err = dfilter(v, size)
 			return v, err
 		end
 		encode = function(buf, v)
 			if v == nil then v = false end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, size)
 			buf:WriteBool(v)
 			return err
 		end
 	else
 		decode = function(buf)
-			if not buf:Fits(size+1) then return nil, EOF end
+			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadBool()
-			local v, err = dfilter(v, unpack(def))
-			buf:Pad(size)
+			local v, err = dfilter(v, size)
+			buf:Pad(size-1)
 			return v, err
 		end
 		encode = function(buf, v)
 			if v == nil then v = false end
-			local v, err = efilter(v, unpack(def))
+			local v, err = efilter(v, size)
 			buf:WriteBool(v)
-			buf:Pad(size, false)
+			buf:Pad(size-1, false)
 			return err
 		end
 	end
