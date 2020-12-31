@@ -129,8 +129,10 @@ type Filter = (value: any?, params: ...any) -> (any?, error?)
 ```
 
 Filter applies to a TypeDef by transforming *value* before encoding, or
-after decoding. *params* are the parameters of the TypeDef. Should return the
-transformed *value*.
+after decoding. Should return the transformed *value*.
+
+*params* are the elements of the TypeDef. Only primitive types are passed.
+
 
 A non-nil error causes the program to halt, returning the given value.
 

@@ -240,8 +240,10 @@
 --@sec: Filter
 --@def: type Filter = (value: any?, params: ...any) -> (any?, error?)
 --@doc: Filter applies to a TypeDef by transforming *value* before encoding, or
--- after decoding. *params* are the parameters of the TypeDef. Should return the
--- transformed *value*.
+-- after decoding. Should return the transformed *value*.
+--
+-- *params* are the elements of the TypeDef. Only primitive types are passed.
+--
 --
 -- A non-nil error causes the program to halt, returning the given value.
 
@@ -580,11 +582,11 @@ Types["const"] = function(program, def)
 	append(program, "SET", {
 		decode = function(buf)
 			local v = value
-			local v, err = dfilter(v)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end,
 		encode = function(buf, v)
-			local v, err = efilter(v)
+			local v, err = efilter(v, unpack(def))
 			return err
 		end,
 	})
@@ -612,12 +614,12 @@ Types["bool"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(1) then return nil, EOF end
 			local v = buf:ReadBool()
-			local v, err = dfilter(v, size)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end
 		encode = function(buf, v)
 			if v == nil then v = false end
-			local v, err = efilter(v, size)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteBool(v)
 			return err
 		end
@@ -625,13 +627,13 @@ Types["bool"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(size+1) then return nil, EOF end
 			local v = buf:ReadBool()
-			local v, err = dfilter(v, size)
+			local v, err = dfilter(v, unpack(def))
 			buf:Pad(size)
 			return v, err
 		end
 		encode = function(buf, v)
 			if v == nil then v = false end
-			local v, err = efilter(v, size)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteBool(v)
 			buf:Pad(size, false)
 			return err
@@ -658,12 +660,12 @@ Types["uint"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadUint(size)
-			local v, err = dfilter(v, size)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, size)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteUint(size, v)
 			return err
 		end,
@@ -686,12 +688,12 @@ Types["int"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadInt(size)
-			local v, err = dfilter(v, size)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, size)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteInt(size, v)
 			return err
 		end,
@@ -710,12 +712,12 @@ Types["byte"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(8) then return nil, EOF end
 			local v = buf:ReadByte()
-			local v, err = dfilter(v)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteByte(v)
 		end,
 	})
@@ -738,12 +740,12 @@ Types["float"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadFloat(size)
-			local v, err = dfilter(v, size)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, size)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteFloat(size, v)
 			return err
 		end,
@@ -770,12 +772,12 @@ Types["ufixed"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(i+f) then return nil, EOF end
 			local v = buf:ReadUfixed(i, f)
-			local v, err = dfilter(v, i, f)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, i, f)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteUfixed(i, f, v)
 			return err
 		end,
@@ -802,12 +804,12 @@ Types["fixed"] = function(program, def)
 		decode = function(buf)
 			if not buf:Fits(i+f) then return nil, EOF end
 			local v = buf:ReadFixed(i, f)
-			local v, err = dfilter(v, i, f)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = 0 end
-			local v, err = efilter(v, i, f)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteFixed(i, f, v)
 			return err
 		end,
@@ -832,12 +834,12 @@ Types["string"] = function(program, def)
 			local len = buf:ReadUint(size)
 			if not buf:Fits(len) then return nil, EOF end
 			local v = buf:ReadBytes(len)
-			local v, err = dfilter(v, size)
+			local v, err = dfilter(v, unpack(def))
 			return v, err
 		end,
 		encode = function(buf, v)
 			if v == nil then v = "" end
-			local v, err = efilter(v, size)
+			local v, err = efilter(v, unpack(def))
 			buf:WriteUint(size, #v)
 			buf:WriteBytes(v)
 			return err
@@ -871,7 +873,7 @@ Types["struct"] = function(program, def)
 		end,
 		encode = function(buf, v)
 			if v == nil then v = {} end
-			local v, err = efilter(v, unpack(def, 1, #def))
+			local v, err = efilter(v)
 			return v, err
 		end,
 	})
@@ -894,7 +896,7 @@ Types["struct"] = function(program, def)
 	end
 	append(program, "POP", {
 		decode = function(v)
-			local v, err = dfilter(v, unpack(def, 1, #def))
+			local v, err = dfilter(v)
 			return v, err
 		end,
 		encode = nil,
@@ -924,7 +926,7 @@ Types["array"] = function(program, def)
 		end,
 		encode = function(buf, v)
 			if v == nil then v = {} end
-			local v, err = efilter(v, size, vtype)
+			local v, err = efilter(v, unpack(def, 1, 1))
 			return v, err
 		end,
 	})
@@ -938,7 +940,7 @@ Types["array"] = function(program, def)
 	setJump(program, jumpaddr)
 	append(program, "POP", {
 		decode = function(v)
-			local v, err = dfilter(v, size, vtype)
+			local v, err = dfilter(v, unpack(def, 1, 1))
 			return v, err
 		end,
 		encode = nil,
@@ -964,7 +966,7 @@ Types["vector"] = function(program, def)
 		end,
 		encode = function(buf, v)
 			if v == nil then v = {} end
-			local v, err = efilter(v, size, vtype)
+			local v, err = efilter(v, unpack(def, 1, 1))
 			return v, err
 		end,
 	})
@@ -982,7 +984,7 @@ Types["vector"] = function(program, def)
 	setJump(program, jumpaddr)
 	append(program, "POP", {
 		decode = function(v)
-			local v, err = dfilter(v, size, vtype)
+			local v, err = dfilter(v, unpack(def, 1, 1))
 			return v, err
 		end,
 		encode = nil,
@@ -1007,7 +1009,7 @@ Types["instance"] = function(program, def)
 		end,
 		encode = function(buf, v)
 			if v == nil then v = Instance.new(class) end
-			local v, err = efilter(v, unpack(def, 2, #def))
+			local v, err = efilter(v, unpack(def, 1, 1))
 			return v, err
 		end,
 	})
@@ -1024,7 +1026,7 @@ Types["instance"] = function(program, def)
 	end
 	append(program, "POP", {
 		decode = function(v)
-			local v, err = dfilter(v, unpack(def, 2, #def))
+			local v, err = dfilter(v, unpack(def, 1, 1))
 			return v, err
 		end,
 		encode = nil,
