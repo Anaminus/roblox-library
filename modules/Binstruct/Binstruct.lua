@@ -518,7 +518,7 @@ local function appendGlobal(program, def)
 end
 
 local function nop(v)
-	return v
+	return v, nil
 end
 
 local EOF = "end of buffer"
