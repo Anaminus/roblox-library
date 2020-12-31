@@ -393,12 +393,17 @@ Instructions.JMPN = {op=8,
 
 -- Prepare a function that indexes stack. If level is 0, then tab is indexed.
 local function stackFn(stack, tab)
-	local n = #stack
+	if #stack == 0 then
+		-- Stack is empty; tab is root, which must be inaccessible. Therefore,
+		-- no level will return a valid value.
+		return function() return nil end
+	end
+	local n = #stack+1
 	return function(level)
 		if level == 0 then
 			return tab
 		end
-		local i = n-level+1
+		local i = n-level
 		if i > 1 then
 			local top = stack[i]
 			if top then
@@ -413,11 +418,7 @@ end
 Instructions.HOOK = {op=9,
 	function(R, params)
 		-- params: {jumpaddr, hook}
-		local tab = nil
-		if #R.STACK > 0 then
-			tab = R.TABLE
-		end
-		local r = not params[2](stackFn(R.STACK, tab), R.H)
+		local r = not params[2](stackFn(R.STACK, R.TABLE), R.H)
 		R.H = R.H and r
 		if r then
 			R.PC = params[1]
