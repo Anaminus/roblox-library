@@ -538,11 +538,11 @@ Types["pad"] = function(program, def)
 	append(program, "CALL", {
 		decode = function(buf)
 			if not buf:Fits(size) then return EOF end
-			buf:Pad(size)
+			buf:ReadPad(size)
 			return nil
 		end,
 		encode = function(buf)
-			buf:Pad(size, true)
+			buf:WritePad(size)
 			return nil
 		end,
 	})
@@ -562,11 +562,11 @@ Types["align"] = function(program, def)
 	append(program, "CALL", {
 		decode = function(buf)
 			if not buf:Fits(size) then return EOF end
-			buf:Align(size)
+			buf:ReadAlign(size)
 			return nil
 		end,
 		encode = function(buf)
-			buf:Align(size, true)
+			buf:WriteAlign(size)
 			return nil
 		end,
 	})
@@ -625,14 +625,14 @@ Types["bool"] = function(program, def)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadBool()
 			local v, err = dfilter(v, size)
-			buf:Pad(size-1)
+			buf:ReadPad(size-1)
 			return v, err
 		end
 		encode = function(buf, v)
 			if v == nil then v = false end
 			local v, err = efilter(v, size)
 			buf:WriteBool(v)
-			buf:Pad(size-1, false)
+			buf:WritePad(size-1)
 			return err
 		end
 	end
