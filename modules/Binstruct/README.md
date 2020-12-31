@@ -151,6 +151,7 @@ Additionally, the following optional named fields can be specified:
 - `encode`: A filter that transforms a structural value before encoding.
 - `decode`: A filter that transforms a structural value after decoding.
 - `hook`: A function that determines whether the type should be used.
+- `global`: A key that adds the type's value to a globally accessible table.
 
 Within a decode filter, only the top-level value is structural; components of
 the value will have already been transformed (if defined to do so). Likewise,
@@ -163,13 +164,20 @@ on the component.
 A hook indicates whether the type will be handled. If it returns true, then
 the type is handled normally. If false is returned, then the type is skipped.
 
-The hook receives a *stack* function, which is used to index structures in
-the stack. The first parameter to *stack* is the *level*, which determines
-how far down to index the stack. level 0 gets the current structure. Returns
-nil if *level* is out of bounds.
+The hook receives a *stack* function as its first parameter, which is used to
+index structures in the stack. The first parameter to *stack* is the *level*,
+which determines how far down to index the stack. level 0 gets the current
+structure. Returns nil if *level* is out of bounds.
 
-The hook also receives the accumulated result of each hook in the same scope.
-It will be true only if no other hooks returned true.
+The hook receives the global table as its second parameter. This can be used
+to compare against globally assigned values.
+
+The hook receives as its third parameter the accumulated result of each hook
+in the same scope. It will be true only if no other hooks returned true.
+
+Specifying a global key causes the value of a non-skipped type to be assigned
+to the global table, which may then be accessed by the remainder of the
+codec. Values are assigned in the order they are traversed.
 
 When a type encodes the value `nil`, the zero-value for the type is used.
 
@@ -254,6 +262,10 @@ The following types are defined:
         A field definition may also specify a "hook" field, which is
         described above. If the hook returns false, then the field is
         skipped.
+
+        A field definition may also specify a "global" field, which is
+        described above. A non-nil global field assigns the field's value to
+        the specified global key.
 
         The zero for this type is an empty struct.
 

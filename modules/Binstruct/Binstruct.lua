@@ -82,6 +82,7 @@
 -- - `encode`: A filter that transforms a structural value before encoding.
 -- - `decode`: A filter that transforms a structural value after decoding.
 -- - `hook`: A function that determines whether the type should be used.
+-- - `global`: A key that adds the type's value to a globally accessible table.
 --
 -- Within a decode filter, only the top-level value is structural; components of
 -- the value will have already been transformed (if defined to do so). Likewise,
@@ -94,13 +95,20 @@
 -- A hook indicates whether the type will be handled. If it returns true, then
 -- the type is handled normally. If false is returned, then the type is skipped.
 --
--- The hook receives a *stack* function, which is used to index structures in
--- the stack. The first parameter to *stack* is the *level*, which determines
--- how far down to index the stack. level 0 gets the current structure. Returns
--- nil if *level* is out of bounds.
+-- The hook receives a *stack* function as its first parameter, which is used to
+-- index structures in the stack. The first parameter to *stack* is the *level*,
+-- which determines how far down to index the stack. level 0 gets the current
+-- structure. Returns nil if *level* is out of bounds.
 --
--- The hook also receives the accumulated result of each hook in the same scope.
--- It will be true only if no other hooks returned true.
+-- The hook receives the global table as its second parameter. This can be used
+-- to compare against globally assigned values.
+--
+-- The hook receives as its third parameter the accumulated result of each hook
+-- in the same scope. It will be true only if no other hooks returned true.
+--
+-- Specifying a global key causes the value of a non-skipped type to be assigned
+-- to the global table, which may then be accessed by the remainder of the
+-- codec. Values are assigned in the order they are traversed.
 --
 -- When a type encodes the value `nil`, the zero-value for the type is used.
 --
@@ -185,6 +193,10 @@
 --         A field definition may also specify a "hook" field, which is
 --         described above. If the hook returns false, then the field is
 --         skipped.
+--
+--         A field definition may also specify a "global" field, which is
+--         described above. A non-nil global field assigns the field's value to
+--         the specified global key.
 --
 --         The zero for this type is an empty struct.
 --
@@ -418,10 +430,20 @@ end
 Instructions.HOOK = {op=9,
 	function(R, params)
 		-- params: {jumpaddr, hook}
-		local r = not params[2](stackFn(R.STACK, R.TABLE), R.H)
+		local r = not params[2](stackFn(R.STACK, R.TABLE), R.GLOBAL, R.H)
 		R.H = R.H and r
 		if r then
 			R.PC = params[1]
+		end
+	end,
+	true,
+}
+
+-- Set global value.
+Instructions.GLOBAL = {op=10,
+	function(R, key)
+		if R.KEY ~= nil then
+			R.GLOBAL[key] = R.TABLE[R.KEY]
 		end
 	end,
 	true,
@@ -461,6 +483,13 @@ local function prepareHook(program, def)
 	end
 	local params = {nil, def.hook}
 	return append(program, "HOOK", params, params)
+end
+
+local function appendGlobal(program, def)
+	if def.global == nil then
+		return nil
+	end
+	return append(program, "GLOBAL", def.global, def.global)
 end
 
 local function nop(v)
@@ -527,6 +556,7 @@ Types["const"] = function(program, def)
 			v = efilter(v)
 		end
 	)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -574,6 +604,7 @@ Types["bool"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", decode, encode)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -599,6 +630,7 @@ Types["uint"] = function(program, def)
 			buf:WriteUint(size, v)
 		end
 	)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -624,6 +656,7 @@ Types["int"] = function(program, def)
 			buf:WriteInt(size, v)
 		end
 	)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -645,6 +678,7 @@ Types["byte"] = function(program, def)
 			buf:WriteByte(v)
 		end
 	)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -671,6 +705,7 @@ Types["float"] = function(program, def)
 			buf:WriteFloat(size, v)
 		end
 	)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -700,6 +735,7 @@ Types["ufixed"] = function(program, def)
 			buf:WriteUfixed(i, f, v)
 		end
 	)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -729,6 +765,7 @@ Types["fixed"] = function(program, def)
 			buf:WriteFixed(i, f, v)
 		end
 	)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -756,6 +793,7 @@ Types["string"] = function(program, def)
 			buf:WriteBytes(v)
 		end
 	)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -800,10 +838,12 @@ Types["struct"] = function(program, def)
 			if err ~= nil then
 				return string.format("field %q: %s", name, tostring(err))
 			end
+			appendGlobal(program, field)
 			setJump(program, hookaddr)
 		end
 	end
 	append(program, "POP", function(v) return dfilter(v, unpack(def, 1, #def)) end, nil)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -841,6 +881,7 @@ Types["array"] = function(program, def)
 	append(program, "JMPN", jumpaddr, jumpaddr)
 	setJump(program, jumpaddr)
 	append(program, "POP", function(v) return dfilter(v, size, vtype) end, nil)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -878,6 +919,7 @@ Types["vector"] = function(program, def)
 	append(program, "JMPN", jumpaddr, jumpaddr)
 	setJump(program, jumpaddr)
 	append(program, "POP", function(v) return dfilter(v, size, vtype) end, nil)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -913,6 +955,7 @@ Types["instance"] = function(program, def)
 		end
 	end
 	append(program, "POP", function(v) return dfilter(v, unpack(def, 2, #def)) end, nil)
+	appendGlobal(program, def)
 	setJump(program, hookaddr)
 	return nil
 end
@@ -990,6 +1033,7 @@ local function execute(program, k, buffer, data)
 	local R = {
 		PC = 1,          -- Program counter.
 		BUFFER = buffer, -- Bit buffer.
+		GLOBAL = {},     -- A general-purpose per-execution table.
 		STACK = {},      -- Stores frames.
 		TABLE = {data},  -- The working table.
 		KEY = 1,         -- A key pointing to a field in TABLE.
