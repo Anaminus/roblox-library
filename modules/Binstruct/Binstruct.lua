@@ -325,7 +325,7 @@ end
 local Instructions = {}
 
 -- Get or set TABLE[KEY] from BUFFER.
-Instructions.SET = {op=1,
+Instructions.SET = {
 	decode = function(R, fn) -- fn: (Buffer) -> (value, error)
 		local v, err = fn(R.BUFFER)
 		if R.KEY ~= nil then
@@ -340,7 +340,7 @@ Instructions.SET = {op=1,
 }
 
 -- Call the parameter with BUFFER.
-Instructions.CALL = {op=2,
+Instructions.CALL = {
 	decode = function(R, fn) -- fn: (Buffer) -> error
 		local err = fn(R.BUFFER)
 		return err
@@ -350,7 +350,7 @@ Instructions.CALL = {op=2,
 
 -- Scope into a structural value. Must not be followed by an instruction that
 -- reads KEY.
-Instructions.PUSH = {op=3,
+Instructions.PUSH = {
 	decode = function(R, fn) -- fn: (Buffer) -> (value, error)
 		-- *value* be a structural value to scope into.
 		local v, err = fn(R.BUFFER)
@@ -371,7 +371,7 @@ Instructions.PUSH = {op=3,
 }
 
 -- Create a new scope into within the same structure.
-Instructions.PUSHS = {op=11,
+Instructions.PUSHS = {
 	decode = function(R)
 		table.insert(R.STACK, copyFrame(R))
 		R.H = true
@@ -381,7 +381,7 @@ Instructions.PUSHS = {op=11,
 }
 
 -- Set KEY to the parameter.
-Instructions.FIELD = {op=4,
+Instructions.FIELD = {
 	decode = function(R, v) -- v: any
 		R.KEY = v
 		return nil
@@ -390,7 +390,7 @@ Instructions.FIELD = {op=4,
 }
 
 -- Scope out of a structural value.
-Instructions.POP = {op=5,
+Instructions.POP = {
 	decode = function(R, fn) -- fn: (value) -> (value, error)
 		local v, err = fn(R.TABLE)
 		local frame = table.remove(R.STACK)
@@ -408,7 +408,7 @@ Instructions.POP = {op=5,
 }
 
 -- Pop structureless scope.
-Instructions.POPS = {op=12,
+Instructions.POPS = {
 	decode = function(R)
 		local frame = table.remove(R.STACK)
 		copyFrame(frame, R)
@@ -418,7 +418,7 @@ Instructions.POPS = {op=12,
 }
 
 -- Initialize a loop with a constant terminator.
-Instructions.FORC = {op=6,
+Instructions.FORC = {
 	decode = function(R, params) -- params: {jumpaddr, size}
 		if params[2] >= 1 then
 			R.KEY = 1
@@ -433,7 +433,7 @@ Instructions.FORC = {op=6,
 
 -- Initialize a loop with a dynamic terminator, determined by a field in the
 -- parent structure.
-Instructions.FORF = {op=7,
+Instructions.FORF = {
 	decode = function(R, params) -- params: {jumpaddr, field, level}
 		local level = #R.STACK-params[3]+1
 		if level > 1 then
@@ -457,7 +457,7 @@ Instructions.FORF = {op=7,
 }
 
 -- Jump to loop start if KEY is less than N.
-Instructions.JMPN = {op=8,
+Instructions.JMPN = {
 	decode = function(R, addr) -- addr: number
 		if R.KEY < R.N then
 			R.KEY += 1
@@ -492,7 +492,7 @@ local function stackFn(stack, tab)
 end
 
 -- Call hook, jump to addr if false is returned.
-Instructions.HOOK = {op=9,
+Instructions.HOOK = {
 	decode = function(R, params) -- params: {jumpaddr, hook}
 		local r, err = params[2](stackFn(R.STACK, R.TABLE), R.GLOBAL, R.H)
 		if err then
@@ -508,7 +508,7 @@ Instructions.HOOK = {op=9,
 }
 
 -- Set global value.
-Instructions.GLOBAL = {op=10,
+Instructions.GLOBAL = {
 	decode = function(R, key) -- key: any
 		if R.KEY ~= nil then
 			R.GLOBAL[key] = R.TABLE[R.KEY]
@@ -530,7 +530,7 @@ local Types = {}
 -- instruction column. Returns the address of the appended instruction.
 local function append(program, opcode, def)
 	def = def or {}
-	def.op = Instructions[opcode].op
+	def.opcode = opcode
 	table.insert(program, def)
 	return #program
 end
@@ -1084,13 +1084,12 @@ end
 --------------------------------------------------------------------------------
 
 local instructions = {}
-local opcodes = {}
 for opcode, data in pairs(Instructions) do
+	data.opcode = opcode
 	if type(data.encode) ~= "function" then
 		data.encode = data.decode
 	end
-	instructions[data.op] = data
-	opcodes[data.op] = opcode
+	instructions[opcode] = data
 end
 
 function parseDef(def, program)
@@ -1161,8 +1160,8 @@ local function execute(program, k, buffer, data)
 	local err = nil
 	while R.PC <= PN and err == nil do
 		local instr = program[R.PC]
-		local op = instr.op
-		local exec = instructions[op]
+		local opcode = instr.opcode
+		local exec = instructions[opcode]
 		if not exec then
 			R.PC += 1
 			continue
@@ -1257,7 +1256,7 @@ function Codec.__index:Dump()
 	local rows = table.create(#self.program)
 	local width = table.create(3, 0)
 	for addr, instr in ipairs(self.program) do
-		local cols = {addr, opcodes[instr.op], instr.decode, instr.encode}
+		local cols = {addr, instr.opcode, instr.decode, instr.encode}
 		if #cols[2] > width[1] then
 			width[1] = #cols[2]
 		end
