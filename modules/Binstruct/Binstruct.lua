@@ -370,6 +370,16 @@ Instructions.PUSH = {op=3,
 	end,
 }
 
+-- Create a new scope into within the same structure.
+Instructions.PUSHS = {op=11,
+	decode = function(R)
+		table.insert(R.STACK, copyFrame(R))
+		R.H = true
+		return nil
+	end,
+	encode = true,
+}
+
 -- Set KEY to the parameter.
 Instructions.FIELD = {op=4,
 	decode = function(R, v) -- v: any
@@ -395,6 +405,16 @@ Instructions.POP = {op=5,
 		copyFrame(frame, R)
 		return nil
 	end,
+}
+
+-- Pop structureless scope.
+Instructions.POPS = {op=12,
+	decode = function(R)
+		local frame = table.remove(R.STACK)
+		copyFrame(frame, R)
+		return nil
+	end,
+	encode = true,
 }
 
 -- Initialize a loop with a constant terminator.
@@ -873,6 +893,7 @@ Types["string"] = function(program, def)
 end
 
 Types["union"] = function(program, def)
+	append(program, "PUSHS")
 	local hookaddr = prepareHook(program, def)
 	for i, subtype in ipairs(def) do
 		local err = parseDef(subtype, program)
@@ -881,6 +902,7 @@ Types["union"] = function(program, def)
 		end
 	end
 	setJump(program, hookaddr)
+	append(program, "POPS")
 	return nil
 end
 
