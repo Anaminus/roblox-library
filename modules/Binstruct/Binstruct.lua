@@ -509,6 +509,7 @@ local Types = {}
 -- argument corresponds to an argument to be passed to the corresponding
 -- instruction column. Returns the address of the appended instruction.
 local function append(program, opcode, def)
+	def = def or {}
 	def.op = Instructions[opcode].op
 	table.insert(program, def)
 	return #program
