@@ -262,14 +262,24 @@
 --         The zero for this type is a new instance of the class.
 
 --@sec: Filter
---@def: type Filter = (value: any?, params: ...any) -> (any?, error?)
---@doc: Filter applies to a TypeDef by transforming *value* before encoding, or
--- after decoding. Should return the transformed *value*.
+--@def: type Filter = FilterFunc | FilterTable
+--@doc: Filter applies to a TypeDef by transforming a value before encoding, or
+-- after decoding.
+
+--@sec: FilterFunc
+--@def: type FilterFunc = (value: any?, params: ...any) -> (any?, error?)
+--@doc: FilterFunc transforms *value* by using a function. The function should
+-- return the transformed *value*.
 --
 -- The *params* received depend on the type, but are usually the elements of the
 -- TypeDef.
 --
 -- A non-nil error causes the program to halt, returning the given value.
+
+--@sec: FilterTable
+--@def: type FilterTable = {[any] = any}
+--@doc: FilterTable transforms a value by mapping the original value to the
+-- transformed value.
 
 --@sec: Hook
 --@def: type Hook = (stack: (level: number)->any, global: table, h: boolean) -> (boolean, error?)
@@ -1144,17 +1154,29 @@ function parseDef(def, program)
 	if def.hook ~= nil and type(def.hook) ~= "function" then
 		return "hook must be a function"
 	end
-	if def.decode ~= nil and type(def.decode) ~= "function" then
-		return "decode filter must be a function"
+	local decode = def.decode
+	if decode ~= nil and type(decode) ~= "function" and type(decode) ~= "table" then
+		return "decode filter must be a function or table"
 	end
-	if def.encode ~= nil and type(def.encode) ~= "function" then
-		return "encode filter must be a function"
+	local encode = def.encode
+	if encode ~= nil and type(encode) ~= "function" and type(encode) ~= "table" then
+		return "encode filter must be a function or table"
 	end
 	local fields = table.create(#def-1)
 	table.move(def, 2, #def, 1, fields)
 	for k, v in pairs(def) do
 		if type(k) ~= "number" then
 			fields[k] = v
+		end
+	end
+	if type(decode) == "table" then
+		fields.decode = function(v)
+			return decode[v]
+		end
+	end
+	if type(encode) == "table" then
+		fields.encode = function(v)
+			return encode[v]
 		end
 	end
 	return t(program, fields)

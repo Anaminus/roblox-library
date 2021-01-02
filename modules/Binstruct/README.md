@@ -125,16 +125,34 @@ the written data.
 # Filter
 [Filter]: #user-content-filter
 ```
-type Filter = (value: any?, params: ...any) -> (any?, error?)
+type Filter = FilterFunc | FilterTable
 ```
 
-Filter applies to a TypeDef by transforming *value* before encoding, or
-after decoding. Should return the transformed *value*.
+Filter applies to a TypeDef by transforming a value before encoding, or
+after decoding.
+
+# FilterFunc
+[FilterFunc]: #user-content-filterfunc
+```
+type FilterFunc = (value: any?, params: ...any) -> (any?, error?)
+```
+
+FilterFunc transforms *value* by using a function. The function should
+return the transformed *value*.
 
 The *params* received depend on the type, but are usually the elements of the
 TypeDef.
 
 A non-nil error causes the program to halt, returning the given value.
+
+# FilterTable
+[FilterTable]: #user-content-filtertable
+```
+type FilterTable = {[any] = any}
+```
+
+FilterTable transforms a value by mapping the original value to the
+transformed value.
 
 # Hook
 [Hook]: #user-content-hook
