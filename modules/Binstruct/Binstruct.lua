@@ -328,10 +328,13 @@ local Instructions = {}
 Instructions.SET = {
 	decode = function(R, fn) -- fn: (Buffer) -> (value, error)
 		local v, err = fn(R.BUFFER)
+		if err ~= nil then
+			return err
+		end
 		if R.KEY ~= nil then
 			R.TABLE[R.KEY] = v
 		end
-		return err
+		return nil
 	end,
 	encode = function(R, fn) -- fn: (Buffer, value) -> error
 		local err = fn(R.BUFFER, R.TABLE[R.KEY])
@@ -354,19 +357,25 @@ Instructions.PUSH = {
 	decode = function(R, fn) -- fn: (Buffer) -> (value, error)
 		-- *value* be a structural value to scope into.
 		local v, err = fn(R.BUFFER)
+		if err ~= nil then
+			return err
+		end
 		table.insert(R.STACK, copyFrame(R))
 		R.TABLE = v
 		R.H = true
-		return err
+		return nil
 	end,
 	encode = function(R, fn) -- fn: (Buffer, value) -> (value, error)
 		-- Result *value* must be a structural value to scope into.
 		local v = R.TABLE[R.KEY]
 		local v, err = fn(R.BUFFER, v)
+		if err ~= nil then
+			return err
+		end
 		table.insert(R.STACK, copyFrame(R))
 		R.TABLE = v
 		R.H = true
-		return err
+		return nil
 	end,
 }
 
@@ -393,12 +402,15 @@ Instructions.FIELD = {
 Instructions.POP = {
 	decode = function(R, fn) -- fn: (value) -> (value, error)
 		local v, err = fn(R.TABLE)
+		if err ~= nil then
+			return err
+		end
 		local frame = table.remove(R.STACK)
 		copyFrame(frame, R)
 		if R.KEY ~= nil then
 			R.TABLE[R.KEY] = v
 		end
-		return err
+		return nil
 	end,
 	encode = function(R)
 		local frame = table.remove(R.STACK)
@@ -495,7 +507,7 @@ end
 Instructions.HOOK = {
 	decode = function(R, params) -- params: {jumpaddr, hook}
 		local r, err = params[2](stackFn(R.STACK, R.TABLE), R.GLOBAL, R.H)
-		if err then
+		if err ~= nil then
 			return err
 		end
 		R.H = R.H and not r
@@ -662,23 +674,29 @@ Types["bool"] = function(program, def)
 		encode = function(buf, v)
 			if v == nil then v = false end
 			local v, err = efilter(v, size)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteBool(v)
-			return err
+			return nil
 		end
 	else
 		decode = function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadBool()
-			local v, err = dfilter(v, size)
 			buf:ReadPad(size-1)
+			local v, err = dfilter(v, size)
 			return v, err
 		end
 		encode = function(buf, v)
 			if v == nil then v = false end
 			local v, err = efilter(v, size)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteBool(v)
 			buf:WritePad(size-1)
-			return err
+			return nil
 		end
 	end
 
@@ -708,8 +726,11 @@ Types["uint"] = function(program, def)
 		encode = function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, size)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteUint(size, v)
-			return err
+			return nil
 		end,
 	})
 	appendGlobal(program, def)
@@ -736,8 +757,11 @@ Types["int"] = function(program, def)
 		encode = function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, size)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteInt(size, v)
-			return err
+			return nil
 		end,
 	})
 	appendGlobal(program, def)
@@ -760,7 +784,11 @@ Types["byte"] = function(program, def)
 		encode = function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteByte(v)
+			return nil
 		end,
 	})
 	appendGlobal(program, def)
@@ -788,8 +816,11 @@ Types["float"] = function(program, def)
 		encode = function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, size)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteFloat(size, v)
-			return err
+			return nil
 		end,
 	})
 	appendGlobal(program, def)
@@ -820,8 +851,11 @@ Types["ufixed"] = function(program, def)
 		encode = function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, i, f)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteUfixed(i, f, v)
-			return err
+			return nil
 		end,
 	})
 	appendGlobal(program, def)
@@ -852,8 +886,11 @@ Types["fixed"] = function(program, def)
 		encode = function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, i, f)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteFixed(i, f, v)
-			return err
+			return nil
 		end,
 	})
 	appendGlobal(program, def)
@@ -882,9 +919,12 @@ Types["string"] = function(program, def)
 		encode = function(buf, v)
 			if v == nil then v = "" end
 			local v, err = efilter(v, size)
+			if err ~= nil then
+				return err
+			end
 			buf:WriteUint(size, #v)
 			buf:WriteBytes(v)
-			return err
+			return nil
 		end,
 	})
 	appendGlobal(program, def)
