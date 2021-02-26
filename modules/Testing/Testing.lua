@@ -979,27 +979,24 @@ function T.__index:Yield()
 end
 
 function B.__index:ResetTimer()
-	if not self.timing then
-		return
+	if self.timing then
+		self.startTime = os.clock()
 	end
 	self.duration = 0
-	self.startTime = os.clock()
 end
 
 function B.__index:StartTimer()
-	if self.timing then
-		return
+	if not self.timing then
+		self.timing = true
+		self.startTime = os.clock()
 	end
-	self.timing = true
-	self.startTime = os.clock()
 end
 
 function B.__index:StopTimer()
-	if not self.timing then
-		return
+	if self.timing then
+		self.duration = self.duration + (os.clock() - self.startTime)
+		self.timing = false
 	end
-	self.duration = self.duration + (os.clock() - self.startTime)
-	self.timing = false
 end
 
 function B.__index:Yield()
