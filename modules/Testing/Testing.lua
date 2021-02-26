@@ -1136,9 +1136,10 @@ function ModuleResult.__index:BenchmarkResults()
 		return ""
 	end
 	local rows = {}
+	local failed = {}
 	for _, test in ipairs(self.Results) do
 		if test.Failed then
-			append(rows, tostring(test))
+			append(failed, tostring(test))
 		else
 			append(rows, {test.Name, test.Iterations, math.floor(test.Duration/test.Iterations*1e9), "ns/op"})
 		end
@@ -1149,7 +1150,8 @@ function ModuleResult.__index:BenchmarkResults()
 		end
 		return a[3] < b[3]
 	end)
-	return formatRows(rows)
+	rows = formatRows(rows)
+	return rows .. table.concat(failed)
 end
 
 local TestResult = {}
