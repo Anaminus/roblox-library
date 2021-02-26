@@ -52,7 +52,7 @@ end
 
 --@sec: Buffer
 --@def: type Buffer
---@doc: Buffer is a variable-size bit buffer with methods for reading and
+--@doc: Buffer is a variable-size bit-level buffer with methods for reading and
 -- writing various common types.
 --
 -- The buffer has a cursor, or index, to determine where data is read and
@@ -289,7 +289,7 @@ end
 
 --@sec: Buffer.ReadPad
 --@def: function Buffer:ReadPad(size: number)
---@doc: ReadPad moves the cursor by *size* bits without writing any data. Does
+--@doc: ReadPad moves the cursor by *size* bits without reading any data. Does
 -- nothing if *size* is less than or equal to zero.
 function Buffer.__index:ReadPad(size)
 	assert(type(size) == "number", "number expected")
@@ -316,7 +316,7 @@ end
 --@sec: Buffer.ReadAlign
 --@def: function Buffer:ReadAlign(size: number)
 --@doc: ReadAlign moves the cursor until its position is a multiple of *size*
--- without writing any data. Does nothing if *size* is less than or equal to 1.
+-- without reading any data. Does nothing if *size* is less than or equal to 1.
 function Buffer.__index:ReadAlign(size)
 	assert(type(size) == "number", "number expected")
 	if size <= 1 or self.i%size == 0 then
@@ -594,8 +594,8 @@ end
 --@def: function Buffer:WriteUfixed(i: number, f: number, v: number)
 --@doc: WriteUfixed writes *v* as an unsigned fixed-point number. *i* is the
 -- number of bits used for the integer portion, and *f* is the number of bits
--- used for the fractional portion. Their combined size must be in the range [0,
--- 53].
+-- used for the fractional portion. Their combined size must be between 0 and
+-- 53.
 function Buffer.__index:WriteUfixed(i, f, v)
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
@@ -610,7 +610,7 @@ end
 --@def: function Buffer:ReadUfixed(i: number, f: number): (v: number)
 --@doc: ReadUfixed reads an unsigned fixed-point number. *i* is the number of
 -- bits used for the integer portion, and *f* is the number of bits used for the
--- fractional portion. Their combined size must be in the range [0, 53].
+-- fractional portion. Their combined size must be between 0 and 53.
 function Buffer.__index:ReadUfixed(i, f)
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
@@ -624,7 +624,7 @@ end
 --@def: function Buffer:WriteFixed(i: number, f: number, v: number)
 --@doc: WriteFixed writes *v* as a signed fixed-point number. *i* is the number
 -- of bits used for the integer portion, and *f* is the number of bits used for
--- the fractional portion. Their combined size must be in the range [0, 53].
+-- the fractional portion. Their combined size must be between 0 and 53.
 function Buffer.__index:WriteFixed(i, f, v)
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
@@ -639,7 +639,7 @@ end
 --@def: function Buffer:ReadFixed(i: number, f: number): (v: number)
 --@doc: ReadFixed reads a signed fixed-point number. *i* is the number of bits
 -- used for the integer portion, and *f* is the number of bits used for the
--- fractional portion. Their combined size must be in the range [0, 53].
+-- fractional portion. Their combined size must be between 0 and 53.
 function Buffer.__index:ReadFixed(i, f)
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")

@@ -36,7 +36,7 @@ zero-length buffer.
 type Buffer
 ```
 
-Buffer is a variable-size bit buffer with methods for reading and
+Buffer is a variable-size bit-level buffer with methods for reading and
 writing various common types.
 
 The buffer has a cursor, or index, to determine where data is read and
@@ -78,7 +78,7 @@ function Buffer:ReadAlign(size: number)
 ```
 
 ReadAlign moves the cursor until its position is a multiple of *size*
-without writing any data. Does nothing if *size* is less than or equal to 1.
+without reading any data. Does nothing if *size* is less than or equal to 1.
 
 ## Buffer.ReadBool
 [Buffer.ReadBool]: #user-content-bufferreadbool
@@ -113,7 +113,7 @@ function Buffer:ReadFixed(i: number, f: number): (v: number)
 
 ReadFixed reads a signed fixed-point number. *i* is the number of bits
 used for the integer portion, and *f* is the number of bits used for the
-fractional portion. Their combined size must be in the range [0, 53].
+fractional portion. Their combined size must be between 0 and 53.
 
 ## Buffer.ReadFloat
 [Buffer.ReadFloat]: #user-content-bufferreadfloat
@@ -142,7 +142,7 @@ between 0 and 53.
 function Buffer:ReadPad(size: number)
 ```
 
-ReadPad moves the cursor by *size* bits without writing any data. Does
+ReadPad moves the cursor by *size* bits without reading any data. Does
 nothing if *size* is less than or equal to zero.
 
 ## Buffer.ReadUfixed
@@ -153,7 +153,7 @@ function Buffer:ReadUfixed(i: number, f: number): (v: number)
 
 ReadUfixed reads an unsigned fixed-point number. *i* is the number of
 bits used for the integer portion, and *f* is the number of bits used for the
-fractional portion. Their combined size must be in the range [0, 53].
+fractional portion. Their combined size must be between 0 and 53.
 
 ## Buffer.ReadUint
 [Buffer.ReadUint]: #user-content-bufferreaduint
@@ -242,7 +242,7 @@ function Buffer:WriteFixed(i: number, f: number, v: number)
 
 WriteFixed writes *v* as a signed fixed-point number. *i* is the number
 of bits used for the integer portion, and *f* is the number of bits used for
-the fractional portion. Their combined size must be in the range [0, 53].
+the fractional portion. Their combined size must be between 0 and 53.
 
 ## Buffer.WriteFloat
 [Buffer.WriteFloat]: #user-content-bufferwritefloat
@@ -282,8 +282,8 @@ function Buffer:WriteUfixed(i: number, f: number, v: number)
 
 WriteUfixed writes *v* as an unsigned fixed-point number. *i* is the
 number of bits used for the integer portion, and *f* is the number of bits
-used for the fractional portion. Their combined size must be in the range [0,
-53].
+used for the fractional portion. Their combined size must be between 0 and
+53.
 
 ## Buffer.WriteUint
 [Buffer.WriteUint]: #user-content-bufferwriteuint
