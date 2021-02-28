@@ -1138,4 +1138,289 @@ function T.TestIsBuffer(t, require)
 	pass(t, Bitbuf.isBuffer(Bitbuf.fromString("")) == true, "result of fromString is a Buffer")
 end
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Benchmarks
+
+local sample = {
+	unsigned = 3634604713,
+	signed = -1487121065,
+	float32 = math.pi,
+	float64 = math.pi,
+	string = "",
+	bool = {},
+}
+
+do
+	local t = table.create(2^22-1)
+	for i = 1, 2^22-1 do
+		t[i] = string.char(math.random(0, 255))
+	end
+	sample.string = table.concat(t)
+end
+
+do
+	local t = table.create(1000)
+	for i = 1, 1000 do
+		t[i] = math.random(0, 1) == 1
+	end
+	sample.bool = t
+end
+
+function T.BenchmarkNew(b, require)
+	local Bitbuf = require()
+	b:ResetTimer()
+	for i = 1, b.N do
+		local buf = Bitbuf.new()
+	end
+end
+
+local function benchmarkWriteBool(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			for j = 1, n do
+				buf:WriteBool(sample.bool[j])
+			end
+		end
+	end
+end
+T.BenchmarkWriteBool_N1 = benchmarkWriteBool(1)
+T.BenchmarkWriteBool_N10 = benchmarkWriteBool(10)
+T.BenchmarkWriteBool_N100 = benchmarkWriteBool(100)
+T.BenchmarkWriteBool_N1000 = benchmarkWriteBool(1000)
+
+local function benchmarkReadBool(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		for i = 1, n do
+			buf:WriteBool(sample.bool[i])
+		end
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			for j = 1, n do
+				local v = buf:ReadBool()
+			end
+		end
+	end
+end
+T.BenchmarkReadBool_N1 = benchmarkReadBool(1)
+T.BenchmarkReadBool_N10 = benchmarkReadBool(10)
+T.BenchmarkReadBool_N100 = benchmarkReadBool(100)
+T.BenchmarkReadBool_N1000 = benchmarkReadBool(1000)
+
+function T.BenchmarkWriteUint(b, require)
+	local Bitbuf = require()
+	local buf = Bitbuf.new()
+	b:ResetTimer()
+	for i = 1, b.N do
+		buf:SetIndex(0)
+		buf:WriteUint(32, sample.unsigned)
+	end
+end
+
+function T.BenchmarkReadUint(b, require)
+	local Bitbuf = require()
+	local buf = Bitbuf.new()
+	buf:WriteUint(32, sample.unsigned)
+	b:ResetTimer()
+	for i = 1, b.N do
+		buf:SetIndex(0)
+		local v = buf:ReadUint(32)
+	end
+end
+
+function T.BenchmarkWriteInt(b, require)
+	local Bitbuf = require()
+	local buf = Bitbuf.new()
+	b:ResetTimer()
+	for i = 1, b.N do
+		buf:SetIndex(0)
+		buf:WriteInt(32, sample.signed)
+	end
+end
+
+function T.BenchmarkReadInt(b, require)
+	local Bitbuf = require()
+	local buf = Bitbuf.new()
+	buf:WriteInt(32, sample.signed)
+	b:ResetTimer()
+	for i = 1, b.N do
+		buf:SetIndex(0)
+		local v = buf:ReadInt(32)
+	end
+end
+
+function T.BenchmarkWriteFloat32(b, require)
+	local Bitbuf = require()
+	local buf = Bitbuf.new()
+	b:ResetTimer()
+	for i = 1, b.N do
+		buf:SetIndex(0)
+		buf:WriteFloat(32, sample.float32)
+	end
+end
+
+function T.BenchmarkReadFloat32(b, require)
+	local Bitbuf = require()
+	local buf = Bitbuf.new()
+	buf:WriteFloat(32, sample.float32)
+	b:ResetTimer()
+	for i = 1, b.N do
+		buf:SetIndex(0)
+		local v = buf:ReadFloat(32)
+	end
+end
+
+function T.BenchmarkWriteFloat64(b, require)
+	local Bitbuf = require()
+	local buf = Bitbuf.new()
+	b:ResetTimer()
+	for i = 1, b.N do
+		buf:SetIndex(0)
+		buf:WriteFloat(64, sample.float64)
+	end
+end
+
+function T.BenchmarkReadFloat64(b, require)
+	local Bitbuf = require()
+	local buf = Bitbuf.new()
+	buf:WriteFloat(64, sample.float64)
+	b:ResetTimer()
+	for i = 1, b.N do
+		buf:SetIndex(0)
+		buf:ReadFloat(64)
+	end
+end
+
+local function benchmarkWriteString(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		local s = string.sub(sample.string, 1, n)
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			buf:WriteUint(32, #s)
+			buf:WriteBytes(s)
+		end
+	end
+end
+T.BenchmarkWriteString_L1 = benchmarkWriteString(1)
+T.BenchmarkWriteString_L10 = benchmarkWriteString(10)
+T.BenchmarkWriteString_L100 = benchmarkWriteString(100)
+T.BenchmarkWriteString_L1000 = benchmarkWriteString(1000)
+T.BenchmarkWriteString_L10000 = benchmarkWriteString(10000)
+T.BenchmarkWriteString_L100000 = benchmarkWriteString(100000)
+
+local function benchmarkReadString(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		local s = string.sub(sample.string, 1, n)
+		buf:WriteUint(32, #s)
+		buf:WriteBytes(s)
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			local n = buf:ReadUint(32)
+			local v = buf:ReadBytes(n)
+		end
+	end
+end
+T.BenchmarkReadString_L1 = benchmarkReadString(1)
+T.BenchmarkReadString_L10 = benchmarkReadString(10)
+T.BenchmarkReadString_L100 = benchmarkReadString(100)
+T.BenchmarkReadString_L1000 = benchmarkReadString(1000)
+T.BenchmarkReadString_L10000 = benchmarkReadString(10000)
+T.BenchmarkReadString_L100000 = benchmarkReadString(100000)
+
+local function benchmarkWriteString_Slow(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		local s = string.sub(sample.string, 1, n)
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			buf:WriteBool(true)
+			buf:WriteUint(32, #s)
+			buf:WriteBytes(s)
+		end
+	end
+end
+T.BenchmarkWriteString_Slow_L1 = benchmarkWriteString_Slow(1)
+T.BenchmarkWriteString_Slow_L10 = benchmarkWriteString_Slow(10)
+T.BenchmarkWriteString_Slow_L100 = benchmarkWriteString_Slow(100)
+T.BenchmarkWriteString_Slow_L1000 = benchmarkWriteString_Slow(1000)
+T.BenchmarkWriteString_Slow_L10000 = benchmarkWriteString_Slow(10000)
+T.BenchmarkWriteString_Slow_L100000 = benchmarkWriteString_Slow(100000)
+
+local function benchmarkReadString_Slow(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		local s = string.sub(sample.string, 1, n)
+		buf:WriteBool(true)
+		buf:WriteUint(32, #s)
+		buf:WriteBytes(s)
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			buf:ReadBool()
+			local n = buf:ReadUint(32)
+			local v = buf:ReadBytes(n)
+		end
+	end
+end
+T.BenchmarkReadString_Slow_L1 = benchmarkReadString_Slow(1)
+T.BenchmarkReadString_Slow_L10 = benchmarkReadString_Slow(10)
+T.BenchmarkReadString_Slow_L100 = benchmarkReadString_Slow(100)
+T.BenchmarkReadString_Slow_L1000 = benchmarkReadString_Slow(1000)
+T.BenchmarkReadString_Slow_L10000 = benchmarkReadString_Slow(10000)
+T.BenchmarkReadString_Slow_L100000 = benchmarkReadString_Slow(100000)
+
+local function benchmarkString(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		local s = string.sub(sample.string, 1, n)
+		buf:WriteBytes(s)
+		b:ResetTimer()
+		for i = 1, b.N do
+			local v = buf:String()
+		end
+	end
+end
+T.BenchmarkString_L1 = benchmarkString(1)
+T.BenchmarkString_L10 = benchmarkString(10)
+T.BenchmarkString_L100 = benchmarkString(100)
+T.BenchmarkString_L1000 = benchmarkString(1000)
+T.BenchmarkString_L10000 = benchmarkString(10000)
+T.BenchmarkString_L100000 = benchmarkString(100000)
+T.BenchmarkString_L4194303 = benchmarkString(4194303)
+
+local function benchmarkFromString(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local s = string.sub(sample.string, 1, n)
+		b:ResetTimer()
+		for i = 1, b.N do
+			local buf = Bitbuf.fromString(s)
+		end
+	end
+end
+T.BenchmarkFromString_L1 = benchmarkFromString(1)
+T.BenchmarkFromString_L10 = benchmarkFromString(10)
+T.BenchmarkFromString_L100 = benchmarkFromString(100)
+T.BenchmarkFromString_L1000 = benchmarkFromString(1000)
+T.BenchmarkFromString_L10000 = benchmarkFromString(10000)
+T.BenchmarkFromString_L100000 = benchmarkFromString(100000)
+T.BenchmarkFromString_L4194303 = benchmarkFromString(4194303)
+
 return T
