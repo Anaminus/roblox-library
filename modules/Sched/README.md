@@ -3,6 +3,26 @@
 
 Implements a custom scheduler for managing threads.
 
+<table>
+<thead><tr><th>Table of Contents</th></tr></thead>
+<tbody><tr><td>
+
+1. [Sched][Sched]
+	1. [Sched.driver][Sched.driver]
+	2. [Sched.new][Sched.new]
+2. [Scheduler][Scheduler]
+	1. [Scheduler.Delay][Scheduler.Delay]
+	2. [Scheduler.DelayCancel][Scheduler.DelayCancel]
+	3. [Scheduler.SetBudget][Scheduler.SetBudget]
+	4. [Scheduler.SetErrorHandler][Scheduler.SetErrorHandler]
+	5. [Scheduler.SetMinWaitTime][Scheduler.SetMinWaitTime]
+	6. [Scheduler.Spawn][Scheduler.Spawn]
+	7. [Scheduler.Wait][Scheduler.Wait]
+	8. [Scheduler.Yield][Scheduler.Yield]
+
+</td></tr></tbody>
+</table>
+
 ## Sched.driver
 [Sched.driver]: #user-content-scheddriver
 ```

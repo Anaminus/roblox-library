@@ -9,6 +9,20 @@ Simplex noise algorithm in Lua.
 [java]: https://weber.itn.liu.se/~stegu/simplexnoise/SimplexNoise.java
 [paper]: https://staffwww.itn.liu.se/~stegu/simplexnoise/simplexnoise.pdf
 
+<table>
+<thead><tr><th>Table of Contents</th></tr></thead>
+<tbody><tr><td>
+
+1. [Simplex][Simplex]
+	1. [Simplex.new][Simplex.new]
+2. [Generator][Generator]
+	1. [Generator.Noise2D][Generator.Noise2D]
+	2. [Generator.Noise3D][Generator.Noise3D]
+	3. [Generator.Noise4D][Generator.Noise4D]
+
+</td></tr></tbody>
+</table>
+
 ## Simplex.new
 [Simplex.new]: #user-content-simplexnew
 ```

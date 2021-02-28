@@ -4,6 +4,46 @@
 Bitbuf implements a bit-level buffer, suitable for serialization and
 storing data in-memory.
 
+<table>
+<thead><tr><th>Table of Contents</th></tr></thead>
+<tbody><tr><td>
+
+1. [Bitbuf][Bitbuf]
+	1. [Bitbuf.fromString][Bitbuf.fromString]
+	2. [Bitbuf.isBuffer][Bitbuf.isBuffer]
+	3. [Bitbuf.new][Bitbuf.new]
+2. [Buffer][Buffer]
+	1. [Buffer.Fits][Buffer.Fits]
+	2. [Buffer.Index][Buffer.Index]
+	3. [Buffer.Len][Buffer.Len]
+	4. [Buffer.ReadAlign][Buffer.ReadAlign]
+	5. [Buffer.ReadBool][Buffer.ReadBool]
+	6. [Buffer.ReadByte][Buffer.ReadByte]
+	7. [Buffer.ReadBytes][Buffer.ReadBytes]
+	8. [Buffer.ReadFixed][Buffer.ReadFixed]
+	9. [Buffer.ReadFloat][Buffer.ReadFloat]
+	10. [Buffer.ReadInt][Buffer.ReadInt]
+	11. [Buffer.ReadPad][Buffer.ReadPad]
+	12. [Buffer.ReadUfixed][Buffer.ReadUfixed]
+	13. [Buffer.ReadUint][Buffer.ReadUint]
+	14. [Buffer.Reset][Buffer.Reset]
+	15. [Buffer.SetIndex][Buffer.SetIndex]
+	16. [Buffer.SetLen][Buffer.SetLen]
+	17. [Buffer.String][Buffer.String]
+	18. [Buffer.WriteAlign][Buffer.WriteAlign]
+	19. [Buffer.WriteBool][Buffer.WriteBool]
+	20. [Buffer.WriteByte][Buffer.WriteByte]
+	21. [Buffer.WriteBytes][Buffer.WriteBytes]
+	22. [Buffer.WriteFixed][Buffer.WriteFixed]
+	23. [Buffer.WriteFloat][Buffer.WriteFloat]
+	24. [Buffer.WriteInt][Buffer.WriteInt]
+	25. [Buffer.WritePad][Buffer.WritePad]
+	26. [Buffer.WriteUfixed][Buffer.WriteUfixed]
+	27. [Buffer.WriteUint][Buffer.WriteUint]
+
+</td></tr></tbody>
+</table>
+
 ## Bitbuf.fromString
 [Bitbuf.fromString]: #user-content-bitbuffromstring
 ```

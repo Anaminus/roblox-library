@@ -276,6 +276,43 @@ handle.Health = 50                --> (does nothing)
 Handles should be used only for interfacing with external code outside the
 world.
 
+<table>
+<thead><tr><th>Table of Contents</th></tr></thead>
+<tbody><tr><td>
+
+1. [ECS][ECS]
+	1. [ECS.newWorld][ECS.newWorld]
+2. [ComponentDef][ComponentDef]
+3. [DynComponentDef][DynComponentDef]
+4. [DynEntityDef][DynEntityDef]
+5. [Entity][Entity]
+6. [EntityDef][EntityDef]
+7. [Handle][Handle]
+	1. [Handle.\__call][Handle.__call]
+	2. [Handle.\__index][Handle.__index]
+	3. [Handle.\__newindex][Handle.__newindex]
+8. [ID][ID]
+9. [Name][Name]
+10. [Updater][Updater]
+11. [World][World]
+	1. [World.CreateEntity][World.CreateEntity]
+	2. [World.DefineComponent][World.DefineComponent]
+	3. [World.DefineEntity][World.DefineEntity]
+	4. [World.DefineSystem][World.DefineSystem]
+	5. [World.DestroyEntity][World.DestroyEntity]
+	6. [World.Get][World.Get]
+	7. [World.Handle][World.Handle]
+	8. [World.Has][World.Has]
+	9. [World.Init][World.Init]
+	10. [World.Set][World.Set]
+	11. [World.Update][World.Update]
+	12. [World.Upkeep][World.Upkeep]
+12. [WorldState][WorldState]
+	1. [WorldState.Entity][WorldState.Entity]
+
+</td></tr></tbody>
+</table>
+
 ## ECS.newWorld
 [ECS.newWorld]: #user-content-ecsnewworld
 ```
@@ -358,7 +395,7 @@ Handle is a reference to an entity within a World. The entity may or may
 not exist.
 
 ## Handle.\__call
-[Handle.__call]: #user-content-handlecall
+[Handle.__call]: #user-content-handle__call
 ```
 Handle(component: Name?): boolean
 ```
@@ -367,7 +404,7 @@ Returns whether the entity exists, or whether the entity has the
 component. Behaves the same as World.Has.
 
 ## Handle.\__index
-[Handle.__index]: #user-content-handleindex
+[Handle.__index]: #user-content-handle__index
 ```
 Handle[Name]: any
 ```
@@ -376,7 +413,7 @@ Returns the value of the entity's component. Behaves the same as
 World.Get.
 
 ## Handle.\__newindex
-[Handle.__newindex]: #user-content-handlenewindex
+[Handle.__newindex]: #user-content-handle__newindex
 ```
 Handle[Name] = any
 ```

@@ -10,6 +10,20 @@ exceptionally. Wrappers (such as `<~ ... ~>`) are neither added nor expected.
 [Ascii85]: https://en.wikipedia.org/wiki/Ascii85
 [RFC1924]: https://tools.ietf.org/html/rfc1924
 
+<table>
+<thead><tr><th>Table of Contents</th></tr></thead>
+<tbody><tr><td>
+
+1. [Base85][Base85]
+	1. [Base85.decode][Base85.decode]
+	2. [Base85.defaultEncoding][Base85.defaultEncoding]
+	3. [Base85.encode][Base85.encode]
+	4. [Base85.newCodec][Base85.newCodec]
+2. [Encoding][Encoding]
+
+</td></tr></tbody>
+</table>
+
 ## Base85.decode
 [Base85.decode]: #user-content-base85decode
 ```

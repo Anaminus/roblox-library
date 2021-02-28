@@ -3,6 +3,44 @@
 
 Sync provides primitives for working with threads and events.
 
+<table>
+<thead><tr><th>Table of Contents</th></tr></thead>
+<tbody><tr><td>
+
+1. [Sync][Sync]
+	1. [Sync.allSignals][Sync.allSignals]
+	2. [Sync.anySignal][Sync.anySignal]
+	3. [Sync.cond][Sync.cond]
+	4. [Sync.event][Sync.event]
+	5. [Sync.group][Sync.group]
+	6. [Sync.mutex][Sync.mutex]
+	7. [Sync.resume][Sync.resume]
+2. [Cond][Cond]
+	1. [Cond.Fire][Cond.Fire]
+	2. [Cond.Wait][Cond.Wait]
+3. [Connection][Connection]
+	1. [Connection.Connected][Connection.Connected]
+	2. [Connection.Disconnect][Connection.Disconnect]
+	3. [Connection.IsConnected][Connection.IsConnected]
+4. [Event][Event]
+	1. [Event.Destroy][Event.Destroy]
+	2. [Event.Event][Event.Event]
+	3. [Event.Fire][Event.Fire]
+	4. [Event.Signal][Event.Signal]
+5. [Group][Group]
+	1. [Group.Add][Group.Add]
+	2. [Group.Done][Group.Done]
+	3. [Group.Wait][Group.Wait]
+6. [Mutex][Mutex]
+	1. [Mutex.Lock][Mutex.Lock]
+	2. [Mutex.Unlock][Mutex.Unlock]
+	3. [Mutex.Wrap][Mutex.Wrap]
+7. [Signal][Signal]
+	1. [Signal.Connect][Signal.Connect]
+
+</td></tr></tbody>
+</table>
+
 ## Sync.allSignals
 [Sync.allSignals]: #user-content-syncallsignals
 ```

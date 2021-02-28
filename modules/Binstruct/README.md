@@ -69,6 +69,26 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 -- }
 ```
 
+<table>
+<thead><tr><th>Table of Contents</th></tr></thead>
+<tbody><tr><td>
+
+1. [Binstruct][Binstruct]
+	1. [Binstruct.new][Binstruct.new]
+2. [Codec][Codec]
+	1. [Codec.Decode][Codec.Decode]
+	2. [Codec.DecodeBuffer][Codec.DecodeBuffer]
+	3. [Codec.Encode][Codec.Encode]
+	4. [Codec.EncodeBuffer][Codec.EncodeBuffer]
+3. [Filter][Filter]
+4. [FilterFunc][FilterFunc]
+5. [FilterTable][FilterTable]
+6. [Hook][Hook]
+7. [TypeDef][TypeDef]
+
+</td></tr></tbody>
+</table>
+
 ## Binstruct.new
 [Binstruct.new]: #user-content-binstructnew
 ```

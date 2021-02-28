@@ -15,6 +15,22 @@ ignored.
 
 A task that yields is treated as an error.
 
+<table>
+<thead><tr><th>Table of Contents</th></tr></thead>
+<tbody><tr><td>
+
+1. [Maid][Maid]
+	1. [Maid.is][Maid.is]
+	2. [Maid.new][Maid.new]
+	3. [Maid.Finish][Maid.Finish]
+	4. [Maid.FinishAll][Maid.FinishAll]
+	5. [Maid.Task][Maid.Task]
+	6. [Maid.TaskEach][Maid.TaskEach]
+	7. [Maid.\__newindex][Maid.\__newindex]
+
+</td></tr></tbody>
+</table>
+
 ## Maid.is
 [Maid.is]: #user-content-maidis
 ```
@@ -69,7 +85,7 @@ Maid:TaskEach(...any)
 TaskEach assigns each argument as an unnamed task.
 
 ## Maid.\__newindex
-[Maid.\__newindex]: #user-content-maidnewindex
+[Maid.\__newindex]: #user-content-maid__newindex
 ```
 Maid[name: string] = (task: any?)
 ```
