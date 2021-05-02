@@ -318,6 +318,13 @@ A library-like module should follow the Roblox library key convention of
 `lowerCamelCase`.
 
 # Patterns
+This section lists common patterns and idioms.
+
+There is no need to strictly adhere to these patterns from the start. They are
+more of an ideal. It is okay to deviate from or avoid entirely these patterns in
+the beginning, when your focus is getting something that works. A drawing begins
+with a sketch. Learn to identify unidiomatic code, and refine your codebase over
+time.
 
 ## Child indexing
 An instance allows a child to be acquired by indexing the instance with its
