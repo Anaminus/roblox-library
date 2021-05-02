@@ -365,8 +365,10 @@ example:
   use.
 
 An instance freshly created from `Instance.new` has the unique property that no
-other scripts are able to acquire a reference to it. At this point, the current
-script effectively has "ownership" over the instance.
+other scripts are able to acquire a reference to it. This also applies to
+instances produced by the Clone method (although such an instance may have a
+property that points to an uncopied, and therefore unsafe instance). At this
+point, the current script effectively has "ownership" over the instance.
 
 This fact should be utilized as much as possible. Configure the state of the
 instance now, while nothing else will affect it. If the instance will be used
