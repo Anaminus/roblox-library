@@ -127,6 +127,18 @@ function Maid.__index:TaskEach(...)
 	end
 end
 
+--@sec: Maid.Skip
+--@def: Maid:Skip(...: string)
+--@doc: Skip removes the tasks of the given names without completing them. Names
+-- with no assigned task are ignored.
+function Maid.__index:Skip(...)
+	local names = table.pack(...)
+	for i = 1, names.n do
+		local name = names[i]
+		self._tasks[name] = nil
+	end
+end
+
 --@sec: Errors
 --@def: type Errors = {error}
 --@doc: Errors is a list of a number of errors.

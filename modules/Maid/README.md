@@ -26,9 +26,10 @@ A task that yields is treated as an error.
 	2. [Maid.new][Maid.new]
 	3. [Maid.Finish][Maid.Finish]
 	4. [Maid.FinishAll][Maid.FinishAll]
-	5. [Maid.Task][Maid.Task]
-	6. [Maid.TaskEach][Maid.TaskEach]
-	7. [Maid.\__newindex][Maid.\__newindex]
+	5. [Maid.Skip][Maid.Skip]
+	6. [Maid.Task][Maid.Task]
+	7. [Maid.TaskEach][Maid.TaskEach]
+	8. [Maid.\__newindex][Maid.\__newindex]
 2. [Errors][Errors]
 3. [TaskError][TaskError]
 
@@ -69,6 +70,15 @@ Maid:FinishAll(): (errs: Errors?)
 
 FinishAll completes all assigned tasks. Returns an error for each task
 that yields or errors, or nil if all tasks finished successfully.
+
+## Maid.Skip
+[Maid.Skip]: #user-content-maidskip
+```
+Maid:Skip(...: string)
+```
+
+Skip removes the tasks of the given names without completing them. Names
+with no assigned task are ignored.
 
 ## Maid.Task
 [Maid.Task]: #user-content-maidtask
