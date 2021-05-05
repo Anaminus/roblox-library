@@ -1,3 +1,41 @@
+--@sec: Errors
+--@def: type Errors = {error}
+--@doc: Errors is a list of errors.
+local Errors = {}
+function Errors:__tostring()
+	if #self == 0 then
+		return "no errors"
+	end
+	local s = table.create(#self+1)
+	table.insert(s, "multiple errors:")
+	for _, err in ipairs(self) do
+		table.insert(s, "\t" .. string.gsub(tostring(err), "\n", "\n\t"))
+	end
+	return table.concat(s, "\n")
+end
+
+local function newErrors()
+	return setmetatable({}, Errors)
+end
+
+--@sec: TaskError
+--@def: type TaskError = {Name: string|number, Err: error}
+--@doc: TaskError indicates an error that occurred from the completion of a
+-- task. The Name field is the name of the task that errored. The type will be a
+-- number if the task was unnamed. The Err field is the underlying error that
+-- occurred.
+local TaskError = {}
+function TaskError:__tostring()
+	return string.format("task %s: %s", tostring(self.Name), tostring(self.Err))
+end
+
+local function newTaskError(name, err)
+	return setmetatable({
+		Name = name,
+		Err = err,
+	}, TaskError)
+end
+
 --@sec: Maid
 --@ord: -1
 --@doc: Maid manages tasks. A task is a value that represents the active state
@@ -104,7 +142,11 @@ function Maid.__index:Task(name, task)
 		return nil
 	end
 	self._tasks[name] = nil
-	return threadTask(self, task)
+	local err = threadTask(self, task)
+	if err ~= nil then
+		return newTaskError(name, err)
+	end
+	return nil
 end
 
 --@sec: Maid.\__newindex
@@ -137,44 +179,6 @@ function Maid.__index:Skip(...)
 		local name = names[i]
 		self._tasks[name] = nil
 	end
-end
-
---@sec: Errors
---@def: type Errors = {error}
---@doc: Errors is a list of errors.
-local Errors = {}
-function Errors:__tostring()
-	if #self == 0 then
-		return "no errors"
-	end
-	local s = table.create(#self+1)
-	table.insert(s, "multiple errors:")
-	for _, err in ipairs(self) do
-		table.insert(s, "\t" .. string.gsub(tostring(err), "\n", "\n\t"))
-	end
-	return table.concat(s, "\n")
-end
-
-local function newErrors()
-	return setmetatable({}, Errors)
-end
-
---@sec: TaskError
---@def: type TaskError = {Name: string|number, Err: error}
---@doc: TaskError indicates an error that occurred from the completion of a
--- task. The Name field is the name of the task that errored. The type will be a
--- number if the task was unnamed. The Err field is the underlying error that
--- occurred.
-local TaskError = {}
-function TaskError:__tostring()
-	return string.format("task %s: %s", tostring(self.Name), tostring(self.Err))
-end
-
-local function newTaskError(name, err)
-	return setmetatable({
-		Name = name,
-		Err = err,
-	}, TaskError)
 end
 
 --@sec: Maid.Finish
