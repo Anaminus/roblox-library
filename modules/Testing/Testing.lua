@@ -1288,16 +1288,20 @@ function Runner.__index:run(patterns, funcPrefix, method)
 	for _, pair in ipairs(self.modules.Matched) do
 		local moduleResult, funcs = self:loadModuleTest(pair.Module, pair.Test, patterns, funcPrefix)
 		local moduleFailed = false
-		local epoch = os.clock()
-		for i, func in ipairs(funcs) do
-			local result = method(self, pair.Module, func.Func, func.Name)
-			moduleFailed = moduleFailed or result.Failed
-			table.insert(moduleResult.Results, result)
-			if self.yield and i < #funcs then
-				self.yield()
+		if moduleResult.Okay then
+			local epoch = os.clock()
+			for i, func in ipairs(funcs) do
+				local result = method(self, pair.Module, func.Func, func.Name)
+				moduleFailed = moduleFailed or result.Failed
+				table.insert(moduleResult.Results, result)
+				if self.yield and i < #funcs then
+					self.yield()
+				end
 			end
+			moduleResult.Duration = os.clock() - epoch
+		else
+			moduleFailed = true
 		end
-		moduleResult.Duration = os.clock() - epoch
 		moduleResult.Failed = moduleFailed
 		modulesFailed = modulesFailed or moduleFailed
 		table.insert(results, moduleResult)
@@ -1315,7 +1319,7 @@ function Runner.__index:loadModuleTest(module, test, patterns, funcPrefix)
 	local moduleResult = new(ModuleResult, {
 		Module = module,
 		Duration = 0,
-		Okay = false,
+		Okay = true,
 		Error = nil,
 		Benchmark = funcPrefix == benchFuncPrefix,
 		Results = {},
