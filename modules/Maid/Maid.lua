@@ -17,24 +17,6 @@
 -- A task that yields is treated as an error.
 local Maid = {__index={}}
 
--- finalizeTask checks the type of a task and finalizes it as appropriate.
--- Unknown types are ignored.
-local function finalizeTask(task)
-	local t = typeof(task)
-	if t == "function" then
-		local err = task()
-		return err
-	elseif t == "RBXScriptConnection" then
-		task:Disconnect()
-		return nil
-	elseif t == "Instance" then
-		task:Destroy()
-		return nil
-	elseif getmetatable(task) == Maid then
-		return task:FinishAll()
-	end
-end
-
 --@sec: Maid.new
 --@ord: -1
 --@def: Maid.new(): Maid
@@ -52,6 +34,24 @@ end
 --@doc: is returns whether *v* is an instance of Maid.
 local function is(v)
 	return getmetatable(v) == Maid
+end
+
+-- finalizeTask checks the type of a task and finalizes it as appropriate.
+-- Unknown types are ignored.
+local function finalizeTask(task)
+	local t = typeof(task)
+	if t == "function" then
+		local err = task()
+		return err
+	elseif t == "RBXScriptConnection" then
+		task:Disconnect()
+		return nil
+	elseif t == "Instance" then
+		task:Destroy()
+		return nil
+	elseif is(task) then
+		return task:FinishAll()
+	end
 end
 
 local success = newproxy()
