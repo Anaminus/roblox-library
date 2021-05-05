@@ -1294,6 +1294,9 @@ function Runner.__index:run(patterns, funcPrefix, method)
 				local result = method(self, pair.Module, func.Func, func.Name)
 				moduleFailed = moduleFailed or result.Failed
 				table.insert(moduleResult.Results, result)
+				if self.Output then
+					self.Output(result)
+				end
 				if self.yield and i < #funcs then
 					self.yield()
 				end
