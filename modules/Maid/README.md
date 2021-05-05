@@ -112,7 +112,7 @@ Alias for Task. If an error occurs, it is thrown.
 type Errors = {error}
 ```
 
-Errors is a list of a number of errors.
+Errors is a list of errors.
 
 # TaskError
 [TaskError]: #user-content-taskerror

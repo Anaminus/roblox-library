@@ -141,7 +141,7 @@ end
 
 --@sec: Errors
 --@def: type Errors = {error}
---@doc: Errors is a list of a number of errors.
+--@doc: Errors is a list of errors.
 local Errors = {}
 function Errors:__tostring()
 	if #self == 0 then
