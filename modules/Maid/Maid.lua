@@ -167,12 +167,12 @@ end
 -- occurred.
 local TaskError = {}
 function TaskError:__tostring()
-	return string.format("task %s: %s", self.Name, tostring(self.Err))
+	return string.format("task %s: %s", tostring(self.Name), tostring(self.Err))
 end
 
 local function newTaskError(name, err)
 	return setmetatable({
-		Name = tostring(name),
+		Name = name,
 		Err = err,
 	}, TaskError)
 end
