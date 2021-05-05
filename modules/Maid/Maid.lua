@@ -26,7 +26,7 @@ local function finalizeTask(task)
 	elseif t == "Instance" then
 		task:Destroy()
 	elseif getmetatable(task) == Maid then
-		task:Clean()
+		return task:FinishAll()
 	end
 end
 
