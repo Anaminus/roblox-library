@@ -4,10 +4,12 @@
 -- of some procedure or object. Finishing a task causes the procedure or object
 -- to be finalized. How this occurs depends on the type:
 --
--- - **function**: The function is called with no arguments.
--- - **RBXScriptConnection**: The Disconnect method is called.
--- - **Instance**: The Destroy method is called.
--- - **Maid**: The FinishAll method is called.
+-- - `() -> error?`: The function is called. If an error is returned, it is
+--   propagated to the caller as a TaskError.
+-- - `RBXScriptConnection`: The Disconnect method is called.
+-- - `Instance`: The Destroy method is called.
+-- - `Maid`: The FinishAll method is called. If an error is returned, it is
+--   propagated to the caller as a TaskError.
 --
 -- Unknown task types are held by the maid until finished, but are otherwise
 -- ignored.
@@ -20,11 +22,14 @@ local Maid = {__index={}}
 local function finalizeTask(task)
 	local t = typeof(task)
 	if t == "function" then
-		task()
+		local err = task()
+		return err
 	elseif t == "RBXScriptConnection" then
 		task:Disconnect()
+		return nil
 	elseif t == "Instance" then
 		task:Destroy()
+		return nil
 	elseif getmetatable(task) == Maid then
 		return task:FinishAll()
 	end
@@ -50,25 +55,31 @@ local function is(v)
 end
 
 local success = newproxy()
+local taskerr = newproxy()
 -- threadTask runs a task within a thread, which will both catch errors and
 -- detect if the task yields. The thread can be reused as long as a task
 -- behaves.
 local function threadTask(self, task)
 	if not self._thread then
-		self._thread = coroutine.create(function()
+		self._thread = coroutine.create(function(task)
 			while true do
-				finalizeTask(coroutine.yield(success))
+				local err = finalizeTask(task)
+				if err == nil then
+					task = coroutine.yield(success)
+				else
+					task = coroutine.yield(taskerr, err)
+				end
 			end
 		end)
-		-- Initialize to enter loop.
-		coroutine.resume(self._thread)
 	end
-	local ok, err = coroutine.resume(self._thread, task)
+	local ok, status, err = coroutine.resume(self._thread, task)
 	if not ok then
 		-- Task errored, return it.
 		self._thread = false
+		return status
+	elseif status == taskerr then
 		return err
-	elseif err ~= success then
+	elseif status ~= success then
 		-- Task yielded, which isn't allowed.
 		self._thread = false
 		return "unexpected yield while finishing task"
@@ -107,7 +118,7 @@ function Maid:__newindex(name, task)
 end
 
 --@sec: Maid.TaskEach
---@def: Maid:TaskEach(...any)
+--@def: Maid:TaskEach(...: any)
 --@doc: TaskEach assigns each argument as an unnamed task.
 function Maid.__index:TaskEach(...)
 	local tasks = table.pack(...)
@@ -116,14 +127,46 @@ function Maid.__index:TaskEach(...)
 	end
 end
 
-local errors = {
-	__tostring = function(self)
-		return table.concat(self, "\n")
-	end,
-}
+--@sec: Errors
+--@def: type Errors = {error}
+--@doc: Errors is a list of a number of errors.
+local Errors = {}
+function Errors:__tostring()
+	if #self == 0 then
+		return "no errors"
+	end
+	local s = table.create(#self+1)
+	table.insert(s, "multiple errors:")
+	for _, err in ipairs(self) do
+		table.insert(s, "\t" .. string.gsub(tostring(err), "\n", "\n\t"))
+	end
+	return table.concat(s, "\n")
+end
+
+local function newErrors()
+	return setmetatable({}, Errors)
+end
+
+--@sec: TaskError
+--@def: type TaskError = {Name: string|number, Err: error}
+--@doc: TaskError indicates an error that occurred from the completion of a
+-- task. The Name field is the name of the task that errored. The type will be a
+-- number if the task was unnamed. The Err field is the underlying error that
+-- occurred.
+local TaskError = {}
+function TaskError:__tostring()
+	return string.format("task %s: %s", self.Name, tostring(self.Err))
+end
+
+local function newTaskError(name, err)
+	return setmetatable({
+		Name = tostring(name),
+		Err = err,
+	}, TaskError)
+end
 
 --@sec: Maid.Finish
---@def: Maid:Finish(...string): (errs: {string}?)
+--@def: Maid:Finish(...: string): (errs: Errors?)
 --@doc: Finish completes the tasks of the given names. Names with no assigned
 -- task are ignored. Returns an error for each task that yields or errors, or
 -- nil if all tasks finished successfully.
@@ -137,9 +180,9 @@ function Maid.__index:Finish(...)
 			local err = threadTask(self, task)
 			if err then
 				if errs == nil then
-					errs = setmetatable({}, errors)
+					errs = newErrors()
 				end
-				table.insert(errs, string.format("task %s: %s", tostring(name), err))
+				table.insert(errs, newTaskError(name, err))
 			end
 			self._tasks[name] = nil
 		end
@@ -148,7 +191,7 @@ function Maid.__index:Finish(...)
 end
 
 --@sec: Maid.FinishAll
---@def: Maid:FinishAll(): (errs: {string}?)
+--@def: Maid:FinishAll(): (errs: Errors?)
 --@doc: FinishAll completes all assigned tasks. Returns an error for each task
 -- that yields or errors, or nil if all tasks finished successfully.
 function Maid.__index:FinishAll()
@@ -157,9 +200,9 @@ function Maid.__index:FinishAll()
 		local err = threadTask(self, task)
 		if err then
 			if errs == nil then
-				errs = setmetatable({}, errors)
+				errs = newErrors()
 			end
-			table.insert(errs, string.format("task %s: %s", tostring(name), err))
+			table.insert(errs, newTaskError(name, err))
 		end
 	end
 	table.clear(self._tasks)

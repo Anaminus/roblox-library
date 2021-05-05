@@ -5,10 +5,12 @@ Maid manages tasks. A task is a value that represents the active state
 of some procedure or object. Finishing a task causes the procedure or object
 to be finalized. How this occurs depends on the type:
 
-- **function**: The function is called with no arguments.
-- **RBXScriptConnection**: The Disconnect method is called.
-- **Instance**: The Destroy method is called.
-- **Maid**: The FinishAll method is called.
+- `() -> error?`: The function is called. If an error is returned, it is
+  propagated to the caller as a TaskError.
+- `RBXScriptConnection`: The Disconnect method is called.
+- `Instance`: The Destroy method is called.
+- `Maid`: The FinishAll method is called. If an error is returned, it is
+  propagated to the caller as a TaskError.
 
 Unknown task types are held by the maid until finished, but are otherwise
 ignored.
@@ -27,6 +29,8 @@ A task that yields is treated as an error.
 	5. [Maid.Task][Maid.Task]
 	6. [Maid.TaskEach][Maid.TaskEach]
 	7. [Maid.\__newindex][Maid.\__newindex]
+2. [Errors][Errors]
+3. [TaskError][TaskError]
 
 </td></tr></tbody>
 </table>
@@ -50,7 +54,7 @@ new returns a new Maid instance.
 ## Maid.Finish
 [Maid.Finish]: #user-content-maidfinish
 ```
-Maid:Finish(...string): (errs: {string}?)
+Maid:Finish(...: string): (errs: Errors?)
 ```
 
 Finish completes the tasks of the given names. Names with no assigned
@@ -60,7 +64,7 @@ nil if all tasks finished successfully.
 ## Maid.FinishAll
 [Maid.FinishAll]: #user-content-maidfinishall
 ```
-Maid:FinishAll(): (errs: {string}?)
+Maid:FinishAll(): (errs: Errors?)
 ```
 
 FinishAll completes all assigned tasks. Returns an error for each task
@@ -79,7 +83,7 @@ the task yielded or errored.
 ## Maid.TaskEach
 [Maid.TaskEach]: #user-content-maidtaskeach
 ```
-Maid:TaskEach(...any)
+Maid:TaskEach(...: any)
 ```
 
 TaskEach assigns each argument as an unnamed task.
@@ -91,4 +95,23 @@ Maid[name: string] = (task: any?)
 ```
 
 Alias for Task. If an error occurs, it is thrown.
+
+# Errors
+[Errors]: #user-content-errors
+```
+type Errors = {error}
+```
+
+Errors is a list of a number of errors.
+
+# TaskError
+[TaskError]: #user-content-taskerror
+```
+type TaskError = {Name: string|number, Err: error}
+```
+
+TaskError indicates an error that occurred from the completion of a
+task. The Name field is the name of the task that errored. The type will be a
+number if the task was unnamed. The Err field is the underlying error that
+occurred.
 
