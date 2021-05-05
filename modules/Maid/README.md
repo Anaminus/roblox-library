@@ -6,11 +6,11 @@ of some procedure or object. Finishing a task causes the procedure or object
 to be finalized. How this occurs depends on the type:
 
 - `() -> error?`: The function is called. If an error is returned, it is
-  propagated to the caller as a TaskError.
+  propagated to the caller as a [TaskError][TaskError].
 - `RBXScriptConnection`: The Disconnect method is called.
 - `Instance`: The Destroy method is called.
 - `Maid`: The FinishAll method is called. If an error is returned, it is
-  propagated to the caller as a TaskError.
+  propagated to the caller as a [TaskError][TaskError].
 
 Unknown task types are held by the maid until finished, but are otherwise
 ignored.
@@ -59,8 +59,8 @@ Maid:Finish(...: string): (errs: Errors?)
 ```
 
 Finish completes the tasks of the given names. Names with no assigned
-task are ignored. Returns an error for each task that yields or errors, or
-nil if all tasks finished successfully.
+task are ignored. Returns a [TaskError][TaskError] for each task that yields
+or errors, or nil if all tasks finished successfully.
 
 ## Maid.FinishAll
 [Maid.FinishAll]: #user-content-maidfinishall
@@ -68,8 +68,9 @@ nil if all tasks finished successfully.
 Maid:FinishAll(): (errs: Errors?)
 ```
 
-FinishAll completes all assigned tasks. Returns an error for each task
-that yields or errors, or nil if all tasks finished successfully.
+FinishAll completes all assigned tasks. Returns a [TaskError][TaskError]
+for each task that yields or errors, or nil if all tasks finished
+successfully.
 
 ## Maid.Skip
 [Maid.Skip]: #user-content-maidskip
@@ -83,12 +84,14 @@ with no assigned task are ignored.
 ## Maid.Task
 [Maid.Task]: #user-content-maidtask
 ```
-Maid:Task(name: string, task: any?): (err: string?)
+Maid:Task(name: string, task: any?): (err: error?)
 ```
 
 Task assigns *task* to the maid with the given name. If *task* is nil,
-and the maid has task *name*, then the task is completed. Returns an error if
-the task yielded or errored.
+and the maid has task *name*, then the task is completed. Returns a
+[TaskError][TaskError] if the completed task yielded or errored.
+
+*name* is not allowed to begin with an underscore.
 
 ## Maid.TaskEach
 [Maid.TaskEach]: #user-content-maidtaskeach

@@ -43,11 +43,11 @@ end
 -- to be finalized. How this occurs depends on the type:
 --
 -- - `() -> error?`: The function is called. If an error is returned, it is
---   propagated to the caller as a TaskError.
+--   propagated to the caller as a [TaskError][TaskError].
 -- - `RBXScriptConnection`: The Disconnect method is called.
 -- - `Instance`: The Destroy method is called.
 -- - `Maid`: The FinishAll method is called. If an error is returned, it is
---   propagated to the caller as a TaskError.
+--   propagated to the caller as a [TaskError][TaskError].
 --
 -- Unknown task types are held by the maid until finished, but are otherwise
 -- ignored.
@@ -126,10 +126,12 @@ local function threadTask(self, task)
 end
 
 --@sec: Maid.Task
---@def: Maid:Task(name: string, task: any?): (err: string?)
+--@def: Maid:Task(name: string, task: any?): (err: error?)
 --@doc: Task assigns *task* to the maid with the given name. If *task* is nil,
--- and the maid has task *name*, then the task is completed. Returns an error if
--- the task yielded or errored.
+-- and the maid has task *name*, then the task is completed. Returns a
+-- [TaskError][TaskError] if the completed task yielded or errored.
+--
+-- *name* is not allowed to begin with an underscore.
 function Maid.__index:Task(name, task)
 	assert(type(name) == "string", "string expected")
 	assert(string.sub(name, 1, 1) ~= "_", "name cannot begin with underscore")
@@ -184,8 +186,8 @@ end
 --@sec: Maid.Finish
 --@def: Maid:Finish(...: string): (errs: Errors?)
 --@doc: Finish completes the tasks of the given names. Names with no assigned
--- task are ignored. Returns an error for each task that yields or errors, or
--- nil if all tasks finished successfully.
+-- task are ignored. Returns a [TaskError][TaskError] for each task that yields
+-- or errors, or nil if all tasks finished successfully.
 function Maid.__index:Finish(...)
 	local names = table.pack(...)
 	local errs = nil
@@ -208,8 +210,9 @@ end
 
 --@sec: Maid.FinishAll
 --@def: Maid:FinishAll(): (errs: Errors?)
---@doc: FinishAll completes all assigned tasks. Returns an error for each task
--- that yields or errors, or nil if all tasks finished successfully.
+--@doc: FinishAll completes all assigned tasks. Returns a [TaskError][TaskError]
+-- for each task that yields or errors, or nil if all tasks finished
+-- successfully.
 function Maid.__index:FinishAll()
 	local errs = nil
 	for name, task in pairs(self._tasks) do
