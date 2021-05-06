@@ -52,7 +52,8 @@ end
 -- Unknown task types are held by the maid until finished, but are otherwise
 -- ignored.
 --
--- A task that yields is treated as an error.
+-- A task that yields is treated as an error. Additionally, an error occurs if a
+-- maid tries to finalize a task while already finalizing a task.
 local Maid = {__index={}}
 
 --@sec: Maid.new
@@ -109,6 +110,9 @@ local function threadTask(self, task)
 				end
 			end
 		end)
+	end
+	if coroutine.status(self._thread) ~= "suspended" then
+		return "cannot run finalizer within finalizer"
 	end
 	local ok, status, err = coroutine.resume(self._thread, task)
 	if not ok then

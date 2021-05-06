@@ -182,7 +182,7 @@ function T.TestMaid_FinishAll(t, require)
 	end
 end
 
-function T.TestErrors(t, require)
+function T.TestMultipleErrors(t, require)
 	local Maid = require()
 	local maid = Maid.new()
 
@@ -201,19 +201,51 @@ function T.TestErrors(t, require)
 
 	local errs = maid:FinishAll()
 	t:Log(errs)
-	if #errs ~= 5 then
+	if errs == nil then
+		t:Errorf("expected errors")
+	elseif #errs ~= 5 then
 		t:Errorf("expected 5 errors, got %d", #errs)
 	end
+end
+
+function T.TestNoErrors(t, require)
+	local Maid = require()
+	local maid = Maid.new()
 
 	local errs = maid:FinishAll()
 	if errs ~= nil then
 		t:Errorf("expected no errors, got %s", errs)
 	end
+end
+
+function T.TestYieldError(t, require)
+	local Maid = require()
+	local maid = Maid.new()
 
 	maid.wait = function() wait(1) end
 	local errs = maid:FinishAll()
 	t:Log(errs)
-	if #errs ~= 1 then
+	if errs == nil then
+		t:Errorf("expected errors")
+	elseif #errs ~= 1 then
+		t:Errorf("expected 1 error, got %d", #errs)
+	end
+end
+
+function T.TestSelfFinalError(t, require)
+	local Maid = require()
+	local maid = Maid.new()
+
+	function maid.A()
+		maid.B = nil
+	end
+	function maid.B()
+	end
+	local errs = maid:Finish("A")
+	t:Log(errs)
+	if errs == nil then
+		t:Errorf("expected errors")
+	elseif #errs ~= 1 then
 		t:Errorf("expected 1 error, got %d", #errs)
 	end
 end

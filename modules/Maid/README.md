@@ -15,7 +15,8 @@ to be finalized. How this occurs depends on the type:
 Unknown task types are held by the maid until finished, but are otherwise
 ignored.
 
-A task that yields is treated as an error.
+A task that yields is treated as an error. Additionally, an error occurs if a
+maid tries to finalize a task while already finalizing a task.
 
 <table>
 <thead><tr><th>Table of Contents</th></tr></thead>
