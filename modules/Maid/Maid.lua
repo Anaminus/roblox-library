@@ -161,7 +161,8 @@ end
 function Maid:__newindex(name, task)
 	local err = self:Task(name, task)
 	if err ~= nil then
-		error(err, 2)
+		--TODO: return err directly once the engine can receive any value type.
+		error(tostring(err), 2)
 	end
 end
 
