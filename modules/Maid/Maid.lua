@@ -5,6 +5,8 @@ local Errors = {}
 function Errors:__tostring()
 	if #self == 0 then
 		return "no errors"
+	elseif #self == 1 then
+		return tostring(self[1])
 	end
 	local s = table.create(#self+1)
 	table.insert(s, "multiple errors:")
