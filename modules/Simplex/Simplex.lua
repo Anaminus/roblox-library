@@ -36,14 +36,15 @@ local G4 = (5 - math.sqrt(5))/20
 
 --@sec: Generator
 --@def: type Generator
---@doc: Generator holds the state for generating simplex noise.
-local mt = {__index={}}
+--@doc: Generator holds the state for generating simplex noise. The state is
+-- based off of an array containing a permutation of integers.
+local Generator = {__index={}}
 
 --@sec: Generator.Noise2D
 --@def: Generator:Noise2D(x: number, y: number): number
 --@doc: Returns a number in the interval [-1, 1] based on the given
 -- two-dimensional coordinates and the generator's permutation state.
-function mt.__index:Noise2D(xin, yin)
+function Generator.__index:Noise2D(xin, yin)
 	local perm = self.perm
 	local permMod12 = self.permMod12
 	local n0, n1, n2 -- Noise contributions from the three corners
@@ -111,7 +112,7 @@ end
 --@def: Generator:Noise3D(x: number, y: number, z: number): number
 --@doc: Returns a number in the interval [-1, 1] based on the given
 -- three-dimensional coordinates and the generator's permutation state.
-function mt.__index:Noise3D(xin, yin, zin)
+function Generator.__index:Noise3D(xin, yin, zin)
 	local perm = self.perm
 	local permMod12 = self.permMod12
 	local n0, n1, n2, n3; -- Noise contributions from the four corners
@@ -210,7 +211,7 @@ end
 --@def: Generator:Noise4D(x: number, y: number, z: number, w: number): number
 --@doc: Returns a number in the interval [-1, 1] based on the given
 -- four-dimensional coordinates and the generator's permutation state.
-function mt.__index:Noise4D(x, y, z, w)
+function Generator.__index:Noise4D(x, y, z, w)
 	local perm = self.perm
 	local n0, n1, n2, n3, n4 -- Noise contributions from the five corners
 	-- Skew the (x,y,z,w) space to determine which cell of 24 simplices we're in
@@ -336,72 +337,122 @@ function mt.__index:Noise4D(x, y, z, w)
 	return 27 * (n0 + n1 + n2 + n3 + n4)
 end
 
---@sec: Simplex.new
---@def: Simplex.new(permutations: {[number]: number} | number | Random | (number)->(number)): Generator
---@doc Returns a generator initialized with a table of permutations.
---
--- *permutations* may be an array containing each integer between 0 and 255,
--- inclusive. The order of these integers can be arbitrary.
---
--- *permutations* may be a number, which is used as a random seed to shuffle a
--- generated table of permutations.
---
--- *permutations* may be a Random object, which will be used to shuffle a
--- generated table of permutations.
---
--- *permutations* may be a function that receives an integer, and returns an
--- integer between 1 and the given value, inclusive. In this case, a generated
--- table of permutations will be shuffled using this function. math.random is an
--- example of such a function.
---
--- Otherwise, a shuffled table of permutations is generated from a random
--- source.
-function Simplex.new(permutations)
-	if type(permutations) == "table" then
-		-- Validate permutations table.
-		local found = {}
-		for i = 1, 256 do
-			local v = permutations[i]
-			if v == nil then
-				error(string.format("permutations missing index %d", i))
-			end
-			found[v] = true
-		end
-		for i = 0, 255 do
-			if found[i] ~= true then
-				error(string.format("permutations missing value %d", i))
-			end
-		end
-	else
-		local random
-		if type(permutations) == "number" then
-			local source = Random.new(permutations)
-			function random(n)
-				return source:NextInteger(1, n)
-			end
-		elseif typeof(permutations) == "Random" then
-			local source = Random.new()
-			function random(n)
-				return source:NextInteger(1, n)
-			end
-		elseif type(permutations) ~= "function" then
-			random = math.random
-		end
-		permutations = {}
-		for i = 1, 256 do
-			local j = random(i)
-			permutations[j], permutations[i] = i-1, permutations[j]
-		end
-	end
-
+local function new(permutations)
 	local perm = {}
 	local permMod12 = {}
 	for i = 0, 511 do
 		perm[i+1] = permutations[(i % 256) + 1]
 		permMod12[i+1] = (perm[i+1] % 12)
 	end
+	return setmetatable({perm = perm, permMod12 = permMod12}, Generator)
+end
 
-	return setmetatable({perm = perm, permMod12 = permMod12}, mt)
+local function newperm()
+	local perm = table.create(256)
+	for i = 0, 255 do
+		perm[i+1] = i
+	end
+	return perm
+end
+
+--@sec: Simplex.fromArray
+--@def: Simplex.new(permutations: {number}): Generator
+--@doc: Returns a generator with a state initialized by a table of permutations.
+--
+-- *permutations* is an array containing some permutation of each integer
+-- between 0 and 255, inclusive.
+function Simplex.fromArray(permutations)
+	-- Validate permutations table.
+	assert(type(permutations) == "table", "table expected")
+	local found = table.create(255)
+	for i = 1, 256 do
+		local v = permutations[i]
+		if v == nil then
+			error(string.format("permutations missing index %d", i), 2)
+		end
+		found[v] = true
+	end
+	for i = 0, 255 do
+		if found[i] ~= true then
+			error(string.format("permutations missing value %d", i), 2)
+		end
+	end
+	return new(permutations)
+end
+
+--@sec: Simplex.fromSeed
+--@def: Simplex.new(seed: number): Generator
+--@doc: Returns a generator with a state initialized by a seed for a random
+-- number generator.
+--
+-- *seed* is a number, which is used as a random seed to shuffle a generated
+-- array of permutations.
+function Simplex.fromSeed(seed)
+	assert(type(seed) == "number", "number expected")
+	local source = Random.new(seed)
+	local perm = newperm()
+	for i = #perm, 2, -1 do
+		local j = source:NextInteger(1, i)
+		perm[i], perm[j] = perm[j], perm[i]
+	end
+	return new(perm)
+end
+
+--@sec: Simplex.fromRandom
+--@def: Simplex.new(source: Random): Generator
+--@doc: Returns a generator with a state initialized by a Random source.
+--
+-- *source* is a Random value, which is used to shuffle a generated array of
+-- permutations.
+function Simplex.fromRandom(source)
+	assert(typeof(source) == "Random", "Random expected")
+	local perm = newperm()
+	for i = #perm, 2, -1 do
+		local j = source:NextInteger(1, i)
+		perm[i], perm[j] = perm[j], perm[i]
+	end
+	return new(perm)
+end
+
+--@sec: Simplex.fromFunction
+--@def: Simplex.new(func: (number)->(number)): Generator
+--@doc: Returns a generator with a state initialized by a random function.
+--
+-- *func* is a function that receives an integer, and returns an integer between
+-- 1 and the given value, inclusive. A generated array of permutations will be
+-- shuffled using this function. `math.random` is an example of such a function.
+function Simplex.fromFunction(func)
+	assert(type(func) == "function", "function expected")
+	local perm = newperm()
+	for i = #perm, 2, -1 do
+		local j = func(i)
+		if type(j) ~= "number" then
+			error(string.format("expected number returned for func(%d), got %s", i, type(j)), 2)
+		end
+		perm[i], perm[j] = perm[j], perm[i]
+	end
+	return new(perm)
+end
+
+--@sec: Simplex.new
+--@def: Simplex.new(): Generator
+--@doc: Returns a generator with a state initialized by a random shuffle.
+function Simplex.new()
+	local source = Random.new()
+	local perm = newperm()
+	for i = #perm, 2, -1 do
+		local j = source:NextInteger(1, i)
+		perm[i], perm[j] = perm[j], perm[i]
+	end
+	return new(perm)
+end
+
+--@sec: Simplex.isGenerator
+--@def: Simplex.isGenerator(v: any): boolean
+--@doc: isGenerator returns whether *v* is an instance of
+-- [Generator][Generator].
+function  Simplex.isGenerator(v)
+	return getmetatable(v) == Generator
 end
 
 return Simplex
