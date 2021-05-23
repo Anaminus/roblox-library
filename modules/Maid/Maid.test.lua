@@ -15,13 +15,13 @@ local finalizerTests = {
 		attach(name, object)
 		object.Parent = parent
 		if object.Parent ~= parent then
-			t:Error("%s: instance was not parented")
+			t:Error("instance was not parented")
 		end
 		object.Parent = nil
 
 		detach(name)
-		if pcall(function() object.Parent = parent end) then
-			t:Error("%s: instance was not destroyed")
+		if object.Parent ~= nil then
+			t:Error("instance was not dissolved")
 		end
 	end,
 	connection = function(t, name, attach, detach)

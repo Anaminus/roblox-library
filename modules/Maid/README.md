@@ -8,7 +8,7 @@ to be finalized. How this occurs depends on the type:
 - `() -> error?`: The function is called. If an error is returned, it is
   propagated to the caller as a [TaskError][TaskError].
 - `RBXScriptConnection`: The Disconnect method is called.
-- `Instance`: The Destroy method is called.
+- `Instance`: The ClearAllChildren method is called.
 - `Maid`: The FinishAll method is called. If an error is returned, it is
   propagated to the caller as a [TaskError][TaskError].
 
