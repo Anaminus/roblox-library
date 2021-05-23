@@ -47,7 +47,7 @@ end
 -- - `() -> error?`: The function is called. If an error is returned, it is
 --   propagated to the caller as a [TaskError][TaskError].
 -- - `RBXScriptConnection`: The Disconnect method is called.
--- - `Instance`: The ClearAllChildren method is called.
+-- - `Instance`: The Parent property is set to nil.
 -- - `Maid`: The FinishAll method is called. If an error is returned, it is
 --   propagated to the caller as a [TaskError][TaskError].
 --
@@ -88,7 +88,7 @@ local function finalizeTask(task)
 		task:Disconnect()
 		return nil
 	elseif t == "Instance" then
-		task:ClearAllChildren()
+		task.Parent = nil
 		return nil
 	elseif is(task) then
 		return task:FinishAll()
