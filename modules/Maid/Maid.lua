@@ -58,25 +58,6 @@ end
 -- maid tries to finalize a task while already finalizing a task.
 local Maid = {__index={}}
 
---@sec: Maid.new
---@ord: -1
---@def: Maid.new(): Maid
---@doc: new returns a new Maid instance.
-local function new()
-	return setmetatable({
-		_tasks = {},
-		_thread = false,
-	}, Maid)
-end
-
---@sec: Maid.is
---@ord: -1
---@def: Maid.is(v: any): boolean
---@doc: is returns whether *v* is an instance of Maid.
-local function is(v)
-	return getmetatable(v) == Maid
-end
-
 -- finalizeTask checks the type of a task and finalizes it as appropriate.
 -- Unknown types are ignored.
 local function finalizeTask(task)
@@ -93,6 +74,34 @@ local function finalizeTask(task)
 	elseif is(task) then
 		return task:FinishAll()
 	end
+end
+
+--@sec: Maid.new
+--@ord: -3
+--@def: Maid.new(): Maid
+--@doc: new returns a new Maid instance.
+local function new()
+	return setmetatable({
+		_tasks = {},
+		_thread = false,
+	}, Maid)
+end
+
+--@sec: Maid.finish
+--@ord: -2
+--@def: Maid.finish(task: any): error
+--@doc: finish completes the given task. *task* is any value that can be
+-- assigned to a Maid.
+local function finish(task)
+	return finalizeTask(task)
+end
+
+--@sec: Maid.is
+--@ord: -1
+--@def: Maid.is(v: any): boolean
+--@doc: is returns whether *v* is an instance of Maid.
+local function is(v)
+	return getmetatable(v) == Maid
 end
 
 local success = newproxy()
@@ -237,5 +246,6 @@ end
 
 return {
 	new = new,
+	finish = finish,
 	is = is,
 }

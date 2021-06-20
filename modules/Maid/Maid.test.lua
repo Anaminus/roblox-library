@@ -250,4 +250,18 @@ function T.TestSelfFinalError(t, require)
 	end
 end
 
+function T.TestFinish(t, require)
+	local Maid = require()
+
+	local tasks = {}
+	testFinalizers(t, Maid,
+		function(name, value)
+			tasks[name] = value
+		end,
+		function(name)
+			Maid.finish(tasks[name])
+		end
+	)
+end
+
 return T

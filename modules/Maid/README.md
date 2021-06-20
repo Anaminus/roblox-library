@@ -23,27 +23,20 @@ maid tries to finalize a task while already finalizing a task.
 <tbody><tr><td>
 
 1. [Maid][Maid]
-	1. [Maid.is][Maid.is]
-	2. [Maid.new][Maid.new]
-	3. [Maid.Finish][Maid.Finish]
-	4. [Maid.FinishAll][Maid.FinishAll]
-	5. [Maid.Skip][Maid.Skip]
-	6. [Maid.Task][Maid.Task]
-	7. [Maid.TaskEach][Maid.TaskEach]
-	8. [Maid.\__newindex][Maid.\__newindex]
+	1. [Maid.new][Maid.new]
+	2. [Maid.finish][Maid.finish]
+	3. [Maid.is][Maid.is]
+	4. [Maid.Finish][Maid.Finish]
+	5. [Maid.FinishAll][Maid.FinishAll]
+	6. [Maid.Skip][Maid.Skip]
+	7. [Maid.Task][Maid.Task]
+	8. [Maid.TaskEach][Maid.TaskEach]
+	9. [Maid.\__newindex][Maid.\__newindex]
 2. [Errors][Errors]
 3. [TaskError][TaskError]
 
 </td></tr></tbody>
 </table>
-
-## Maid.is
-[Maid.is]: #user-content-maidis
-```
-Maid.is(v: any): boolean
-```
-
-is returns whether *v* is an instance of Maid.
 
 ## Maid.new
 [Maid.new]: #user-content-maidnew
@@ -52,6 +45,23 @@ Maid.new(): Maid
 ```
 
 new returns a new Maid instance.
+
+## Maid.finish
+[Maid.finish]: #user-content-maidfinish
+```
+Maid.finish(task: any): error
+```
+
+finish completes the given task. *task* is any value that can be
+assigned to a Maid.
+
+## Maid.is
+[Maid.is]: #user-content-maidis
+```
+Maid.is(v: any): boolean
+```
+
+is returns whether *v* is an instance of Maid.
 
 ## Maid.Finish
 [Maid.Finish]: #user-content-maidfinish
