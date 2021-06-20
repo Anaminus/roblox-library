@@ -11,6 +11,7 @@ to be finalized. How this occurs depends on the type:
 - `Instance`: The Parent property is set to nil.
 - `Maid`: The FinishAll method is called. If an error is returned, it is
   propagated to the caller as a [TaskError][TaskError].
+- `table` (no metatable): Each element is finalized.
 
 Unknown task types are held by the maid until finished, but are otherwise
 ignored.
@@ -53,7 +54,8 @@ Maid.finish(task: any): error
 ```
 
 finish completes the given task. *task* is any value that can be
-assigned to a Maid.
+assigned to a Maid. Returns an error if the task failed. If the task throws
+an error, then finish makes no attempt to catch it.
 
 ## Maid.is
 [Maid.is]: #user-content-maidis

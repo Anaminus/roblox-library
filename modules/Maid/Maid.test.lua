@@ -67,6 +67,21 @@ local finalizerTests = {
 			t:Error("maid was not finalized")
 		end
 	end,
+	table = function(t, name, attach, detach, Maid)
+		local tab = {}
+		tab.tab = tab
+		tab.a = {{1,2,tab,3}}
+		local value = false
+		function tab.func()
+			value = true
+		end
+
+		attach(name, tab)
+		detach(name)
+		if not value then
+			t:Error("table was not finalized")
+		end
+	end,
 }
 
 function testFinalizers(t, Maid, attach, detach)

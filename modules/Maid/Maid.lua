@@ -50,6 +50,7 @@ end
 -- - `Instance`: The Parent property is set to nil.
 -- - `Maid`: The FinishAll method is called. If an error is returned, it is
 --   propagated to the caller as a [TaskError][TaskError].
+-- - `table` (no metatable): Each element is finalized.
 --
 -- Unknown task types are held by the maid until finished, but are otherwise
 -- ignored.
@@ -60,7 +61,7 @@ local Maid = {__index={}}
 
 -- finalizeTask checks the type of a task and finalizes it as appropriate.
 -- Unknown types are ignored.
-local function finalizeTask(task)
+local function finalizeTask(task, ref)
 	local t = typeof(task)
 	if t == "function" then
 		local err = task()
@@ -71,9 +72,33 @@ local function finalizeTask(task)
 	elseif t == "Instance" then
 		task.Parent = nil
 		return nil
-	elseif is(task) then
-		return task:FinishAll()
+	elseif t == "table" then
+		local mt = getmetatable(task)
+		if mt == Maid then
+			return task:FinishAll()
+		elseif mt == nil then
+			if ref then
+				if ref[task] then
+					return nil
+				end
+				ref[task] = true
+			else
+				ref = {[task]=true}
+			end
+			local errs = nil
+			for k, v in pairs(task) do
+				local err = finalizeTask(v, ref)
+				if err ~= nil then
+					if errs == nil then
+						errs = newErrors()
+					end
+					table.insert(errs, newTaskError(k, err))
+				end
+			end
+			return errs
+		end
 	end
+	return nil
 end
 
 --@sec: Maid.new
@@ -91,7 +116,8 @@ end
 --@ord: -2
 --@def: Maid.finish(task: any): error
 --@doc: finish completes the given task. *task* is any value that can be
--- assigned to a Maid.
+-- assigned to a Maid. Returns an error if the task failed. If the task throws
+-- an error, then finish makes no attempt to catch it.
 local function finish(task)
 	return finalizeTask(task)
 end
