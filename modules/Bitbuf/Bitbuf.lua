@@ -107,8 +107,7 @@ end
 function Buffer.__index:String()
 	local n = math.ceil(self.len/32)
 	local s = table.create(n, "")
-	for i in ipairs(s) do
-		local v = self.buf[i]
+	for i, v in ipairs(self.buf) do
 		if v then
 			s[i] = string.pack("<I4", v)
 		else
