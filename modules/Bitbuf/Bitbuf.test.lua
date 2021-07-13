@@ -1152,8 +1152,9 @@ local sample = {
 }
 
 do
-	local t = table.create(2^22-1)
-	for i = 1, 2^22-1 do
+	local n = 4194303
+	local t = table.create(n)
+	for i = 1, n do
 		t[i] = string.char(math.random(0, 255))
 	end
 	sample.string = table.concat(t)
@@ -1214,26 +1215,86 @@ T.BenchmarkReadBool_N10 = benchmarkReadBool(10)
 T.BenchmarkReadBool_N100 = benchmarkReadBool(100)
 T.BenchmarkReadBool_N1000 = benchmarkReadBool(1000)
 
-function T.BenchmarkWriteUint(b, require)
-	local Bitbuf = require()
-	local buf = Bitbuf.new()
-	b:ResetTimer()
-	for i = 1, b.N do
-		buf:SetIndex(0)
-		buf:WriteUint(32, sample.unsigned)
+local function benchmarkWriteUint(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			for j = 1, n do
+				buf:WriteUint(32, sample.unsigned)
+			end
+		end
 	end
 end
+T.BenchmarkWriteUint_N1 = benchmarkWriteUint(1)
+T.BenchmarkWriteUint_N10 = benchmarkWriteUint(10)
+T.BenchmarkWriteUint_N100 = benchmarkWriteUint(100)
+T.BenchmarkWriteUint_N1000 = benchmarkWriteUint(1000)
 
-function T.BenchmarkReadUint(b, require)
-	local Bitbuf = require()
-	local buf = Bitbuf.new()
-	buf:WriteUint(32, sample.unsigned)
-	b:ResetTimer()
-	for i = 1, b.N do
-		buf:SetIndex(0)
-		local v = buf:ReadUint(32)
+local function benchmarkWriteUint_Unaligned(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			buf:WriteBool(true)
+			for j = 1, n do
+				buf:WriteUint(32, sample.unsigned)
+			end
+		end
 	end
 end
+T.BenchmarkWriteUint_Unaligned_N1 = benchmarkWriteUint_Unaligned(1)
+T.BenchmarkWriteUint_Unaligned_N10 = benchmarkWriteUint_Unaligned(10)
+T.BenchmarkWriteUint_Unaligned_N100 = benchmarkWriteUint_Unaligned(100)
+T.BenchmarkWriteUint_Unaligned_N1000 = benchmarkWriteUint_Unaligned(1000)
+
+local function benchmarkReadUint(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		for j = 1, n do
+			buf:WriteUint(32, sample.unsigned)
+		end
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			for j = 1, n do
+				local v = buf:ReadUint(32)
+			end
+		end
+	end
+end
+T.BenchmarkReadUint_N1 = benchmarkReadUint(1)
+T.BenchmarkReadUint_N10 = benchmarkReadUint(10)
+T.BenchmarkReadUint_N100 = benchmarkReadUint(100)
+T.BenchmarkReadUint_N1000 = benchmarkReadUint(1000)
+
+local function benchmarkReadUint_Unaligned(n)
+	return function(b, require)
+		local Bitbuf = require()
+		local buf = Bitbuf.new()
+		buf:WriteBool(true)
+		for j = 1, n do
+			buf:WriteUint(32, sample.unsigned)
+		end
+		b:ResetTimer()
+		for i = 1, b.N do
+			buf:SetIndex(0)
+			local v = buf:ReadBool()
+			for j = 1, n do
+				local v = buf:ReadUint(32)
+			end
+		end
+	end
+end
+T.BenchmarkReadUint_Unaligned_N1 = benchmarkReadUint_Unaligned(1)
+T.BenchmarkReadUint_Unaligned_N10 = benchmarkReadUint_Unaligned(10)
+T.BenchmarkReadUint_Unaligned_N100 = benchmarkReadUint_Unaligned(100)
+T.BenchmarkReadUint_Unaligned_N1000 = benchmarkReadUint_Unaligned(1000)
 
 function T.BenchmarkWriteInt(b, require)
 	local Bitbuf = require()
@@ -1340,7 +1401,7 @@ T.BenchmarkReadString_L1000 = benchmarkReadString(1000)
 T.BenchmarkReadString_L10000 = benchmarkReadString(10000)
 T.BenchmarkReadString_L100000 = benchmarkReadString(100000)
 
-local function benchmarkWriteString_Slow(n)
+local function benchmarkWriteString_Unaligned(n)
 	return function(b, require)
 		local Bitbuf = require()
 		local buf = Bitbuf.new()
@@ -1354,14 +1415,14 @@ local function benchmarkWriteString_Slow(n)
 		end
 	end
 end
-T.BenchmarkWriteString_Slow_L1 = benchmarkWriteString_Slow(1)
-T.BenchmarkWriteString_Slow_L10 = benchmarkWriteString_Slow(10)
-T.BenchmarkWriteString_Slow_L100 = benchmarkWriteString_Slow(100)
-T.BenchmarkWriteString_Slow_L1000 = benchmarkWriteString_Slow(1000)
-T.BenchmarkWriteString_Slow_L10000 = benchmarkWriteString_Slow(10000)
-T.BenchmarkWriteString_Slow_L100000 = benchmarkWriteString_Slow(100000)
+T.BenchmarkWriteString_Unaligned_L1 = benchmarkWriteString_Unaligned(1)
+T.BenchmarkWriteString_Unaligned_L10 = benchmarkWriteString_Unaligned(10)
+T.BenchmarkWriteString_Unaligned_L100 = benchmarkWriteString_Unaligned(100)
+T.BenchmarkWriteString_Unaligned_L1000 = benchmarkWriteString_Unaligned(1000)
+T.BenchmarkWriteString_Unaligned_L10000 = benchmarkWriteString_Unaligned(10000)
+T.BenchmarkWriteString_Unaligned_L100000 = benchmarkWriteString_Unaligned(100000)
 
-local function benchmarkReadString_Slow(n)
+local function benchmarkReadString_Unaligned(n)
 	return function(b, require)
 		local Bitbuf = require()
 		local buf = Bitbuf.new()
@@ -1378,18 +1439,18 @@ local function benchmarkReadString_Slow(n)
 		end
 	end
 end
-T.BenchmarkReadString_Slow_L1 = benchmarkReadString_Slow(1)
-T.BenchmarkReadString_Slow_L10 = benchmarkReadString_Slow(10)
-T.BenchmarkReadString_Slow_L100 = benchmarkReadString_Slow(100)
-T.BenchmarkReadString_Slow_L1000 = benchmarkReadString_Slow(1000)
-T.BenchmarkReadString_Slow_L10000 = benchmarkReadString_Slow(10000)
-T.BenchmarkReadString_Slow_L100000 = benchmarkReadString_Slow(100000)
+T.BenchmarkReadString_Unaligned_L1 = benchmarkReadString_Unaligned(1)
+T.BenchmarkReadString_Unaligned_L10 = benchmarkReadString_Unaligned(10)
+T.BenchmarkReadString_Unaligned_L100 = benchmarkReadString_Unaligned(100)
+T.BenchmarkReadString_Unaligned_L1000 = benchmarkReadString_Unaligned(1000)
+T.BenchmarkReadString_Unaligned_L10000 = benchmarkReadString_Unaligned(10000)
+T.BenchmarkReadString_Unaligned_L100000 = benchmarkReadString_Unaligned(100000)
 
 local function benchmarkString(n)
+	local s = string.sub(sample.string, 1, n)
 	return function(b, require)
 		local Bitbuf = require()
 		local buf = Bitbuf.new()
-		local s = string.sub(sample.string, 1, n)
 		buf:WriteBytes(s)
 		b:ResetTimer()
 		for i = 1, b.N do
@@ -1403,12 +1464,13 @@ T.BenchmarkString_L100 = benchmarkString(100)
 T.BenchmarkString_L1000 = benchmarkString(1000)
 T.BenchmarkString_L10000 = benchmarkString(10000)
 T.BenchmarkString_L100000 = benchmarkString(100000)
+T.BenchmarkString_L1000000 = benchmarkString(1000000)
 T.BenchmarkString_L4194303 = benchmarkString(4194303)
 
 local function benchmarkFromString(n)
+	local s = string.sub(sample.string, 1, n)
 	return function(b, require)
 		local Bitbuf = require()
-		local s = string.sub(sample.string, 1, n)
 		b:ResetTimer()
 		for i = 1, b.N do
 			local buf = Bitbuf.fromString(s)
@@ -1421,6 +1483,7 @@ T.BenchmarkFromString_L100 = benchmarkFromString(100)
 T.BenchmarkFromString_L1000 = benchmarkFromString(1000)
 T.BenchmarkFromString_L10000 = benchmarkFromString(10000)
 T.BenchmarkFromString_L100000 = benchmarkFromString(100000)
+T.BenchmarkFromString_L1000000 = benchmarkFromString(1000000)
 T.BenchmarkFromString_L4194303 = benchmarkFromString(4194303)
 
 return T
