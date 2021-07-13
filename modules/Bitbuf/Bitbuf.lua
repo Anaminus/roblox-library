@@ -454,7 +454,7 @@ end
 function Buffer.__index:WriteUint(size, v)
 	assert(type(size) == "number", "number expected")
 	assert(type(v) == "number", "number expected")
-	assert(size>=0 and size<=53, "size ("..size..") must be in range [0,53]")
+	assert(size>=0 and size<=53, "size must be in range [0,53]")
 	if size == 0 then
 		return
 	elseif size <= 32 then
@@ -472,7 +472,7 @@ end
 -- integer between 0 and 53.
 function Buffer.__index:ReadUint(size)
 	assert(type(size) == "number", "number expected")
-	assert(size>=0 and size<=53, "size ("..size..") must be in range [0,53]")
+	assert(size>=0 and size<=53, "size must be in range [0,53]")
 	if size == 0 then
 		return 0
 	elseif size <= 32 then
@@ -522,7 +522,7 @@ end
 function Buffer.__index:WriteInt(size, v)
 	assert(type(size) == "number", "number expected")
 	assert(type(v) == "number", "number expected")
-	assert(size>=0 and size<=53, "size ("..size..") must be in range [0,53]")
+	assert(size>=0 and size<=53, "size must be in range [0,53]")
 	if size == 0 then
 		return
 	end
@@ -541,7 +541,7 @@ end
 -- between 0 and 53.
 function Buffer.__index:ReadInt(size)
 	assert(type(size) == "number", "number expected")
-	assert(size>=0 and size<=53, "size ("..size..") must be in range [0,53]")
+	assert(size>=0 and size<=53, "size must be in range [0,53]")
 	if size == 0 then
 		return 0
 	end
@@ -564,7 +564,7 @@ end
 function Buffer.__index:WriteFloat(size, v)
 	assert(type(size) == "number", "number expected")
 	assert(type(v) == "number", "number expected")
-	assert(size==32 or size==64, "invalid size ("..size..")")
+	assert(size==32 or size==64, "size must be 32 or 64")
 	if size == 32 then
 		self:WriteBytes(string.pack("<f", v))
 	else
@@ -581,7 +581,7 @@ end
 -- - `64`: IEEE 754 binary64
 function Buffer.__index:ReadFloat(size)
 	assert(type(size) == "number", "number expected")
-	assert(size==32 or size==64, "size ("..size..") must be 32 or 64")
+	assert(size==32 or size==64, "size must be 32 or 64")
 	local s = self:ReadBytes(size/8)
 	if size == 32 then
 		return string.unpack("<f", s)
@@ -599,9 +599,9 @@ end
 function Buffer.__index:WriteUfixed(i, f, v)
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
-	assert(i>=0, "integer size ("..i..") must be >= 0")
-	assert(f>=0, "fractional size ("..f..") must be >= 0")
-	assert(i+f<=53, "combined size ("..i+f..") must be <= 53")
+	assert(i>=0, "integer size must be >= 0")
+	assert(f>=0, "fractional size must be >= 0")
+	assert(i+f<=53, "combined size must be <= 53")
 	assert(type(v) == "number", "number expected")
 	self:WriteUint(i + f, float_to_ufixed(i, f, v))
 end
@@ -614,9 +614,9 @@ end
 function Buffer.__index:ReadUfixed(i, f)
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
-	assert(i>=0, "integer size ("..i..") must be >= 0")
-	assert(f>=0, "fractional size ("..f..") must be >= 0")
-	assert(i+f<=53, "combined size ("..i+f..") must be <= 53")
+	assert(i>=0, "integer size must be >= 0")
+	assert(f>=0, "fractional size must be >= 0")
+	assert(i+f<=53, "combined size must be <= 53")
 	return float_from_ufixed(i, f, self:ReadUint(i + f))
 end
 
@@ -628,9 +628,9 @@ end
 function Buffer.__index:WriteFixed(i, f, v)
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
-	assert(i>=0, "integer size ("..i..") must be >= 0")
-	assert(f>=0, "fractional size ("..f..") must be >= 0")
-	assert(i+f<=53, "combined size ("..i+f..") must be <= 53")
+	assert(i>=0, "integer size must be >= 0")
+	assert(f>=0, "fractional size must be >= 0")
+	assert(i+f<=53, "combined size must be <= 53")
 	assert(type(v) == "number", "number expected")
 	self:WriteInt(i + f, float_to_fixed(i, f, v))
 end
@@ -643,9 +643,9 @@ end
 function Buffer.__index:ReadFixed(i, f)
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
-	assert(i>=0, "integer size ("..i..") must be >= 0")
-	assert(f>=0, "fractional size ("..f..") must be >= 0")
-	assert(i+f<=53, "combined size ("..i+f..") must be <= 53")
+	assert(i>=0, "integer size must be >= 0")
+	assert(f>=0, "fractional size must be >= 0")
+	assert(i+f<=53, "combined size must be <= 53")
 	return float_from_fixed(i, f, self:ReadInt(i + f))
 end
 
