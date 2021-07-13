@@ -7,7 +7,7 @@ local Bitbuf = {}
 -- Returns uint as int of *size* bits.
 local function int_from_uint(size, v)
 	local n = 2^size
-	v = v % n
+	v %= n
 	if v >= n/2 then
 		return v - n
 	end
@@ -356,7 +356,7 @@ local function fastWriteBytes(self, s)
 	for i = 0, c-1 do
 		self.buf[n+i] = string.unpack("<I4", s, a+i*4+1)
 	end
-	self.i = self.i + c*32
+	self.i += c*32
 	if self.i > self.len then
 		self.len = self.i
 	end
@@ -401,7 +401,7 @@ local function fastReadBytes(self, size)
 	-- Read until cursor is aligned to unit.
 	if a > 0 then
 		v[i] = string.pack("<I"..a, self:readUnit(a*8))
-		i = i + 1
+		i += 1
 	end
 
 	-- Read unit-aligned groups of 32 bits.
@@ -414,9 +414,9 @@ local function fastReadBytes(self, size)
 		else
 			v[i] = "\0\0\0\0"
 		end
-			i = i + 1
+			i += 1
 	end
-	self.i = self.i + c*32
+	self.i += c*32
 	if i > self.len then
 		self.len = i
 	end
@@ -460,7 +460,7 @@ function Buffer.__index:WriteUint(size, v)
 		self:writeUnit(size, v)
 		return
 	end
-	v = v % 2^size
+	v %= 2^size
 	self:writeUnit(32, v)
 	self:writeUnit(size-32, math.floor(v/2^32))
 end
