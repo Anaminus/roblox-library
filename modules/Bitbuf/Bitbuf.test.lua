@@ -1152,7 +1152,7 @@ local sample = {
 }
 
 do
-	local n = 4194303
+	local n = 100000
 	local t = table.create(n)
 	for i = 1, n do
 		t[i] = string.char(math.random(0, 255))
@@ -1464,8 +1464,6 @@ T.BenchmarkString_L100 = benchmarkString(100)
 T.BenchmarkString_L1000 = benchmarkString(1000)
 T.BenchmarkString_L10000 = benchmarkString(10000)
 T.BenchmarkString_L100000 = benchmarkString(100000)
-T.BenchmarkString_L1000000 = benchmarkString(1000000)
-T.BenchmarkString_L4194303 = benchmarkString(4194303)
 
 local function benchmarkFromString(n)
 	local s = string.sub(sample.string, 1, n)
@@ -1483,7 +1481,5 @@ T.BenchmarkFromString_L100 = benchmarkFromString(100)
 T.BenchmarkFromString_L1000 = benchmarkFromString(1000)
 T.BenchmarkFromString_L10000 = benchmarkFromString(10000)
 T.BenchmarkFromString_L100000 = benchmarkFromString(100000)
-T.BenchmarkFromString_L1000000 = benchmarkFromString(1000000)
-T.BenchmarkFromString_L4194303 = benchmarkFromString(4194303)
 
 return T
