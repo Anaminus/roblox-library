@@ -51,7 +51,7 @@ function Bitbuf.fromString(s: string): Buffer
 ```
 
 fromString returns a Buffer with the contents initialized with the bits
-of *s*.
+of *s*. The cursor is set to 0.
 
 ## Bitbuf.isBuffer
 [Bitbuf.isBuffer]: #user-content-bitbufisbuffer
@@ -67,8 +67,8 @@ isBuffer returns whether *value* is a Buffer.
 function Bitbuf.new(size: number?): Buffer
 ```
 
-new returns a new Buffer *size* bits in length. Defaults to a
-zero-length buffer.
+new returns a new Buffer *size* bits in length, with the cursor set to
+0. Defaults to a zero-length buffer.
 
 # Buffer
 [Buffer]: #user-content-buffer
@@ -79,8 +79,8 @@ type Buffer
 Buffer is a variable-size bit-level buffer with methods for reading and
 writing various common types.
 
-The buffer has a cursor, or index, to determine where data is read and
-written. Methods that read and write advance the cursor automatically by the
+The buffer has a cursor to determine where data is read and written, indexed
+in bits. Methods that read and write advance the cursor automatically by the
 given size. The buffer grows when the cursor moves beyond the length of the
 buffer. Bits read past the length of the buffer are returned as zeros.
 

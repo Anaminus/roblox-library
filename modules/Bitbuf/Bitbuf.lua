@@ -55,8 +55,8 @@ end
 --@doc: Buffer is a variable-size bit-level buffer with methods for reading and
 -- writing various common types.
 --
--- The buffer has a cursor, or index, to determine where data is read and
--- written. Methods that read and write advance the cursor automatically by the
+-- The buffer has a cursor to determine where data is read and written, indexed
+-- in bits. Methods that read and write advance the cursor automatically by the
 -- given size. The buffer grows when the cursor moves beyond the length of the
 -- buffer. Bits read past the length of the buffer are returned as zeros.
 --
@@ -65,8 +65,8 @@ local Buffer = {__index={}}
 
 --@sec: Bitbuf.new
 --@def: function Bitbuf.new(size: number?): Buffer
---@doc: new returns a new Buffer *size* bits in length. Defaults to a
--- zero-length buffer.
+--@doc: new returns a new Buffer *size* bits in length, with the cursor set to
+-- 0. Defaults to a zero-length buffer.
 function Bitbuf.new(size)
 	assert(size == nil or type(size) == "number", "number expected")
 	size = size or 0
@@ -81,7 +81,7 @@ end
 --@sec: Bitbuf.fromString
 --@def: function Bitbuf.fromString(s: string): Buffer
 --@doc: fromString returns a Buffer with the contents initialized with the bits
--- of *s*.
+-- of *s*. The cursor is set to 0.
 function Bitbuf.fromString(s)
 	assert(type(s) == "string", "string expected")
 	local n = math.ceil(#s/4)
