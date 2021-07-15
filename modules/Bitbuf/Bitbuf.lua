@@ -1,3 +1,5 @@
+--v1.0.0
+
 --@sec: Bitbuf
 --@ord: -1
 --@doc: Bitbuf implements a bit-level buffer, suitable for serialization and
