@@ -40,7 +40,7 @@ local SignalFire = {}
 --@def: type Fire = (...any) -> ()
 --@doc: A **Fire** function invokes all of the [Listeners][Listener] connected
 -- to the signal at the time Fire is called. Each given argument is passed to
--- each listener. Each function listener is called is its own separate thread.
+-- each listener. Each function listener is called in its own separate thread.
 --
 -- The order in which listeners are invoked is **undefined**.
 
@@ -49,7 +49,7 @@ local SignalFire = {}
 --@def: function SignalFire.new(): (Connector, Fire)
 --@doc: The **new** constructor returns a signal, represented by a
 -- [Connector][Connector] function and associated [Fire][Fire] function.
-function SignalFire.new()
+local function newSignal()
 	local listeners = {}
 	local function connect(listener)
 		assert(
@@ -70,6 +70,7 @@ function SignalFire.new()
 	end
 	return connect, fire
 end
+SignalFire.new = newSignal
 
 --@sec: SignalFire.all
 --@ord: 2
