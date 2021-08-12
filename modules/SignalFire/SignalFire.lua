@@ -76,7 +76,7 @@ end
 --@def: function SignalFire.all(...: Connector): Connector
 --@doc: The **all** constructor returns the [Connector][Connector] of a signal
 -- that fires after all of the signals associated with the given connectors have
--- fired.
+-- fired. The signal fires up to one time.
 function SignalFire.all(...)
 	local connect, fire = newSignal()
 	local arguments = {...}
@@ -104,7 +104,7 @@ end
 --@def: function SignalFire.any(...: Connector): Connector
 --@doc: The **any** constructor returns the [Connector][Connector] of a signal
 -- that fires after any of the signals associated with the given connectors have
--- fired.
+-- fired. The signal fires up to one time.
 function SignalFire.any(...)
 	local connect, fire = newSignal()
 	local arguments = {...}
