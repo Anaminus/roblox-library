@@ -49,7 +49,7 @@ function SignalFire.all(...: Connector): Connector
 
 The **all** constructor returns the [Connector][Connector] of a signal
 that fires after all of the signals associated with the given connectors have
-fired.
+fired. The signal fires up to one time.
 
 ## SignalFire.any
 [SignalFire.any]: #user-content-signalfireany
@@ -59,7 +59,7 @@ function SignalFire.any(...: Connector): Connector
 
 The **any** constructor returns the [Connector][Connector] of a signal
 that fires after any of the signals associated with the given connectors have
-fired.
+fired. The signal fires up to one time.
 
 ## SignalFire.wait
 [SignalFire.wait]: #user-content-signalfirewait
@@ -121,7 +121,7 @@ type Fire = (...any) -> ()
 
 A **Fire** function invokes all of the [Listeners][Listener] connected
 to the signal at the time Fire is called. Each given argument is passed to
-each listener. Each function listener is called is its own separate thread.
+each listener. Each function listener is called in its own separate thread.
 
 The order in which listeners are invoked is **undefined**.
 
