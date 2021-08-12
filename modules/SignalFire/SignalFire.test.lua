@@ -8,6 +8,90 @@ local function tassert(t, cond, msg, ...)
 	t:Errorf(msg, ...)
 end
 
+function T.ExampleNew(require)
+	local SignalFire = require()
+
+	local connect, fire = SignalFire.new()
+	local disconnect = connect(print)
+	fire("Hello, world!")
+	--> Hello, world!
+	disconnect()
+	fire("Hello, world!")
+	--> (no output)
+end
+
+function T.ExampleWait(require)
+	local SignalFire = require()
+
+	local connect, fire = SignalFire.new()
+	local wait = SignalFire.wait(connect)
+
+	task.delay(1, fire, "Hello, world!")
+	local result = wait()
+	print(result)
+	--> Hello, world!
+end
+
+function T.ExampleAny(require)
+	local SignalFire = require()
+
+	local connectA, fireA = SignalFire.new()
+	local connectB, fireB = SignalFire.new()
+	local connectC, fireC = SignalFire.new()
+
+	task.delay(3, function() print("Fire A") fireA("A") end)
+	task.delay(2, function() print("Fire B") fireB("B") end)
+	task.delay(1, function() print("Fire C") fireC("C") end)
+
+	local connect = SignalFire.any(connectA, connectB, connectC)
+	connect(function(result)
+		print("Fired by", result)
+	end)
+	--> Fired by C
+end
+
+function T.ExampleAll(require)
+	local SignalFire = require()
+
+	local connectA, fireA = SignalFire.new()
+	local connectB, fireB = SignalFire.new()
+	local connectC, fireC = SignalFire.new()
+
+	task.delay(3, function() print("Fire A") fireA() end)
+	task.delay(2, function() print("Fire B") fireB() end)
+	task.delay(1, function() print("Fire C") fireC() end)
+
+	local connect = SignalFire.all(connectA, connectB, connectC)
+	SignalFire.wait(connect)()
+	print("All signals have fired")
+	--> Fire C
+	--> Fire B
+	--> Fire A
+	--> All signals have fired
+end
+
+function T.ExampleWrap(require)
+	local SignalFire = require()
+
+	local bindable = Instance.new("BindableEvent")
+
+	local connectA, fireA = SignalFire.new()
+	local connectB = SignalFire.wrap(bindable.Event)
+	local connectC, fireC = SignalFire.new()
+
+	task.delay(3, function() print("Fire A") fireA() end)
+	task.delay(2, function() print("Fire B") bindable:Fire() end)
+	task.delay(1, function() print("Fire C") fireC() end)
+
+	local connect = SignalFire.all(connectA, connectB, connectC)
+	SignalFire.wait(connect)()
+	print("All signals have fired")
+	--> Fire C
+	--> Fire B
+	--> Fire A
+	--> All signals have fired
+end
+
 function T.TestSignal(t, require)
 	local SignalFire = require()
 
