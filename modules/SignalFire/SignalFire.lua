@@ -107,19 +107,18 @@ end
 -- fired. The signal fires up to one time.
 function SignalFire.any(...)
 	local connect, fire = newSignal()
-	local arguments = {...}
-	local connections = table.create(#arguments)
+	local connections = {...}
 	local function finish()
 		for _, disconnect in ipairs(connections) do
 			disconnect()
 		end
 		fire()
 	end
-	for _, connect in ipairs(arguments) do
+	for i, connect in ipairs(connections) do
 		assert(type(connect) == "function", "function expected")
 		local disconnect = connect(finish)
 		assert(type(disconnect) == "function", "disconnector must be a function")
-		table.insert(connections, disconnect)
+		connections[i] = disconnect
 	end
 	return connect
 end
