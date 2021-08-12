@@ -1,3 +1,5 @@
+--v1.0.0
+
 --@sec: SignalFire
 --@ord: -1
 --@doc: The SignalFire module provides a small implementation of the [observer
