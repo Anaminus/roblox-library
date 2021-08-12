@@ -81,12 +81,11 @@ function SignalFire.all(...)
 	local connect, fire = newSignal()
 	local arguments = {...}
 	local count = #arguments
-	local connections = {}
 	for _, connect in ipairs(arguments) do
 		assert(type(connect) == "function", "function expected")
 		local disconnect
 		local function finish()
-			connections[disconnect] = nil
+			disconnect()
 			count -= 1
 			if count <= 0 then
 				fire()
@@ -94,7 +93,6 @@ function SignalFire.all(...)
 		end
 		disconnect = connect(finish)
 		assert(type(disconnect) == "function", "disconnector must be a function")
-		connections[disconnect] = true
 	end
 	return connect
 end
