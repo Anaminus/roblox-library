@@ -103,15 +103,16 @@ end
 --@def: function SignalFire.any(...: Connector): Connector
 --@doc: The **any** constructor returns the [Connector][Connector] of a signal
 -- that fires after any of the signals associated with the given connectors have
--- fired. The signal fires up to one time.
+-- fired. The signal passes the arguments of the first signal that fired it. The
+-- signal fires up to one time.
 function SignalFire.any(...)
 	local connect, fire = newSignal()
 	local connections = {...}
-	local function finish()
+	local function finish(...)
 		for _, disconnect in ipairs(connections) do
 			disconnect()
 		end
-		fire()
+		fire(...)
 	end
 	for i, connect in ipairs(connections) do
 		assert(type(connect) == "function", "function expected")

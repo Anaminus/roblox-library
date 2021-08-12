@@ -59,7 +59,8 @@ function SignalFire.any(...: Connector): Connector
 
 The **any** constructor returns the [Connector][Connector] of a signal
 that fires after any of the signals associated with the given connectors have
-fired. The signal fires up to one time.
+fired. The signal passes the arguments of the first signal that fired it. The
+signal fires up to one time.
 
 ## SignalFire.wait
 [SignalFire.wait]: #user-content-signalfirewait
