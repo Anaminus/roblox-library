@@ -74,6 +74,15 @@ local function newSignal()
 end
 SignalFire.new = newSignal
 
+local function nopConnector(listener)
+	assert(
+		type(listener) == "function" or
+		type(listener) == "thread",
+		"function or thread expected"
+	)
+	return function()end
+end
+
 --@sec: SignalFire.all
 --@ord: 2
 --@def: function SignalFire.all(...: Connector): Connector
@@ -81,9 +90,12 @@ SignalFire.new = newSignal
 -- that fires after all of the signals associated with the given connectors have
 -- fired. The signal fires up to one time.
 function SignalFire.all(...)
-	local connect, fire = newSignal()
 	local arguments = table.pack(...)
 	local count = arguments.n
+	if count == 0 then
+		return nopConnector
+	end
+	local connect, fire = newSignal()
 	for i = 1, arguments.n do
 		local connect = arguments[i]
 		assert(type(connect) == "function", "function expected")
@@ -113,8 +125,11 @@ end
 -- fired. The signal passes the arguments of the first signal that fired it. The
 -- signal fires up to one time.
 function SignalFire.any(...)
-	local connect, fire = newSignal()
 	local connections = table.pack(...)
+	if connections.n == 0 then
+		return nopConnector
+	end
+	local connect, fire = newSignal()
 	local function finish(...)
 		if connections == nil then
 			return
