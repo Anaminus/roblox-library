@@ -82,9 +82,10 @@ SignalFire.new = newSignal
 -- fired. The signal fires up to one time.
 function SignalFire.all(...)
 	local connect, fire = newSignal()
-	local arguments = {...}
-	local count = #arguments
-	for _, connect in ipairs(arguments) do
+	local arguments = table.pack(...)
+	local count = arguments.n
+	for i = 1, arguments.n do
+		local connect = arguments[i]
 		assert(type(connect) == "function", "function expected")
 		local disconnect
 		local function finish()
@@ -113,7 +114,7 @@ end
 -- signal fires up to one time.
 function SignalFire.any(...)
 	local connect, fire = newSignal()
-	local connections = {...}
+	local connections = table.pack(...)
 	local function finish(...)
 		if connections == nil then
 			return
@@ -124,7 +125,8 @@ function SignalFire.any(...)
 		connections = nil
 		fire(...)
 	end
-	for i, connect in ipairs(connections) do
+	for i = 1, connections.n do
+		local connect = connections[i]
 		assert(type(connect) == "function", "function expected")
 		local disconnect = connect(finish)
 		assert(type(disconnect) == "function", "disconnector must be a function")
