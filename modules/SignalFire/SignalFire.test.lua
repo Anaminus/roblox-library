@@ -92,11 +92,22 @@ function T.ExampleWrap(require)
 	--> All signals have fired
 end
 
+local function assertConnector(t, connect, msg)
+	tassert(t, type(connect) == "function", msg .. ": connector is a function")
+	tassert(t, not pcall(connect, nil), msg .. ": must receive function or thread")
+	local disconnect = connect(function()end)
+	tassert(t, type(disconnect) == "function", msg .. ": disconnector for function is a function")
+	disconnect()
+	local disconnect = connect(coroutine.create(function()end))
+	tassert(t, type(disconnect) == "function", msg .. ": disconnector for thread is a function")
+	disconnect()
+end
+
 function T.TestSignal(t, require)
 	local SignalFire = require()
 
 	local connect, fire = SignalFire.new()
-	tassert(t, type(connect) == "function", "connect is a function")
+	assertConnector(t, connect, "connect")
 	tassert(t, type(fire) == "function", "fire is a function")
 
 	local value = 0
@@ -495,6 +506,8 @@ function T.TestWait(t, require)
 	local SignalFire = require()
 
 	local connect, fire = SignalFire.new()
+	tassert(t, not pcall(SignalFire.wait, nil), "wait receives a function")
+	tassert(t, not pcall(SignalFire.wait(function() return nil end)), "received function must return a function")
 	local wait = SignalFire.wait(connect)
 
 	task.delay(0.1, fire, "a", "b", "c")
@@ -506,6 +519,10 @@ end
 
 function T.TestAll(t, require)
 	local SignalFire = require()
+
+	tassert(t, not pcall(SignalFire.all, nil, nil, nil), "must receive only functions")
+	tassert(t, not pcall(SignalFire.all, function()return nil end), "received functions must return function")
+	assertConnector(t, SignalFire.all(), "connector of no signals")
 
 	local connectA, fireA = SignalFire.new()
 	local connectB, fireB = SignalFire.new()
@@ -566,6 +583,10 @@ end
 
 function T.TestAny(t, require)
 	local SignalFire = require()
+
+	tassert(t, not pcall(SignalFire.any, nil, nil, nil), "must receive only functions")
+	tassert(t, not pcall(SignalFire.any, function()return nil end), "received functions must return function")
+	assertConnector(t, SignalFire.any(), "connector of no signals")
 
 	local connectA, fireA = SignalFire.new()
 	local connectB, fireB = SignalFire.new()
@@ -675,6 +696,8 @@ end
 
 function T.TestWrap(t, require)
 	local SignalFire = require()
+
+	tassert(t, not pcall(SignalFire.wrap, nil), "wrap receives a RBXScriptSignal")
 
 	local e = Instance.new("BindableEvent")
 	local connect = SignalFire.wrap(e.Event)
