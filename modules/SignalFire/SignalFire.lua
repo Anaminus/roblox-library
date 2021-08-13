@@ -25,6 +25,9 @@ local SignalFire = {}
 --
 -- The same listener may be connected multiple times, and will be called for
 -- each number of times it is connected.
+--
+-- After the signal is destroyed, calling the function does nothing except
+-- return a disconnector, which also does nothing when called.
 
 --@sec: Listener
 --@ord: 2
@@ -45,12 +48,21 @@ local SignalFire = {}
 -- each listener. Each function listener is called in its own separate thread.
 --
 -- The order in which listeners are invoked is **undefined**.
+--
+-- After the signal is destroyed, calling the function does nothing.
+
+--@sec: Destroyer
+--@ord: 4
+--@def: type Destroyer = () -> ()
+--@doc: A **Destroyer** function destroys the signal by breaking all
+-- connections. After the signal is destroyed, calling any associated function
+-- does nothing.
 
 --@sec: SignalFire.new
 --@ord: 1
---@def: function SignalFire.new(): (Connector, Fire)
---@doc: The **new** constructor returns a signal, represented by a
--- [Connector][Connector] function and associated [Fire][Fire] function.
+--@def: function SignalFire.new(): (Connector, Fire, Destroyer)
+--@doc: The **new** constructor returns a signal, represented by associated
+-- [Connector][Connector], [Fire][Fire] and [Destroyer][Destroyer] functions.
 local function newSignal()
 	local listeners = {}
 	local function connect(listener)
@@ -59,18 +71,36 @@ local function newSignal()
 			type(listener) == "thread",
 			"function or thread expected"
 		)
+		if listeners == nil then
+			return function()end
+		end
 		local function disconnect()
+			if listeners == nil then
+				return
+			end
 			listeners[disconnect] = nil
 		end
 		listeners[disconnect] = listener
 		return disconnect
 	end
 	local function fire(...)
+		if listeners == nil then
+			return
+		end
 		for _, listener in pairs(listeners) do
 			task.defer(listener, ...)
 		end
 	end
-	return connect, fire
+	local function destroy()
+		if listeners == nil then
+			return
+		end
+		for ref in pairs(listeners) do
+			listeners[ref] = nil
+		end
+		listeners = nil
+	end
+	return connect, fire, destroy
 end
 SignalFire.new = newSignal
 

@@ -92,6 +92,34 @@ function T.ExampleWrap(require)
 	--> All signals have fired
 end
 
+function T.ExampleDestroy(require)
+	local SignalFire = require()
+
+	local connect, fire, destroy = SignalFire.new()
+	local hello = {}
+	local goodbye = {}
+	connect(function(name) table.insert(hello, name) end)
+	connect(function(name) table.insert(goodbye, name) end)
+
+	fire("A")
+	fire("B")
+	task.wait()
+	print("Hello", table.concat(hello, ", "))
+	--> Hello A, B
+	print("Goodbye", table.concat(goodbye, ", "))
+	--> Goodbye A, B
+
+	destroy()
+
+	fire("C")
+	fire("D")
+	task.wait()
+	print("Hello", table.concat(hello, ", "))
+	--> Hello A, B
+	print("Goodbye", table.concat(goodbye, ", "))
+	--> Goodbye A, B
+end
+
 local function assertConnector(t, connect, msg)
 	tassert(t, type(connect) == "function", msg .. ": connector is a function")
 	tassert(t, not pcall(connect, nil), msg .. ": must receive function or thread")
@@ -106,25 +134,38 @@ end
 function T.TestSignal(t, require)
 	local SignalFire = require()
 
-	local connect, fire = SignalFire.new()
+	local connect, fire, destroy = SignalFire.new()
 	assertConnector(t, connect, "connect")
 	tassert(t, type(fire) == "function", "fire is a function")
 
 	local value = 0
-	local disconnect = connect(function(n)
-		value += n
-	end)
+	local disconnect = connect(function(n) value += n end)
 	tassert(t, type(disconnect) == "function", "disconnect is a function")
 	fire(1)
 	task.wait()
 	tassert(t, value == 1, "fire invokes connected function")
+	fire(2)
+	task.wait()
+	tassert(t, value == 3, "fire continues to invoke connected function")
+	disconnect()
+	fire(3)
+	task.wait()
+	tassert(t, value == 3, "disconnect breaks connection")
+	connect(function(n) value += n end)
+	connect(function(n) value += n end)
+	fire(4)
+	task.wait()
+	tassert(t, value == 11, "fire invokes connected functions")
+	destroy()
 	fire(5)
 	task.wait()
-	tassert(t, value == 6, "fire continues to invoke connected function")
-	disconnect()
-	fire(7)
+	tassert(t, value == 11, "destroy breaks all connections")
+	local disconnect = connect(function(n) value += n end)
+	tassert(t, type(disconnect) == "function", "destroyed connector still returns disconnector")
+	fire(6)
 	task.wait()
-	tassert(t, value == 6, "disconnect breaks connection")
+	tassert(t, value == 11, "destroy causes fire to become no op")
+	assertConnector(t, connect, "destroyed connector")
 end
 
 function T.TestSignalArguments(t, require)
