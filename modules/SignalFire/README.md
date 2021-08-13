@@ -27,7 +27,8 @@ Notable differences from Roblox's Signal pattern:
 2. [Connector][Connector]
 3. [Listener][Listener]
 4. [Disconnector][Disconnector]
-5. [Fire][Fire]
+5. [Destroyer][Destroyer]
+6. [Fire][Fire]
 
 </td></tr></tbody>
 </table>
@@ -35,11 +36,11 @@ Notable differences from Roblox's Signal pattern:
 ## SignalFire.new
 [SignalFire.new]: #user-content-signalfirenew
 ```
-function SignalFire.new(): (Connector, Fire)
+function SignalFire.new(): (Connector, Fire, Destroyer)
 ```
 
-The **new** constructor returns a signal, represented by a
-[Connector][Connector] function and associated [Fire][Fire] function.
+The **new** constructor returns a signal, represented by associated
+[Connector][Connector], [Fire][Fire] and [Destroyer][Destroyer] functions.
 
 ## SignalFire.all
 [SignalFire.all]: #user-content-signalfireall
@@ -97,6 +98,9 @@ called.
 The same listener may be connected multiple times, and will be called for
 each number of times it is connected.
 
+After the signal is destroyed, calling the function does nothing except
+return a disconnector, which also does nothing when called.
+
 # Listener
 [Listener]: #user-content-listener
 ```
@@ -114,6 +118,16 @@ type Disconnector = () -> ()
 A **Disconnector** breaks the connection of a [Listener][Listener] to a
 signal when called. Does nothing if the connection is already broken.
 
+# Destroyer
+[Destroyer]: #user-content-destroyer
+```
+type Destroyer = () -> ()
+```
+
+A **Destroyer** function destroys the signal by breaking all
+connections. After the signal is destroyed, calling any associated function
+does nothing.
+
 # Fire
 [Fire]: #user-content-fire
 ```
@@ -125,4 +139,6 @@ to the signal at the time Fire is called. Each given argument is passed to
 each listener. Each function listener is called in its own separate thread.
 
 The order in which listeners are invoked is **undefined**.
+
+After the signal is destroyed, calling the function does nothing.
 
