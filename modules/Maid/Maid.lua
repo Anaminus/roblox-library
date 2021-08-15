@@ -176,16 +176,12 @@ end
 function Maid.__index:Task(name, task)
 	assert(type(name) == "string", "string expected")
 	assert(string.sub(name, 1, 1) ~= "_", "name cannot begin with underscore")
-	if task ~= nil then
-		self._tasks[name] = task
+	local prev = self._tasks[name]
+	self._tasks[name] = task
+	if prev == nil then
 		return nil
 	end
-	local task = self._tasks[name]
-	if task == nil then
-		return nil
-	end
-	self._tasks[name] = nil
-	local err = threadTask(self, task)
+	local err = threadTask(self, prev)
 	if err ~= nil then
 		return newTaskError(name, err)
 	end

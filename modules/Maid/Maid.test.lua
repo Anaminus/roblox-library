@@ -102,6 +102,21 @@ function T.TestMaid_Task(t, require)
 			maid:Task(name, nil)
 		end
 	)
+
+	-- Test overwrite.
+	local value = 0
+	maid:Task("Field", function() value += 1 end)
+	if value ~= 0 then
+		t:Errorf("overwrite: expected 0, got %d", value)
+	end
+	maid:Task("Field", function() value += 2 end)
+	if value ~= 1 then
+		t:Errorf("overwrite: expected 1, got %d", value)
+	end
+	maid:Task("Field", nil)
+	if value ~= 3 then
+		t:Errorf("overwrite: expected 3, got %d", value)
+	end
 end
 
 function T.TestMaid_Newindex(t, require)
