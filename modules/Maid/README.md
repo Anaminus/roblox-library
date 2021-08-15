@@ -68,12 +68,14 @@ is returns whether *v* is an instance of Maid.
 ## Maid.Finish
 [Maid.Finish]: #user-content-maidfinish
 ```
-Maid:Finish(...: string): (errs: Errors?)
+Maid:Finish(...: any): (errs: Errors?)
 ```
 
 Finish completes the tasks of the given names. Names with no assigned
 task are ignored. Returns a [TaskError][TaskError] for each task that yields
 or errors, or nil if all tasks finished successfully.
+
+If a name is a string, it is not allowed to begin with an underscore.
 
 ## Maid.FinishAll
 [Maid.FinishAll]: #user-content-maidfinishall
@@ -88,23 +90,25 @@ successfully.
 ## Maid.Skip
 [Maid.Skip]: #user-content-maidskip
 ```
-Maid:Skip(...: string)
+Maid:Skip(...: any)
 ```
 
 Skip removes the tasks of the given names without completing them. Names
 with no assigned task are ignored.
 
+If a name is a string, it is not allowed to begin with an underscore.
+
 ## Maid.Task
 [Maid.Task]: #user-content-maidtask
 ```
-Maid:Task(name: string, task: any?): (err: error?)
+Maid:Task(name: any, task: any?): (err: error?)
 ```
 
 Task assigns *task* to the maid with the given name. If *task* is nil,
 and the maid has task *name*, then the task is completed. Returns a
 [TaskError][TaskError] if the completed task yielded or errored.
 
-*name* is not allowed to begin with an underscore.
+If *name* is a string, it is not allowed to begin with an underscore.
 
 ## Maid.TaskEach
 [Maid.TaskEach]: #user-content-maidtaskeach
@@ -117,7 +121,7 @@ TaskEach assigns each argument as an unnamed task.
 ## Maid.\__newindex
 [Maid.\__newindex]: #user-content-maid__newindex
 ```
-Maid[name: string] = (task: any?)
+Maid[name: any] = (task: any?)
 ```
 
 Alias for Task. If an error occurs, it is thrown.
@@ -133,7 +137,7 @@ Errors is a list of errors.
 # TaskError
 [TaskError]: #user-content-taskerror
 ```
-type TaskError = {Name: string|number, Err: error}
+type TaskError = {Name: any, Err: error}
 ```
 
 TaskError indicates an error that occurred from the completion of a

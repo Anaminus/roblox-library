@@ -21,7 +21,7 @@ local function newErrors()
 end
 
 --@sec: TaskError
---@def: type TaskError = {Name: string|number, Err: error}
+--@def: type TaskError = {Name: any, Err: error}
 --@doc: TaskError indicates an error that occurred from the completion of a
 -- task. The Name field is the name of the task that errored. The type will be a
 -- number if the task was unnamed. The Err field is the underlying error that
@@ -166,16 +166,21 @@ local function threadTask(self, task)
 	return nil
 end
 
+local function assertName(name)
+	if type(name) == "string" then
+		assert(string.sub(name, 1, 1) ~= "_", "string name cannot begin with underscore")
+	end
+end
+
 --@sec: Maid.Task
---@def: Maid:Task(name: string, task: any?): (err: error?)
+--@def: Maid:Task(name: any, task: any?): (err: error?)
 --@doc: Task assigns *task* to the maid with the given name. If *task* is nil,
 -- and the maid has task *name*, then the task is completed. Returns a
 -- [TaskError][TaskError] if the completed task yielded or errored.
 --
--- *name* is not allowed to begin with an underscore.
+-- If *name* is a string, it is not allowed to begin with an underscore.
 function Maid.__index:Task(name, task)
-	assert(type(name) == "string", "string expected")
-	assert(string.sub(name, 1, 1) ~= "_", "name cannot begin with underscore")
+	assertName(name)
 	local prev = self._tasks[name]
 	self._tasks[name] = task
 	if prev == nil then
@@ -189,7 +194,7 @@ function Maid.__index:Task(name, task)
 end
 
 --@sec: Maid.\__newindex
---@def: Maid[name: string] = (task: any?)
+--@def: Maid[name: any] = (task: any?)
 --@doc: Alias for Task. If an error occurs, it is thrown.
 function Maid:__newindex(name, task)
 	local err = self:Task(name, task)
@@ -210,27 +215,33 @@ function Maid.__index:TaskEach(...)
 end
 
 --@sec: Maid.Skip
---@def: Maid:Skip(...: string)
+--@def: Maid:Skip(...: any)
 --@doc: Skip removes the tasks of the given names without completing them. Names
 -- with no assigned task are ignored.
+--
+-- If a name is a string, it is not allowed to begin with an underscore.
 function Maid.__index:Skip(...)
 	local names = table.pack(...)
 	for i = 1, names.n do
 		local name = names[i]
+		assertName(name)
 		self._tasks[name] = nil
 	end
 end
 
 --@sec: Maid.Finish
---@def: Maid:Finish(...: string): (errs: Errors?)
+--@def: Maid:Finish(...: any): (errs: Errors?)
 --@doc: Finish completes the tasks of the given names. Names with no assigned
 -- task are ignored. Returns a [TaskError][TaskError] for each task that yields
 -- or errors, or nil if all tasks finished successfully.
+--
+-- If a name is a string, it is not allowed to begin with an underscore.
 function Maid.__index:Finish(...)
 	local names = table.pack(...)
 	local errs = nil
 	for i = 1, names.n do
 		local name = names[i]
+		assertName(name)
 		local task = self._tasks[name]
 		if task ~= nil then
 			local err = threadTask(self, task)
