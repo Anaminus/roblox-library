@@ -125,8 +125,9 @@ type Destroyer = () -> ()
 ```
 
 A **Destroyer** function destroys the signal by breaking all
-connections. After the signal is destroyed, calling any associated function
-does nothing.
+connections. After the signal is destroyed, calling the [Fire][Fire] or
+Destroyer functions will throw an error. The [Connector][Connector] function
+will continue to behave as though the signal is not destroyed.
 
 # Fire
 [Fire]: #user-content-fire
@@ -140,5 +141,5 @@ each listener. Each function listener is called in its own separate thread.
 
 The order in which listeners are invoked is **undefined**.
 
-After the signal is destroyed, calling the function does nothing.
+After the signal is destroyed, calling the function throws an error.
 

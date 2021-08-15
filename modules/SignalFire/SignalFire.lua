@@ -49,14 +49,15 @@ local SignalFire = {}
 --
 -- The order in which listeners are invoked is **undefined**.
 --
--- After the signal is destroyed, calling the function does nothing.
+-- After the signal is destroyed, calling the function throws an error.
 
 --@sec: Destroyer
 --@ord: 4
 --@def: type Destroyer = () -> ()
 --@doc: A **Destroyer** function destroys the signal by breaking all
--- connections. After the signal is destroyed, calling any associated function
--- does nothing.
+-- connections. After the signal is destroyed, calling the [Fire][Fire] or
+-- Destroyer functions will throw an error. The [Connector][Connector] function
+-- will continue to behave as though the signal is not destroyed.
 
 --@sec: SignalFire.new
 --@ord: 1
@@ -85,7 +86,7 @@ local function newSignal()
 	end
 	local function fire(...)
 		if listeners == nil then
-			return
+			error("signal is destroyed", 2)
 		end
 		for _, listener in pairs(listeners) do
 			task.defer(listener, ...)
@@ -93,7 +94,7 @@ local function newSignal()
 	end
 	local function destroy()
 		if listeners == nil then
-			return
+			error("signal is destroyed", 2)
 		end
 		for ref in pairs(listeners) do
 			listeners[ref] = nil

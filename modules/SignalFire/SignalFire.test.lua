@@ -96,28 +96,19 @@ function T.ExampleDestroy(require)
 	local SignalFire = require()
 
 	local connect, fire, destroy = SignalFire.new()
-	local hello = {}
-	local goodbye = {}
-	connect(function(name) table.insert(hello, name) end)
-	connect(function(name) table.insert(goodbye, name) end)
-
-	fire("A")
-	fire("B")
-	task.wait()
-	print("Hello", table.concat(hello, ", "))
-	--> Hello A, B
-	print("Goodbye", table.concat(goodbye, ", "))
-	--> Goodbye A, B
+	connect(function(value) print("Hello", value) end)
+	fire("World")
+	--> Hello World
 
 	destroy()
 
-	fire("C")
-	fire("D")
-	task.wait()
-	print("Hello", table.concat(hello, ", "))
-	--> Hello A, B
-	print("Goodbye", table.concat(goodbye, ", "))
-	--> Goodbye A, B
+	local disconnect = connect(function(value) print("Goodbye", value) end)
+	--> (connect does nothing but return a disconnector)
+	disconnect()
+	--> (the disconnector also does nothing)
+
+	fire("World")
+	--> (error) signal is destroyed
 end
 
 local function assertConnector(t, connect, msg)
@@ -157,14 +148,10 @@ function T.TestSignal(t, require)
 	task.wait()
 	tassert(t, value == 11, "fire invokes connected functions")
 	destroy()
-	fire(5)
+	tassert(t, not pcall(fire, 5), "fire errors after destroy")
 	task.wait()
 	tassert(t, value == 11, "destroy breaks all connections")
-	local disconnect = connect(function(n) value += n end)
-	tassert(t, type(disconnect) == "function", "destroyed connector still returns disconnector")
-	fire(6)
-	task.wait()
-	tassert(t, value == 11, "destroy causes fire to become no op")
+	tassert(t, not pcall(destroy), "destroy errors after destroy")
 	assertConnector(t, connect, "destroyed connector")
 end
 
