@@ -1224,11 +1224,9 @@ local function execute(program, k, buffer, data)
 		local instr = program[R.PC]
 		local opcode = instr.opcode
 		local exec = instructions[opcode]
-		if not exec then
-			R.PC += 1
-			continue
+		if exec then
+			err = exec[k](R, instr[k])
 		end
-		err = exec[k](R, instr[k])
 		R.PC += 1
 	end
 
