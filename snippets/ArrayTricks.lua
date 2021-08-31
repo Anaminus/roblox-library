@@ -6,6 +6,14 @@ local function Append(t, ...)
 	end
 end
 
+-- AppendNoAlloc appends each argument to t without allocating an extra table.
+-- Has worse performance for larger numbers of arguments.
+local function AppendNoAlloc(t, ...)
+	for i = 1, select("#", ...) do
+		table.insert(t, (select(i, ...)))
+	end
+end
+
 -- Copy returns a copy of an array.
 local function Copy(a)
 	local b = table.create(#a)
