@@ -267,6 +267,8 @@ local function new(parent)
 	end
 
 	local function childRemoved(child)
+		local connection = maid[child]
+		connection:Disconnect()
 		maid[child] = nil
 	end
 
@@ -317,6 +319,8 @@ function UILattice.bind(tag)
 		maid[object] = disconnect
 	end
 	local function objectRemoved(object)
+		local disconnect = maid[object]
+		disconnect()
 		maid[object] = nil
 	end
 	local CollectionService = game:GetService("CollectionService")
