@@ -1,7 +1,7 @@
 -- Build test file for module in working directory.
 
-local dir = os.expand("$wd")
-local game = DataModel.new()
+local dir = path.expand("$wd")
+local game = Instance.new("DataModel")
 
 local runnerSource = [[
 local Testing = require(script.Testing)
@@ -34,7 +34,7 @@ for _, file in ipairs(fs.dir(dir)) do
 			if not testPairs[stem] then
 				testPairs[stem] = {}
 			end
-			testPairs[stem].Module = os.join(dir, file.Name)
+			testPairs[stem].Module = path.join(dir, file.Name)
 		end
 
 		local stem = string.match(file.Name, "^(.+).test.lua$")
@@ -42,7 +42,7 @@ for _, file in ipairs(fs.dir(dir)) do
 			if not testPairs[stem] then
 				testPairs[stem] = {}
 			end
-			testPairs[stem].Test = os.join(dir, file.Name)
+			testPairs[stem].Test = path.join(dir, file.Name)
 		end
 	end
 end
@@ -59,6 +59,6 @@ for name, pair in pairs(testPairs) do
 end
 
 if hasTestPairs then
-	fs.mkdir(os.join(dir, "etc"))
-	fs.write(os.join(dir, "etc", "Test.rbxl"), game)
+	fs.mkdir(path.join(dir, "etc"))
+	fs.write(path.join(dir, "etc", "Test.rbxl"), game)
 end
