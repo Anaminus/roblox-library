@@ -41,25 +41,25 @@ local ATTR_BOUNDS      = "UILatticeBounds"
 -- returned.
 local function parseSpan(value)
 	if type(value) ~= "string" then
-		return nil, nil, string.format("cannot parse %s as unit", type(value))
+		return string.format("cannot parse %s as unit", type(value)), nil, nil
 	end
 	local n = string.match(value, "^(.*)px$")
 	if n then
 		n = tonumber(n)
 		if n == nil then
-			return nil, nil, "unit must begin with number"
+			return "unit must begin with number", nil, nil
 		end
-		return n, "px", nil
+		return nil, n, "px"
 	end
 	local n = string.match(value, "^(.*)fr$")
 	if n then
 		n = tonumber(n)
 		if n == nil then
-			return nil, nil, "unit must begin with number"
+			return "unit must begin with number", nil, nil
 		end
-		return n, "fr", nil
+		return nil, n, "fr"
 	end
-	return nil, nil, "unit must end with 'px' or 'fr'"
+	return "unit must end with 'px' or 'fr'", nil, nil
 end
 
 --@def: function parseSpans(content: string): (err: error, values: {number}, units: {string})
@@ -67,21 +67,21 @@ end
 -- returned, a single span of "1fr" is also returned.
 local function parseSpans(attr)
 	if type(attr) ~= "string" then
-		return {1}, {"fr"}, nil
+		return nil, {1}, {"fr"}
 	end
 	local ns = {}
 	local us = {}
 	local i = 1
 	for span in string.gmatch(attr, "%S+") do
-		local n, u, err = parseSpan(span)
+		local err, n, u = parseSpan(span)
 		if err then
-			return {1}, {"fr"}, string.format("bad entry #%d: %s", i, err)
+			return string.format("bad entry #%d: %s", i, err), {1}, {"fr"}
 		end
 		table.insert(ns, n)
 		table.insert(us, u)
 		i += 1
 	end
-	return ns, us, nil
+	return nil, ns, us
 end
 
 --@def: function buildAxis(values: {number}, units: {string}): (lines: {UDim}, sumConst: number)
@@ -213,11 +213,11 @@ end
 function UILattice.update(parent)
 	assert(typeof(parent) == "Instance", "instance expected for parent")
 
-	local coln, colu, err = parseSpans(parent:GetAttribute(ATTR_COLUMNS))
+	local err, coln, colu = parseSpans(parent:GetAttribute(ATTR_COLUMNS))
 	if err ~= nil then
 		error(string.format("parse columns: %s", err), 2)
 	end
-	local rown, rowu, err = parseSpans(parent:GetAttribute(ATTR_ROWS))
+	local err, rown, rowu = parseSpans(parent:GetAttribute(ATTR_ROWS))
 	if err ~= nil then
 		error(string.format("parse rows: %s", err), 2)
 	end
@@ -260,14 +260,14 @@ local function new(parent)
 	local rows, rowmin = {}, 0
 
 	local function updateColumns()
-		local coln, colu = parseSpans(parent:GetAttribute(ATTR_COLUMNS))
+		local _, coln, colu = parseSpans(parent:GetAttribute(ATTR_COLUMNS))
 		cols, colmin = buildAxis(coln, colu)
 		updateConstraints(parent, Vector2.new(colmin, rowmin))
 		reflowAll(parent, cols, rows)
 	end
 
 	local function updateRows()
-		local rown, rowu = parseSpans(parent:GetAttribute(ATTR_ROWS))
+		local _, rown, rowu = parseSpans(parent:GetAttribute(ATTR_ROWS))
 		rows, rowmin = buildAxis(rown, rowu)
 		updateConstraints(parent, Vector2.new(colmin, rowmin))
 		reflowAll(parent, cols, rows)
