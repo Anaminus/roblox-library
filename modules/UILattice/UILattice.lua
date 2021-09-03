@@ -35,11 +35,11 @@ local ATTR_ROWS        = "UILatticeRows"
 local ATTR_CONSTRAINTS = "UILatticeConstraints"
 local ATTR_BOUNDS      = "UILatticeBounds"
 
---@def: function parseUnit(content: string): (err: error, value: number?, unit: string?)
---@doc: parseUnit parses a single span from *content*. Valid formats are
+--@def: function parseSpan(content: string): (err: error, value: number?, unit: string?)
+--@doc: parseSpan parses a single span from *content*. Valid formats are
 -- `<number>px` and `<number>fr`. *value* and *unit* will be nil if an error is
 -- returned.
-local function parseUnit(value)
+local function parseSpan(value)
 	if type(value) ~= "string" then
 		return nil, nil, string.format("cannot parse %s as unit", type(value))
 	end
@@ -73,7 +73,7 @@ local function parseSpans(attr)
 	local us = {}
 	local i = 1
 	for span in string.gmatch(attr, "%S+") do
-		local n, u, err = parseUnit(span)
+		local n, u, err = parseSpan(span)
 		if err then
 			return {1}, {"fr"}, string.format("bad entry #%d: %s", i, err)
 		end
