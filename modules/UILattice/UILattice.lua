@@ -28,12 +28,17 @@
 -- [flexbox]: https://en.wikipedia.org/wiki/Flexbox
 local UILattice = {}
 
+-- Constant tag and attribute names.
 local DEFAULT_TAG      = "UILattice"
 local ATTR_COLUMNS     = "UILatticeColumns"
 local ATTR_ROWS        = "UILatticeRows"
 local ATTR_CONSTRAINTS = "UILatticeConstraints"
 local ATTR_BOUNDS      = "UILatticeBounds"
 
+--@def: function parseUnit(content: string): (err: error, value: number?, unit: string?)
+--@doc: parseUnit parses a single span from *content*. Valid formats are
+-- `<number>px` and `<number>fr`. *value* and *unit* will be nil if an error is
+-- returned.
 local function parseUnit(value)
 	if type(value) ~= "string" then
 		return nil, nil, string.format("cannot parse %s as unit", type(value))
@@ -57,6 +62,9 @@ local function parseUnit(value)
 	return nil, nil, "unit must end with 'px' or 'fr'"
 end
 
+--@def: function parseSpans(content: string): (err: error, values: {number}, units: {string})
+--@doc: parseSpans parses a list of whitespace-separated units. If an error is
+-- returned, a single span of "1fr" is also returned.
 local function parseSpans(attr)
 	if type(attr) ~= "string" then
 		return {1}, {"fr"}, nil
@@ -76,6 +84,13 @@ local function parseSpans(attr)
 	return ns, us, nil
 end
 
+--@def: function buildAxis(values: {number}, units: {string}): (lines: {UDim}, sumConst: number)
+--@doc: buildAxis converts a list of spans represented by *values* and *units*
+-- to a list of UDim values. *values* and *units* are assumed to be equal in
+-- length.
+--
+-- *lines* contains locations of separation points between each cell in
+-- ascending order. *sumConst* is the total of the constant-sized space.
 local function buildAxis(ns, us)
 	local sumConst = 0
 	local sumFract = 0
@@ -114,6 +129,9 @@ local function buildAxis(ns, us)
 	return lines, sumConst
 end
 
+--@def: function reflowCell(child: GuiObject, cols: {UDim}, rows: {UDim})
+--@doc: reflowCell updates the position, size, and visbility of *child*
+-- according to *cols*, *rows* and the ATTR_BOUNDS attribute of *child*.
 local function reflowCell(child, cols, rows)
 	local rect = child:GetAttribute(ATTR_BOUNDS)
 	if typeof(rect) == "Vector2" then
@@ -137,6 +155,9 @@ local function reflowCell(child, cols, rows)
 	child.Visible = true
 end
 
+--@def: function updateConstraints(parent: Instance, min: Vector2)
+--@doc: updateConstraints updates the size constrains of *parent*, which is
+-- assumed to be a UILattice container.
 local function updateConstraints(parent, min)
 	local constraints = parent:GetAttribute(ATTR_CONSTRAINTS)
 	local constrainer = parent:FindFirstChildOfClass("UISizeConstraint")
