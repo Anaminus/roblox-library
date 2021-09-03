@@ -39,11 +39,11 @@ local ATTR_BOUNDS      = "UILatticeBounds"
 --@doc: parseSpan parses a single span from *content*. Valid formats are
 -- `<number>px` and `<number>fr`. *value* and *unit* will be nil if an error is
 -- returned.
-local function parseSpan(value)
-	if type(value) ~= "string" then
-		return string.format("cannot parse %s as unit", type(value)), nil, nil
+local function parseSpan(content)
+	if type(content) ~= "string" then
+		return string.format("cannot parse %s as unit", type(content)), nil, nil
 	end
-	local n = string.match(value, "^(.*)px$")
+	local n = string.match(content, "^(.*)px$")
 	if n then
 		n = tonumber(n)
 		if n == nil then
@@ -51,7 +51,7 @@ local function parseSpan(value)
 		end
 		return nil, n, "px"
 	end
-	local n = string.match(value, "^(.*)fr$")
+	local n = string.match(content, "^(.*)fr$")
 	if n then
 		n = tonumber(n)
 		if n == nil then
@@ -65,14 +65,14 @@ end
 --@def: function parseSpans(content: string): (err: error, values: {number}, units: {string})
 --@doc: parseSpans parses a list of whitespace-separated units. If an error is
 -- returned, a single span of "1fr" is also returned.
-local function parseSpans(attr)
-	if type(attr) ~= "string" then
+local function parseSpans(content)
+	if type(content) ~= "string" then
 		return nil, {1}, {"fr"}
 	end
 	local ns = {}
 	local us = {}
 	local i = 1
-	for span in string.gmatch(attr, "%S+") do
+	for span in string.gmatch(content, "%S+") do
 		local err, n, u = parseSpan(span)
 		if err then
 			return string.format("bad entry #%d: %s", i, err), {1}, {"fr"}
@@ -91,13 +91,13 @@ end
 --
 -- *lines* contains locations of separation points between each cell in
 -- ascending order. *sumConst* is the total of the constant-sized space.
-local function buildAxis(ns, us)
+local function buildAxis(values, units)
 	local sumConst = 0
 	local sumFract = 0
-	for i, n in ipairs(ns) do
-		if us[i] == "px" then
+	for i, n in ipairs(values) do
+		if units[i] == "px" then
 			sumConst += n
-		elseif us[i] == "fr" then
+		elseif units[i] == "fr" then
 			sumFract += n
 		end
 	end
@@ -107,25 +107,25 @@ local function buildAxis(ns, us)
 		norm = 1
 	end
 
-	local lines = table.create(#ns + norm + 1, nil)
+	local lines = table.create(#values + norm + 1, nil)
 	local L = 0        -- Sum of px units encountered
 	local R = sumConst -- Sum of px units not encountered
 	local N = 0        -- Sum of fr units encountered
 	local T = sumFract -- Sum of fr units
-	for i, n in ipairs(ns) do
+	for i, n in ipairs(values) do
 		lines[i] = UDim.new(N/T, L - (R+L)*(N/T))
-		if us[i] == "px" then
+		if units[i] == "px" then
 			L += n
 			R -= n
-		elseif us[i] == "fr" then
+		elseif units[i] == "fr" then
 			N += n
 		end
 	end
 	if norm > 0 then
-		lines[#ns+1] = UDim.new(N/T, L - (R+L)*(N/T))
+		lines[#values+1] = UDim.new(N/T, L - (R+L)*(N/T))
 		N += 1
 	end
-	lines[#ns+1+norm] = UDim.new(N/T, L - (R+L)*(N/T))
+	lines[#values+1+norm] = UDim.new(N/T, L - (R+L)*(N/T))
 	return lines, sumConst
 end
 
