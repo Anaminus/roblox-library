@@ -155,6 +155,17 @@ local function reflowCell(child, cols, rows)
 	child.Visible = true
 end
 
+--@def: function reflowAll(parent: Instance, cols: {UDim}, rows: {UDim})
+--@doc: reflowAll calls reflowCell with each child GuiObject of *parent*.
+local function reflowAll(parent, cols, rows)
+	for _, child in ipairs(parent:GetChildren()) do
+		if not child:IsA("GuiObject") then
+			continue
+		end
+		reflowCell(child, cols, rows)
+	end
+end
+
 --@def: function updateConstraints(parent: Instance, min: Vector2)
 --@doc: updateConstraints updates the size constrains of *parent*, which is
 -- assumed to be a UILattice container.
@@ -214,13 +225,7 @@ function UILattice.update(parent)
 	local rows, rowmin = buildAxis(rown, rowu)
 
 	updateConstraints(parent, Vector2.new(colmin, rowmin))
-
-	for _, child in ipairs(parent:GetChildren()) do
-		if not child:IsA("GuiObject") then
-			continue
-		end
-		reflowCell(child, cols, rows)
-	end
+	reflowAll(parent, cols, rows)
 	return parent
 end
 
@@ -254,27 +259,18 @@ local function new(parent)
 	local cols, colmin = {}, 0
 	local rows, rowmin = {}, 0
 
-	local function reflowAll()
-		for _, child in ipairs(parent:GetChildren()) do
-			if not child:IsA("GuiObject") then
-				continue
-			end
-			reflowCell(child, cols, rows)
-		end
-	end
-
 	local function updateColumns()
 		local coln, colu = parseSpans(parent:GetAttribute(ATTR_COLUMNS))
 		cols, colmin = buildAxis(coln, colu)
 		updateConstraints(parent, Vector2.new(colmin, rowmin))
-		reflowAll()
+		reflowAll(parent, cols, rows)
 	end
 
 	local function updateRows()
 		local rown, rowu = parseSpans(parent:GetAttribute(ATTR_ROWS))
 		rows, rowmin = buildAxis(rown, rowu)
 		updateConstraints(parent, Vector2.new(colmin, rowmin))
-		reflowAll()
+		reflowAll(parent, cols, rows)
 	end
 
 	local function childAdded(child)
