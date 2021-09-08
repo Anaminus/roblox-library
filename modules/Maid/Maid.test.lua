@@ -294,4 +294,72 @@ function T.TestFinish(t, require)
 	)
 end
 
+function T.TestSelfReference(t, require)
+	local Maid = require()
+
+	local maid = Maid.new()
+	maid:TaskEach(maid)
+	maid:FinishAll()
+
+	if #maid._tasks > 0 then
+		t:Errorf("expected no tasks")
+	end
+end
+
+function T.TestMutual(t, require)
+	local Maid = require()
+
+	local maidA = Maid.new()
+	local maidB = Maid.new()
+	maidA:TaskEach(maidB)
+	maidB:TaskEach(maidA)
+	maidA:FinishAll()
+	if #maidA._tasks > 0 or #maidB._tasks > 0 then
+		t:Errorf("expected no tasks")
+	end
+
+	local maidA = Maid.new()
+	local maidB = Maid.new()
+	maidA:TaskEach(maidB)
+	maidB:TaskEach(maidA)
+	maidB:FinishAll()
+	if #maidA._tasks > 0 or #maidB._tasks > 0 then
+		t:Errorf("expected no tasks")
+	end
+
+	local finished = 0
+	local maidA = Maid.new()
+	local maidB = Maid.new()
+	local maidC = Maid.new()
+	maidA:TaskEach(maidB)
+	maidB:TaskEach(maidA)
+	maidB:TaskEach(maidC)
+	maidC:TaskEach(function() finished += 1 end)
+	maidB:FinishAll()
+	if #maidA._tasks > 0 or #maidB._tasks > 0 then
+		t:Errorf("expected no tasks")
+	end
+	if finished ~= 1 then
+		t:Errorf("expected finish")
+	end
+end
+
+function T.TestRebound(t, require)
+	local Maid = require()
+
+	local maid = Maid.new()
+	local function rebound()
+		maid:TaskEach(rebound)
+	end
+	rebound()
+	maid:FinishAll()
+	if #maid._tasks ~= 1 then
+		t:Errorf("expected one task")
+	end
+	maid:FinishAll()
+	if #maid._tasks ~= 1 then
+		t:Errorf("expected one task")
+	end
+end
+
 return T

@@ -223,10 +223,25 @@ end
 function Maid.__index:Skip(...)
 	local names = table.pack(...)
 	for i = 1, names.n do
-		local name = names[i]
-		assertName(name)
-		self._tasks[name] = nil
+		assertName(names[i])
 	end
+	for i = 1, names.n do
+		self._tasks[names[i]] = nil
+	end
+end
+
+local function finishSnapshot(self, snapshot)
+	local errs = nil
+	for name, task in pairs(snapshot) do
+		local err = threadTask(self, task)
+		if err then
+			if errs == nil then
+				errs = newErrors()
+			end
+			table.insert(errs, newTaskError(name, err))
+		end
+	end
+	return errs
 end
 
 --@sec: Maid.Finish
@@ -238,23 +253,19 @@ end
 -- If a name is a string, it is not allowed to begin with an underscore.
 function Maid.__index:Finish(...)
 	local names = table.pack(...)
-	local errs = nil
+	for i = 1, names.n do
+		assertName(names[i])
+	end
+	local snapshot = {}
 	for i = 1, names.n do
 		local name = names[i]
-		assertName(name)
 		local task = self._tasks[name]
 		if task ~= nil then
-			local err = threadTask(self, task)
-			if err then
-				if errs == nil then
-					errs = newErrors()
-				end
-				table.insert(errs, newTaskError(name, err))
-			end
+			snapshot[name] = task
 			self._tasks[name] = nil
 		end
 	end
-	return errs
+	return finishSnapshot(self, snapshot)
 end
 
 --@sec: Maid.FinishAll
@@ -263,18 +274,12 @@ end
 -- for each task that yields or errors, or nil if all tasks finished
 -- successfully.
 function Maid.__index:FinishAll()
-	local errs = nil
+	local snapshot = {}
 	for name, task in pairs(self._tasks) do
-		local err = threadTask(self, task)
-		if err then
-			if errs == nil then
-				errs = newErrors()
-			end
-			table.insert(errs, newTaskError(name, err))
-		end
+		snapshot[name] = task
 	end
 	table.clear(self._tasks)
-	return errs
+	return finishSnapshot(self, snapshot)
 end
 
 return {
