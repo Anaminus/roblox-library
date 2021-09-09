@@ -8,8 +8,7 @@ local Mutex = {__index={}}
 --@doc: Lock locks the mutex. If the lock is already in use, then the calling
 -- thread is blocked until the lock is available.
 function Mutex.__index:Lock()
-	local thread = coroutine.running()
-	table.insert(self.threads, threads)
+	table.insert(self.threads, coroutine.running())
 	if #self.threads > 1 then
 		coroutine.yield()
 	end
