@@ -23,6 +23,9 @@ partially outside the boundary of the grid, then the components are
 constrained. If the bounds lies completely outside the grid, then the object
 is not rendered (Visible is set to false).
 
+Additionally, the grid can have margins and padding. The margin is the area
+around the entire grid, and padding is the space between cells.
+
 The calculated positions and sizes of objects are static; the given bounds of
 an object is reduced to a Position and Size UDim2, which makes resizing
 inexpensive.
@@ -57,6 +60,10 @@ On the parent, the following attributes are recognized:
 - `UILatticeRows: string`: A whitespace-separated list of spans that
   determines the span of each row. For example, `4px 1fr 4px`. If a
   non-string, defaults to "1fr".
+- `UILatticeMargin: number`: Determines the size of margins around the grid,
+  in px units. If a non-number, defaults to 0.
+- `UILatticePadding: number`: Determines the size of padding between each
+  cell in the grid, in px units. If a non-number, defaults to 0.
 - `UILatticeConstraints: Rect`: If a Rect, specifies the minimum and maximum
   constraints of the *fractional space* for each axis. This is applied by
   configuring the first child of *parent* that is a UISizeConstraint, which

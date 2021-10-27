@@ -21,6 +21,9 @@
 -- constrained. If the bounds lies completely outside the grid, then the object
 -- is not rendered (Visible is set to false).
 --
+-- Additionally, the grid can have margins and padding. The margin is the area
+-- around the entire grid, and padding is the space between cells.
+--
 -- The calculated positions and sizes of objects are static; the given bounds of
 -- an object is reduced to a Position and Size UDim2, which makes resizing
 -- inexpensive.
@@ -32,6 +35,8 @@ local UILattice = {}
 local DEFAULT_TAG      = "UILattice"
 local ATTR_COLUMNS     = "UILatticeColumns"
 local ATTR_ROWS        = "UILatticeRows"
+local ATTR_MARGIN      = "UILatticeMargin"
+local ATTR_PADDING     = "UILatticePadding"
 local ATTR_CONSTRAINTS = "UILatticeConstraints"
 local ATTR_BOUNDS      = "UILatticeBounds"
 
@@ -84,14 +89,43 @@ local function parseSpans(content)
 	return nil, ns, us
 end
 
---@def: function buildAxis(values: {number}, units: {string}): (lines: {UDim}, sumConst: number)
+--@def: function parseNumber(content: number?): (err: error, value: number)
+--@doc: parseNumber parses a a numeric value.
+local function parseNumber(content)
+	if content == nil then
+		return nil, 0
+	elseif type(content) ~= "number" then
+		return "number expected", 0
+	end
+	return nil, content
+end
+
+--@def: function buildAxis(values: {number}, units: {string}, margin: number, padding: number): (lines: {UDim}, sumConst: number)
 --@doc: buildAxis converts a list of spans represented by *values* and *units*
 -- to a list of UDim values. *values* and *units* are assumed to be equal in
 -- length.
 --
 -- *lines* contains locations of separation points between each cell in
 -- ascending order. *sumConst* is the total of the constant-sized space.
-local function buildAxis(values, units)
+--
+-- If *padding* is non-zero, then its value is inserted between each value on
+-- the axis with px units.
+--
+-- If *margin* is non-zero, then its value is inserted at the start and end of
+-- the axis with px units.
+local function buildAxis(values, units, margin, padding)
+	if padding ~= 0 then
+		for i = 2, #values*2-1, 2 do
+			table.insert(values, i, padding)
+			table.insert(units, i, "px")
+		end
+	end
+	if margin ~= 0 then
+		table.insert(values, 1, margin)
+		table.insert(units, 1, "px")
+		table.insert(values, #values+1, margin)
+		table.insert(units, #units+1, "px")
+	end
 	local sumConst = 0
 	local sumFract = 0
 	for i, n in ipairs(values) do
@@ -129,10 +163,14 @@ local function buildAxis(values, units)
 	return lines, sumConst
 end
 
---@def: function reflowCell(child: GuiObject, cols: {UDim}, rows: {UDim})
+--@def: function reflowCell(child: GuiObject, cols: {UDim}, rows: {UDim}, margin: number, padding: number)
 --@doc: reflowCell updates the position, size, and visbility of *child*
 -- according to *cols*, *rows* and the ATTR_BOUNDS attribute of *child*.
-local function reflowCell(child, cols, rows)
+--
+-- If *padding* is non-zero, then bounds indicies are adjusted to account for
+-- inserted padding. If *margin* is non-zero, then bounds indicies are adjusted
+-- to account for inserted margins.
+local function reflowCell(child, cols, rows, margin, padding)
 	local rect = child:GetAttribute(ATTR_BOUNDS)
 	if typeof(rect) == "Vector2" then
 		rect = Rect.new(rect, rect + Vector2.new(1, 1))
@@ -141,6 +179,12 @@ local function reflowCell(child, cols, rows)
 		return
 	end
 	local x0, y0, x1, y1 = rect.Min.X, rect.Min.Y, rect.Max.X, rect.Max.Y
+	if padding ~= 0 then
+		x0, y0, x1, y1 = x0*2, y0*2, x1*2-1, y1*2-1
+	end
+	if margin ~= 0 then
+		x0, y0, x1, y1 = x0+1, y0+1, x1+1, y1+1
+	end
 	if x1 < 0 or y1 < 0 or x0 >= #cols or y0 >= #rows then
 		child.Visible = false
 		return
@@ -155,14 +199,14 @@ local function reflowCell(child, cols, rows)
 	child.Visible = true
 end
 
---@def: function reflowAll(parent: Instance, cols: {UDim}, rows: {UDim})
+--@def: function reflowAll(parent: Instance, cols: {UDim}, rows: {UDim}, margin: number, padding: number)
 --@doc: reflowAll calls reflowCell with each child GuiObject of *parent*.
-local function reflowAll(parent, cols, rows)
+local function reflowAll(parent, cols, rows, margin, padding)
 	for _, child in ipairs(parent:GetChildren()) do
 		if not child:IsA("GuiObject") then
 			continue
 		end
-		reflowCell(child, cols, rows)
+		reflowCell(child, cols, rows, margin, padding)
 	end
 end
 
@@ -200,6 +244,10 @@ end
 -- - `UILatticeRows: string`: A whitespace-separated list of spans that
 --   determines the span of each row. For example, `4px 1fr 4px`. If a
 --   non-string, defaults to "1fr".
+-- - `UILatticeMargin: number`: Determines the size of margins around the grid,
+--   in px units. If a non-number, defaults to 0.
+-- - `UILatticePadding: number`: Determines the size of padding between each
+--   cell in the grid, in px units. If a non-number, defaults to 0.
 -- - `UILatticeConstraints: Rect`: If a Rect, specifies the minimum and maximum
 --   constraints of the *fractional space* for each axis. This is applied by
 --   configuring the first child of *parent* that is a UISizeConstraint, which
@@ -221,11 +269,19 @@ function UILattice.update(parent)
 	if err ~= nil then
 		error(string.format("parse rows: %s", err), 2)
 	end
-	local cols, colmin = buildAxis(coln, colu)
-	local rows, rowmin = buildAxis(rown, rowu)
+	local err, margin = parseNumber(parent:GetAttribute(ATTR_MARGIN))
+	if err ~= nil then
+		error(string.format("parse margin: %s", err), 2)
+	end
+	local err, padding = parseNumber(parent:GetAttribute(ATTR_PADDING))
+	if err ~= nil then
+		error(string.format("parse padding: %s", err), 2)
+	end
+	local cols, colmin = buildAxis(coln, colu, margin, padding)
+	local rows, rowmin = buildAxis(rown, rowu, margin, padding)
 
 	updateConstraints(parent, Vector2.new(colmin, rowmin))
-	reflowAll(parent, cols, rows)
+	reflowAll(parent, cols, rows, margin, padding)
 	return parent
 end
 
@@ -258,19 +314,35 @@ local function new(parent)
 	local maid = {}
 	local cols, colmin = {}, 0
 	local rows, rowmin = {}, 0
+	local margin, padding = 0, 0
 
 	local function updateColumns()
 		local _, coln, colu = parseSpans(parent:GetAttribute(ATTR_COLUMNS))
-		cols, colmin = buildAxis(coln, colu)
+		cols, colmin = buildAxis(coln, colu, margin, padding)
 		updateConstraints(parent, Vector2.new(colmin, rowmin))
-		reflowAll(parent, cols, rows)
+		reflowAll(parent, cols, rows, margin, padding)
 	end
 
 	local function updateRows()
 		local _, rown, rowu = parseSpans(parent:GetAttribute(ATTR_ROWS))
-		rows, rowmin = buildAxis(rown, rowu)
+		rows, rowmin = buildAxis(rown, rowu, margin, padding)
 		updateConstraints(parent, Vector2.new(colmin, rowmin))
-		reflowAll(parent, cols, rows)
+		reflowAll(parent, cols, rows, margin, padding)
+	end
+
+	local function updateAxes()
+		local _, m = parseNumber(parent:GetAttribute(ATTR_MARGIN))
+		local _, p = parseNumber(parent:GetAttribute(ATTR_PADDING))
+		margin, padding = m, p
+
+		local _, coln, colu = parseSpans(parent:GetAttribute(ATTR_COLUMNS))
+		cols, colmin = buildAxis(coln, colu, margin, padding)
+
+		local _, rown, rowu = parseSpans(parent:GetAttribute(ATTR_ROWS))
+		rows, rowmin = buildAxis(rown, rowu, margin, padding)
+
+		updateConstraints(parent, Vector2.new(colmin, rowmin))
+		reflowAll(parent, cols, rows, margin, padding)
 	end
 
 	local function childAdded(child)
@@ -278,9 +350,9 @@ local function new(parent)
 			return
 		end
 		maid[child] = child:GetAttributeChangedSignal(ATTR_BOUNDS):Connect(function()
-			reflowCell(child, cols, rows)
+			reflowCell(child, cols, rows, margin, padding)
 		end)
-		reflowCell(child, cols, rows)
+		reflowCell(child, cols, rows, margin, padding)
 	end
 
 	local function childRemoved(child)
@@ -291,14 +363,15 @@ local function new(parent)
 
 	maid.attrColumns = parent:GetAttributeChangedSignal(ATTR_COLUMNS):Connect(updateColumns)
 	maid.attrRows = parent:GetAttributeChangedSignal(ATTR_ROWS):Connect(updateRows)
+	maid.attrMargin = parent:GetAttributeChangedSignal(ATTR_MARGIN):Connect(updateAxes)
+	maid.attrPadding = parent:GetAttributeChangedSignal(ATTR_PADDING):Connect(updateAxes)
 	maid.attrConstraints = parent:GetAttributeChangedSignal(ATTR_CONSTRAINTS):Connect(function()
 		updateConstraints(parent, Vector2.new(colmin, rowmin))
 	end)
 	maid.childAdded = parent.ChildAdded:Connect(childAdded)
 	maid.childRemoved = parent.ChildRemoved:Connect(childRemoved)
 
-	updateColumns()
-	updateRows()
+	updateAxes()
 	for i, child in ipairs(parent:GetChildren()) do
 		childAdded(child)
 	end
