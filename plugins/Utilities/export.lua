@@ -325,7 +325,7 @@ end
 local function toVarName(name)
 	-- remove all non-alphanumeric characters; remove leading digits
 	name = name:gsub("[^%w_]",""):gsub("^%d+","")
-	return #name > 0 and name
+	return #name > 0 and (name:sub(1,1):lower() .. name:sub(2))
 end
 
 local defaultCache = {}
