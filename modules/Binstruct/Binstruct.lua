@@ -646,7 +646,10 @@ Types["align"] = function(program, def)
 	local hookaddr = prepareHook(program, def)
 	append(program, "CALL", {
 		decode = NAME(function(buf)
-			if not buf:Fits(size) then return EOF end
+			local i = buf:Index()
+			if math.floor(math.ceil(i/size)*size - i) > buf:Len() - i then
+				return EOF
+			end
 			buf:ReadAlign(size)
 			return nil
 		end, "align", size),
