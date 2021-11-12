@@ -27,7 +27,7 @@ for _, service in ipairs(game:GetChildren()) do
 	local ok, service = pcall(function(service)
 		return game:GetService(service.ClassName)
 	end, service)
-	if ok then
+	if ok and service then
 		local name = service.ClassName
 		if name:match("Service$") then
 			name = name:sub(1, #name-7)
