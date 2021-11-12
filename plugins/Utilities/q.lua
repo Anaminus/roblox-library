@@ -123,7 +123,14 @@ function _G.q(...)
 		error("bad expression:\n\n"..expr, 2)
 	end
 
+	local function unsafe(object)
+		return not pcall(tostring, object)
+	end
+
 	local function query(selection, filter, object, recurse)
+		if unsafe(object) then
+			return
+		end
 		local ok, result = pcall(filter, object)
 		if ok and result then
 			table.insert(selection, object)
@@ -258,13 +265,14 @@ function _G.q(...)
 			return false
 		end,
 		hastag = function(object, value)
+			if typeof(object) ~= "Instance" then return false end
 			if type(value) == "function" then value = value() end
-			local ok, object = pcall(tostring, object)
+			local ok, value = pcall(tostring, value)
 			if not ok then return false end
 			return CollectionService:HasTag(object, value)
 		end,
 		tags = function(object)
-			if not pcall(tostring, object) then return false end
+			if typeof(object) ~= "Instance" then return false end
 			local tags = CollectionService:GetTags(object)
 			tags.contains = env.contains
 			tags.beginswith = env.beginswith
