@@ -442,12 +442,13 @@ Instructions.POPS = {
 -- Initialize a loop with a constant terminator.
 Instructions.FORC = {
 	decode = function(R, params) -- params: {jumpaddr, size}
+		R.PC = params[1] - 1
+		R.KEY = 1
 		if params[2] >= 1 then
-			R.KEY = 1
 			R.N = params[2]
 			return nil
 		end
-		R.PC = params[1]
+		R.N = 0
 		return nil
 	end,
 	encode = true,
@@ -457,6 +458,8 @@ Instructions.FORC = {
 -- parent structure.
 Instructions.FORF = {
 	decode = function(R, params) -- params: {jumpaddr, field, level}
+		R.PC = params[1] - 1
+		R.KEY = 1
 		local level = #R.STACK-params[3]+1
 		if level > 1 then
 			local top = R.STACK[level]
@@ -465,14 +468,13 @@ Instructions.FORF = {
 				if parent then
 					local v = parent[params[2]]
 					if type(v) == "number" then
-						R.KEY = 1
 						R.N = v
 						return nil
 					end
 				end
 			end
 		end
-		R.PC = params[1]
+		R.N = 0
 		return nil
 	end,
 	encode = true,
