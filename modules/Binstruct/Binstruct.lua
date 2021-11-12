@@ -590,6 +590,22 @@ end
 
 local EOF = "end of buffer"
 
+-- Register a function with a name, for debugging.
+local NAME, NAMEOF do
+	local registry = setmetatable({}, {__mode="k"})
+	function NAME(func, name, ...)
+		local args = table.pack(...)
+		for i = 1, args.n do
+			args[i] = tostring(args[i])
+		end
+		registry[func] = name .. "(" .. table.concat(args,",") .. ")"
+		return func
+	end
+	function NAMEOF(func)
+		return registry[func] or "<function>"
+	end
+end
+
 local parseDef
 
 Types["pad"] = function(program, def)
@@ -603,15 +619,15 @@ Types["pad"] = function(program, def)
 	end
 	local hookaddr = prepareHook(program, def)
 	append(program, "CALL", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(size) then return EOF end
 			buf:ReadPad(size)
 			return nil
-		end,
-		encode = function(buf)
+		end, "pad", size),
+		encode = NAME(function(buf)
 			buf:WritePad(size)
 			return nil
-		end,
+		end, "pad", size),
 	})
 	setJump(program, hookaddr)
 end
@@ -627,15 +643,15 @@ Types["align"] = function(program, def)
 	end
 	local hookaddr = prepareHook(program, def)
 	append(program, "CALL", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(size) then return EOF end
 			buf:ReadAlign(size)
 			return nil
-		end,
-		encode = function(buf)
+		end, "align", size),
+		encode = NAME(function(buf)
 			buf:WriteAlign(size)
 			return nil
-		end,
+		end, "align", size),
 	})
 	setJump(program, hookaddr)
 	return nil
@@ -648,15 +664,15 @@ Types["const"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			local v = value
 			local v, err = dfilter(v, value)
 			return v, err
-		end,
-		encode = function(buf, v)
+		end, "const", tostring(value)),
+		encode = NAME(function(buf, v)
 			local v, err = efilter(v, value)
 			return err
-		end,
+		end, "const", tostring(value)),
 	})
 	appendGlobal(program, def)
 	setJump(program, hookaddr)
@@ -675,13 +691,13 @@ Types["bool"] = function(program, def)
 	local decode
 	local encode
 	if size == 1 then
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(1) then return nil, EOF end
 			local v = buf:ReadBool()
 			local v, err = dfilter(v, size)
 			return v, err
-		end
-		encode = function(buf, v)
+		end, "bool")
+		encode = NAME(function(buf, v)
 			if v == nil then v = false end
 			local v, err = efilter(v, size)
 			if err ~= nil then
@@ -689,16 +705,16 @@ Types["bool"] = function(program, def)
 			end
 			buf:WriteBool(v)
 			return nil
-		end
+		end, "bool")
 	else
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadBool()
 			buf:ReadPad(size-1)
 			local v, err = dfilter(v, size)
 			return v, err
-		end
-		encode = function(buf, v)
+		end, "bool_wide", size)
+		encode = NAME(function(buf, v)
 			if v == nil then v = false end
 			local v, err = efilter(v, size)
 			if err ~= nil then
@@ -707,7 +723,7 @@ Types["bool"] = function(program, def)
 			buf:WriteBool(v)
 			buf:WritePad(size-1)
 			return nil
-		end
+		end, "bool_wide", size)
 	end
 
 	local hookaddr = prepareHook(program, def)
@@ -727,13 +743,13 @@ Types["uint"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadUint(size)
 			local v, err = dfilter(v, size)
 			return v, err
-		end,
-		encode = function(buf, v)
+		end, "uint", size),
+		encode = NAME(function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, size)
 			if err ~= nil then
@@ -741,7 +757,7 @@ Types["uint"] = function(program, def)
 			end
 			buf:WriteUint(size, v)
 			return nil
-		end,
+		end, "uint", size),
 	})
 	appendGlobal(program, def)
 	setJump(program, hookaddr)
@@ -758,13 +774,13 @@ Types["int"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadInt(size)
 			local v, err = dfilter(v, size)
 			return v, err
-		end,
-		encode = function(buf, v)
+		end, "int", size),
+		encode = NAME(function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, size)
 			if err ~= nil then
@@ -772,7 +788,7 @@ Types["int"] = function(program, def)
 			end
 			buf:WriteInt(size, v)
 			return nil
-		end,
+		end, "int", size),
 	})
 	appendGlobal(program, def)
 	setJump(program, hookaddr)
@@ -785,13 +801,13 @@ Types["byte"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(8) then return nil, EOF end
 			local v = buf:ReadByte()
 			local v, err = dfilter(v)
 			return v, err
-		end,
-		encode = function(buf, v)
+		end, "byte"),
+		encode = NAME(function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v)
 			if err ~= nil then
@@ -799,7 +815,7 @@ Types["byte"] = function(program, def)
 			end
 			buf:WriteByte(v)
 			return nil
-		end,
+		end, "byte"),
 	})
 	appendGlobal(program, def)
 	setJump(program, hookaddr)
@@ -817,13 +833,13 @@ Types["float"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadFloat(size)
 			local v, err = dfilter(v, size)
 			return v, err
-		end,
-		encode = function(buf, v)
+		end, "float", size),
+		encode = NAME(function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, size)
 			if err ~= nil then
@@ -831,7 +847,7 @@ Types["float"] = function(program, def)
 			end
 			buf:WriteFloat(size, v)
 			return nil
-		end,
+		end, "float", size),
 	})
 	appendGlobal(program, def)
 	setJump(program, hookaddr)
@@ -852,13 +868,13 @@ Types["ufixed"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(i+f) then return nil, EOF end
 			local v = buf:ReadUfixed(i, f)
 			local v, err = dfilter(v, i, f)
 			return v, err
-		end,
-		encode = function(buf, v)
+		end, "ufixed", i, f),
+		encode = NAME(function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, i, f)
 			if err ~= nil then
@@ -866,7 +882,7 @@ Types["ufixed"] = function(program, def)
 			end
 			buf:WriteUfixed(i, f, v)
 			return nil
-		end,
+		end, "ufixed", i, f),
 	})
 	appendGlobal(program, def)
 	setJump(program, hookaddr)
@@ -887,13 +903,13 @@ Types["fixed"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(i+f) then return nil, EOF end
 			local v = buf:ReadFixed(i, f)
 			local v, err = dfilter(v, i, f)
 			return v, err
-		end,
-		encode = function(buf, v)
+		end, "fixed", i, f),
+		encode = NAME(function(buf, v)
 			if v == nil then v = 0 end
 			local v, err = efilter(v, i, f)
 			if err ~= nil then
@@ -901,7 +917,7 @@ Types["fixed"] = function(program, def)
 			end
 			buf:WriteFixed(i, f, v)
 			return nil
-		end,
+		end, "fixed", i, f),
 	})
 	appendGlobal(program, def)
 	setJump(program, hookaddr)
@@ -918,15 +934,15 @@ Types["string"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "SET", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			if not buf:Fits(size) then return nil, EOF end
 			local len = buf:ReadUint(size)
 			if not buf:Fits(len) then return nil, EOF end
 			local v = buf:ReadBytes(len)
 			local v, err = dfilter(v, size)
 			return v, err
-		end,
-		encode = function(buf, v)
+		end, "string", size),
+		encode = NAME(function(buf, v)
 			if v == nil then v = "" end
 			local v, err = efilter(v, size)
 			if err ~= nil then
@@ -935,7 +951,7 @@ Types["string"] = function(program, def)
 			buf:WriteUint(size, #v)
 			buf:WriteBytes(v)
 			return nil
-		end,
+		end, "string", size),
 	})
 	appendGlobal(program, def)
 	setJump(program, hookaddr)
@@ -962,14 +978,14 @@ Types["struct"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			return {}, nil
-		end,
-		encode = function(buf, v)
+		end, "struct"),
+		encode = NAME(function(buf, v)
 			if v == nil then v = {} end
 			local v, err = efilter(v)
 			return v, err
-		end,
+		end, "struct"),
 	})
 	for _, field in ipairs(def) do
 		if type(field) == "table" then
@@ -989,10 +1005,10 @@ Types["struct"] = function(program, def)
 		end
 	end
 	append(program, "POP", {
-		decode = function(v)
+		decode = NAME(function(v)
 			local v, err = dfilter(v)
 			return v, err
-		end,
+		end, "struct"),
 		encode = nil,
 	})
 	appendGlobal(program, def)
@@ -1015,14 +1031,14 @@ Types["array"] = function(program, def)
 	end
 	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			return {}, nil
-		end,
-		encode = function(buf, v)
+		end, "array"),
+		encode = NAME(function(buf, v)
 			if v == nil then v = {} end
 			local v, err = efilter(v, size)
 			return v, err
-		end,
+		end, "array"),
 	})
 	local params = {nil, size}
 	local jumpaddr = append(program, "FORC", {decode=params, encode=params})
@@ -1033,10 +1049,10 @@ Types["array"] = function(program, def)
 	append(program, "JMPN", {decode=jumpaddr, encode=jumpaddr})
 	setJump(program, jumpaddr)
 	append(program, "POP", {
-		decode = function(v)
+		decode = NAME(function(v)
 			local v, err = dfilter(v, size)
 			return v, err
-		end,
+		end, "array"),
 		encode = nil,
 	})
 	appendGlobal(program, def)
@@ -1055,14 +1071,14 @@ Types["vector"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			return {}, nil
-		end,
-		encode = function(buf, v)
+		end, "vector"),
+		encode = NAME(function(buf, v)
 			if v == nil then v = {} end
 			local v, err = efilter(v, size)
 			return v, err
-		end,
+		end, "vector"),
 	})
 	local level = def.level or 1
 	if level < 0 then
@@ -1077,10 +1093,10 @@ Types["vector"] = function(program, def)
 	append(program, "JMPN", {decode=jumpaddr, encode=jumpaddr})
 	setJump(program, jumpaddr)
 	append(program, "POP", {
-		decode = function(v)
+		decode = NAME(function(v)
 			local v, err = dfilter(v, size)
 			return v, err
-		end,
+		end, "vector"),
 		encode = nil,
 	})
 	appendGlobal(program, def)
@@ -1098,14 +1114,14 @@ Types["instance"] = function(program, def)
 
 	local hookaddr = prepareHook(program, def)
 	append(program, "PUSH", {
-		decode = function(buf)
+		decode = NAME(function(buf)
 			return Instance.new(class)
-		end,
-		encode = function(buf, v)
+		end, "instance"),
+		encode = NAME(function(buf, v)
 			if v == nil then v = Instance.new(class) end
 			local v, err = efilter(v, class)
 			return v, err
-		end,
+		end, "instance"),
 	})
 	for i = 2, #def do
 		local property = def[i]
@@ -1119,10 +1135,10 @@ Types["instance"] = function(program, def)
 		end
 	end
 	append(program, "POP", {
-		decode = function(v)
+		decode = NAME(function(v)
 			local v, err = dfilter(v, class)
 			return v, err
-		end,
+		end, "instance"),
 		encode = nil,
 	})
 	appendGlobal(program, def)
@@ -1298,7 +1314,7 @@ end
 
 local function formatArg(arg)
 	if type(arg) == "function" then
-		return "<f>"
+		return NAMEOF(arg)
 	elseif type(arg) == "string" then
 		return string.format("%q", arg)
 	elseif type(arg) == "table" then
