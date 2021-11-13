@@ -4,21 +4,29 @@ local Maid = require(script.Parent.Maid)
 --@doc: The **Dirty** module detects changes to an instance tree.
 local Dirty = {}
 
-local function accumulate(window, callback)
-	if window <= 0 then
-		return callback
+local function throttle(rate, func)
+	if rate <= 0 then
+		return func
 	end
 	local running = false
-	return function(...)
-		if running then
+	local canceled = false
+	local function throttledCallback(...)
+		if running or canceled then
 			return
 		end
 		running = true
-		task.delay(window, function(...)
+		task.delay(rate, function(...)
+			if canceled then
+				return
+			end
 			running = false
-			callback(...)
+			func(...)
 		end, ...)
 	end
+	local function cancel()
+		canceled = true
+	end)
+	return throttledCallback, cancel
 end
 
 --@sec: Dirty.monitor
@@ -37,8 +45,10 @@ function Dirty.monitor(root, window, callback)
 	assert(typeof(root) == "Instance", "Instance expected")
 	assert(type(window) == "number", "number expected")
 	assert(type(callback) == "function", "function expected")
-	callback = accumulate(window, callback)
 	local maid = Maid.new()
+
+	callback, maid.cancelCallback = throttle(window, callback)
+
 	local function descInit(desc)
 		maid[desc] = {
 			desc.Changed:Connect(function() callback(root) end),
@@ -50,6 +60,7 @@ function Dirty.monitor(root, window, callback)
 			end),
 		}
 	end
+
 	maid.descendantAdded = root.DescendantAdded:Connect(function(desc)
 		descInit(desc)
 		callback(root)
@@ -57,7 +68,9 @@ function Dirty.monitor(root, window, callback)
 	for _, desc in ipairs(root:GetDescendants()) do
 		descInit(desc)
 	end
+
 	maid.changed = root.Changed:Connect(function() callback(root) end)
+
 	return function()
 		if maid then
 			maid:FinishAll()
