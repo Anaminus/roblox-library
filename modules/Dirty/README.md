@@ -16,14 +16,14 @@ The **Dirty** module detects changes to an instance tree.
 ## Dirty.monitor
 [Dirty.monitor]: #user-content-dirtymonitor
 ```
-function Dirty.monitor(root: Instance, window: number, callback: () -> ()): (disconnect: () -> ())
+function Dirty.monitor(root: Instance, window: number, callback: (Instance) -> ()): (disconnect: () -> ())
 ```
 
 The **monitor** function begins monitoring *root* for changes. After a
 change occurs, the monitor will wait *window* seconds before invoking
-*callback*. During this time, other changes will not cause *callback* to be
-invoked. That is, *callback* will not be invoked more frequently than
-*window*.
+*callback*, passing *root* as the argument. During this time, other changes
+will not cause *callback* to be invoked. That is, *callback* will not be
+invoked more frequently than *window*.
 
 If *window* is less than or equal to 0, then every change will invoke
 *callback* immediately.

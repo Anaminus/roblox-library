@@ -9,25 +9,25 @@ local function accumulate(window, callback)
 		return callback
 	end
 	local running = false
-	return function()
+	return function(...)
 		if running then
 			return
 		end
 		running = true
-		task.delay(window, function()
+		task.delay(window, function(...)
 			running = false
-			callback()
-		end)
+			callback(...)
+		end, ...)
 	end
 end
 
 --@sec: Dirty.monitor
---@def: function Dirty.monitor(root: Instance, window: number, callback: () -> ()): (disconnect: () -> ())
+--@def: function Dirty.monitor(root: Instance, window: number, callback: (Instance) -> ()): (disconnect: () -> ())
 --@doc: The **monitor** function begins monitoring *root* for changes. After a
 -- change occurs, the monitor will wait *window* seconds before invoking
--- *callback*. During this time, other changes will not cause *callback* to be
--- invoked. That is, *callback* will not be invoked more frequently than
--- *window*.
+-- *callback*, passing *root* as the argument. During this time, other changes
+-- will not cause *callback* to be invoked. That is, *callback* will not be
+-- invoked more frequently than *window*.
 --
 -- If *window* is less than or equal to 0, then every change will invoke
 -- *callback* immediately.
@@ -41,23 +41,23 @@ function Dirty.monitor(root, window, callback)
 	local maid = Maid.new()
 	local function descInit(desc)
 		maid[desc] = {
-			desc.Changed:Connect(function() callback() end),
+			desc.Changed:Connect(function() callback(root) end),
 			desc:GetPropertyChangedSignal("Parent"):Connect(function()
 				if not desc:IsDescendantOf(root) then
 					maid[desc] = nil
 				end
-				callback()
+				callback(root)
 			end),
 		}
 	end
 	maid.descendantAdded = root.DescendantAdded:Connect(function(desc)
 		descInit(desc)
-		callback()
+		callback(root)
 	end)
 	for _, desc in ipairs(root:GetDescendants()) do
 		descInit(desc)
 	end
-	maid.changed = root.Changed:Connect(function() callback() end)
+	maid.changed = root.Changed:Connect(function() callback(root) end)
 	return function()
 		if maid then
 			maid:FinishAll()
