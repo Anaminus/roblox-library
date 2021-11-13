@@ -52,6 +52,7 @@ function Dirty.monitor(root, window, callback)
 	local function descInit(desc)
 		maid[desc] = {
 			desc.Changed:Connect(function() callback(root) end),
+			desc.AttributeChanged:Connect(function() callback(root) end),
 			desc:GetPropertyChangedSignal("Parent"):Connect(function()
 				if not desc:IsDescendantOf(root) then
 					maid[desc] = nil
@@ -70,6 +71,7 @@ function Dirty.monitor(root, window, callback)
 	end
 
 	maid.changed = root.Changed:Connect(function() callback(root) end)
+	maid.attributeChanged = root.AttributeChanged:Connect(function() callback(root) end)
 
 	return function()
 		if maid then
