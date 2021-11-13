@@ -443,7 +443,7 @@ Instructions.POPS = {
 Instructions.FORC = {
 	decode = function(R, params) -- params: {jumpaddr, size}
 		R.PC = params[1] - 1
-		R.KEY = 1
+		R.KEY = 0
 		if params[2] >= 1 then
 			R.N = params[2]
 			return nil
@@ -459,7 +459,7 @@ Instructions.FORC = {
 Instructions.FORF = {
 	decode = function(R, params) -- params: {jumpaddr, field, level}
 		R.PC = params[1] - 1
-		R.KEY = 1
+		R.KEY = 0
 		local level = #R.STACK-params[3]+1
 		if level > 1 then
 			local top = R.STACK[level]
