@@ -25,7 +25,7 @@ local function throttle(rate, func)
 	end
 	local function cancel()
 		canceled = true
-	end)
+	end
 	return throttledCallback, cancel
 end
 
