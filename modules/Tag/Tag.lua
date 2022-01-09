@@ -2,8 +2,8 @@
 --@ord: -1
 --@doc: The Tag module enables the creation of instanceable symbol-like values.
 --
--- There are 5 types of tags: [empty][EmptyTag], [static][StaticTag],
--- [class][ClassTag], [instance][InstanceTag] and [error][ErrorTag].
+-- There are 4 types of tags: [empty][EmptyTag], [static][StaticTag],
+-- [class][ClassTag], and [instance][InstanceTag].
 --
 -- A tag can have multiple kinds. These kinds can be composed by adding or
 -- subtracting tags from each other. There are several rules based on the types
@@ -11,34 +11,21 @@
 -- - Adding EmptyTag with another tag returns the other tag.
 --     - `Tag + Empty == Tag`
 --     - `Empty + Tag == Tag`
--- - Adding ErrorTag with another tag returns the error tag.
---     - `Tag + Error == Error`
---     - `Error + Tag == Error`
--- - Adding two ErrorTags returns the error on the left.
---     - `ErrorA + ErrorB == ErrorA`
 -- - Adding StaticTags, ClassTags, and InstanceTags produces the union of the
 --   kinds of the tags. The type of the result will be the operand type with the
 --   highest priority (from highest to lowest): InstanceTag (also inherits the
 --   key), ClassTag, StaticTag.
--- - Adding two InstanceTags returns an ErrorTag indicating that instance tags
---   cannot be added.
+-- - Adding two InstanceTags throws an error.
 -- - Subtracting EmptyTag from a tag returns that tag.
 --     - `Tag - Empty == Tag`
 -- - Subtracting a tag from EmptyTag returns EmptyTag.
 --     - `Empty - Tag == Empty`
--- - Subtracting an ErrorTag from another tag returns the error tag.
---     - `Tag - Error == Error`
--- - Subtracting a tag from an ErrorTag returns the error tag.
---     - `Error - Tag == Error`
--- - Subtracting two ErrorTags returns the error on the left.
---     - `ErrorA - ErrorB == ErrorA`
 -- - Subtracting StaticTags, ClassTags, and InstanceTags produces the complement
 --   of the kinds of the tags. The type of the result will the type of the left
 --   operand (the key is inherited for InstanceTags).
 -- - If the complement of the two operands is the empty set, then EmptyTag is
 --   returned.
--- - Subtracting two InstanceTags returns an ErrorTag indicating that instance
---   tags cannot be subtracted.
+-- - Subtracting two InstanceTags throws an error.
 
 local export = {}
 
@@ -152,8 +139,8 @@ end
 --@def: Tag.typeof(value: any): string?
 --@doc: The **typeof** function returns the type of the value as a string, or
 -- nil if the value is not known by the module. Known types are
--- [EmptyTag][EmptyTag], [StaticTag][StaticTag], [ClassTag][ClassTag],
--- [InstanceTag][InstanceTag], and [ErrorTag][ErrorTag].
+-- [EmptyTag][EmptyTag], [StaticTag][StaticTag], [ClassTag][ClassTag], and
+-- [InstanceTag][InstanceTag].
 function export.typeof(value: any): string?
 	return _TYPE[value]
 end
@@ -194,66 +181,6 @@ end
 --@doc: The **Has** method returns true only if *tag* is EmptyTag.
 function EmptyTag.__index:Has(tag: Tag): boolean
 	return tag == self
-end
-
---@sec: ErrorTag
---@doc: The **ErrorTag** type is a tag containing the error result of an
--- operation. Produced error tags are always unique.
-local ErrorTag = {
-	__type = "ErrorTag",
-	__metatable = "The metatable is locked",
-	__index = {},
-}
-
---@sec: Tag.error
---@ord: -1
---@def: Tag.error(msg: any): ErrorTag
---@doc: The **error** constructor returns an [error tag][ErrorTag] with *msg*
--- as the error message.
-local function newError(msg: any): ErrorTag
-	local self = {Message = msg}
-	_TYPE[self] = "ErrorTag"
-	return setmetatable(self, ErrorTag)
-end
-export.error = newError
-
---@sec: Tag.errorf
---@ord: -1
---@def: Tag.errorf(format: string, ...any): ErrorTag
---@doc: The **errorf** constructor returns an [error tag][ErrorTag] with a
--- formatted string as the error message.
-function export.errorf(format: string, ...: any): ErrorTag
-	local self = {Message = string.format(format, ...)}
-	_TYPE[self] = "ErrorTag"
-	return setmetatable(self, ErrorTag)
-end
-
--- Returns a readable representation of the tag.
-function ErrorTag:__tostring(): string
-	return self:Error()
-end
-
---@sec: ErrorTag.Is
---@ord: -1
---@def: ErrorTag:Is(tag: Tag): boolean
---@doc: The **Is** method always returns false.
-function ErrorTag.__index:Is(tag: Tag): boolean
-	return false
-end
-
---@sec: ErrorTag.Has
---@ord: -1
---@def: ErrorTag:Has(tag: Tag): boolean
---@doc: The **Has** method always returns false.
-function ErrorTag.__index:Has(tag: Tag): boolean
-	return false
-end
-
---@sec: ErrorTag.Error
---@def: ErrorTag:Error(): any
---@doc: The **Error** method returns the message of the error.
-function ErrorTag.__index:Error(): string
-	return string.format("ErrorTag<%s>", tostring(self.Message))
 end
 
 -- Converts a Set to a string with ordered elements.
@@ -483,29 +410,16 @@ local function add_tags(a: Tag, b: Tag): Tag
 	if ta == "EmptyTag" then
 		if tb == "EmptyTag" then
 			return Empty
-		elseif tb == "ErrorTag" or
-			tb == "StaticTag" or
+		elseif tb == "StaticTag" or
 			tb == "ClassTag" or
 			tb == "InstanceTag" then
 			return b
 		else
-			return newError("addition of tag and non-tag")
-		end
-	elseif ta == "ErrorTag" then
-		if tb == "EmptyTag" or
-			tb == "ErrorTag" or
-			tb == "StaticTag" or
-			tb == "ClassTag" or
-			tb == "InstanceTag" then
-			return a
-		else
-			return newError("addition of tag and non-tag")
+			error("addition of tag and non-tag", 2)
 		end
 	elseif ta == "StaticTag" then
 		if tb == "EmptyTag" then
 			return a
-		elseif tb == "ErrorTag" then
-			return b
 		elseif tb == "StaticTag" then
 			return add_static(a, b)
 		elseif tb == "ClassTag" then
@@ -513,13 +427,11 @@ local function add_tags(a: Tag, b: Tag): Tag
 		elseif tb == "InstanceTag" then
 			return add_instance(b, a)
 		else
-			return newError("addition of tag and non-tag")
+			error("addition of tag and non-tag", 2)
 		end
 	elseif ta == "ClassTag" then
 		if tb == "EmptyTag" then
 			return a
-		elseif tb == "ErrorTag" then
-			return b
 		elseif tb == "StaticTag" then
 			return add_class(a, b)
 		elseif tb == "ClassTag" then
@@ -527,24 +439,22 @@ local function add_tags(a: Tag, b: Tag): Tag
 		elseif tb == "InstanceTag" then
 			return add_instance(b, a)
 		else
-			return newError("addition of tag and non-tag")
+			error("addition of tag and non-tag", 2)
 		end
 	elseif ta == "InstanceTag" then
 		if tb == "EmptyTag" then
 			return a
-		elseif tb == "ErrorTag" then
-			return b
 		elseif tb == "StaticTag" then
 			return add_instance(a, b)
 		elseif tb == "ClassTag" then
 			return add_instance(a, b)
 		elseif tb == "InstanceTag" then
-			return newError("addition of InstanceTag and InstanceTag")
+			error("addition of InstanceTag and InstanceTag", 2)
 		else
-			return newError("addition of tag and non-tag")
+			error("addition of tag and non-tag", 2)
 		end
 	else
-		return newError("addition of non-tag and tag")
+		error("addition of non-tag and tag", 2)
 	end
 end
 
@@ -584,74 +494,53 @@ local function sub_tags(a: Tag, b: Tag): Tag
 	local ta = _TYPE[a]
 	local tb = _TYPE[b]
 	if ta == "EmptyTag" then
-		if tb == "ErrorTag" then
-			return b
-		elseif tb == "EmptyTag" or
+		if tb == "EmptyTag" or
 			tb == "StaticTag" or
 			tb == "ClassTag" or
 			tb == "InstanceTag" then
 			return Empty
 		else
-			return newError("subtraction of tag and non-tag")
-		end
-	elseif ta == "ErrorTag" then
-		if tb == "EmptyTag" or
-			tb == "ErrorTag" or
-			tb == "StaticTag" or
-			tb == "ClassTag" or
-			tb == "InstanceTag" then
-			return a
-		else
-			return newError("subtraction of tag and non-tag")
+			error("subtraction of tag and non-tag", 2)
 		end
 	elseif ta == "StaticTag" then
 		if tb == "EmptyTag" then
 			return a
-		elseif tb == "ErrorTag" then
-			return b
 		elseif tb == "StaticTag" or
 			tb == "ClassTag" or
 			tb == "InstanceTag" then
 				return sub_static(a, b)
 		else
-			return newError("subtraction of tag and non-tag")
+			error("subtraction of tag and non-tag", 2)
 		end
 	elseif ta == "ClassTag" then
 		if tb == "EmptyTag" then
 			return a
-		elseif tb == "ErrorTag" then
-			return b
 		elseif tb == "StaticTag" or
 			tb == "ClassTag" or
 			tb == "InstanceTag" then
 			return sub_class(a, b)
 		else
-			return newError("subtraction of tag and non-tag")
+			error("subtraction of tag and non-tag", 2)
 		end
 	elseif ta == "InstanceTag" then
 		if tb == "EmptyTag" then
 			return a
-		elseif tb == "ErrorTag" then
-			return b
 		elseif tb == "StaticTag" or
 			tb == "ClassTag" then
 			return sub_instance(a, b)
 		elseif tb == "InstanceTag" then
-			return newError("subtraction of InstanceTag and InstanceTag")
+			error("subtraction of InstanceTag and InstanceTag", 2)
 		else
-			return newError("subtraction of tag and non-tag")
+			error("subtraction of tag and non-tag", 2)
 		end
 	else
-		return newError("subtraction of non-tag and tag")
+		error("subtraction of non-tag and tag", 2)
 	end
 end
 
 EmptyTag.__add = add_tags
 EmptyTag.__sub = sub_tags
 populate(Empty, EmptyTag)
-
-ErrorTag.__add = add_tags
-ErrorTag.__sub = sub_tags
 
 StaticTag.__add = add_tags
 StaticTag.__sub = sub_tags
@@ -671,7 +560,6 @@ export type Tag = typeof(setmetatable({
 }))
 
 export type EmptyTag = typeof(Empty)
-export type ErrorTag = typeof(setmetatable({}, ErrorTag))
 export type StaticTag = typeof(populate(newproxy(true), StaticTag))
 export type ClassTag = typeof(populate(newproxy(true), ClassTag))
 export type InstanceTag = typeof(populate(newproxy(true), InstanceTag))

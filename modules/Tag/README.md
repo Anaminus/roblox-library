@@ -3,8 +3,8 @@
 
 The Tag module enables the creation of instanceable symbol-like values.
 
-There are 5 types of tags: [empty][EmptyTag], [static][StaticTag],
-[class][ClassTag], [instance][InstanceTag] and [error][ErrorTag].
+There are 4 types of tags: [empty][EmptyTag], [static][StaticTag],
+[class][ClassTag], and [instance][InstanceTag].
 
 A tag can have multiple kinds. These kinds can be composed by adding or
 subtracting tags from each other. There are several rules based on the types
@@ -12,34 +12,21 @@ of the operands:
 - Adding EmptyTag with another tag returns the other tag.
     - `Tag + Empty == Tag`
     - `Empty + Tag == Tag`
-- Adding ErrorTag with another tag returns the error tag.
-    - `Tag + Error == Error`
-    - `Error + Tag == Error`
-- Adding two ErrorTags returns the error on the left.
-    - `ErrorA + ErrorB == ErrorA`
 - Adding StaticTags, ClassTags, and InstanceTags produces the union of the
   kinds of the tags. The type of the result will be the operand type with the
   highest priority (from highest to lowest): InstanceTag (also inherits the
   key), ClassTag, StaticTag.
-- Adding two InstanceTags returns an ErrorTag indicating that instance tags
-  cannot be added.
+- Adding two InstanceTags throws an error.
 - Subtracting EmptyTag from a tag returns that tag.
     - `Tag - Empty == Tag`
 - Subtracting a tag from EmptyTag returns EmptyTag.
     - `Empty - Tag == Empty`
-- Subtracting an ErrorTag from another tag returns the error tag.
-    - `Tag - Error == Error`
-- Subtracting a tag from an ErrorTag returns the error tag.
-    - `Error - Tag == Error`
-- Subtracting two ErrorTags returns the error on the left.
-    - `ErrorA - ErrorB == ErrorA`
 - Subtracting StaticTags, ClassTags, and InstanceTags produces the complement
   of the kinds of the tags. The type of the result will the type of the left
   operand (the key is inherited for InstanceTags).
 - If the complement of the two operands is the empty set, then EmptyTag is
   returned.
-- Subtracting two InstanceTags returns an ErrorTag indicating that instance
-  tags cannot be subtracted.
+- Subtracting two InstanceTags throws an error.
 
 <table>
 <thead><tr><th>Table of Contents</th></tr></thead>
@@ -48,10 +35,8 @@ of the operands:
 1. [Tag][Tag]
 	1. [Tag.class][Tag.class]
 	2. [Tag.empty][Tag.empty]
-	3. [Tag.error][Tag.error]
-	4. [Tag.errorf][Tag.errorf]
-	5. [Tag.static][Tag.static]
-	6. [Tag.typeof][Tag.typeof]
+	3. [Tag.static][Tag.static]
+	4. [Tag.typeof][Tag.typeof]
 2. [ClassTag][ClassTag]
 	1. [ClassTag.Has][ClassTag.Has]
 	2. [ClassTag.Is][ClassTag.Is]
@@ -59,15 +44,11 @@ of the operands:
 3. [EmptyTag][EmptyTag]
 	1. [EmptyTag.Has][EmptyTag.Has]
 	2. [EmptyTag.Is][EmptyTag.Is]
-4. [ErrorTag][ErrorTag]
-	1. [ErrorTag.Has][ErrorTag.Has]
-	2. [ErrorTag.Is][ErrorTag.Is]
-	3. [ErrorTag.Error][ErrorTag.Error]
-5. [InstanceTag][InstanceTag]
+4. [InstanceTag][InstanceTag]
 	1. [InstanceTag.Has][InstanceTag.Has]
 	2. [InstanceTag.Is][InstanceTag.Is]
 	3. [InstanceTag.Key][InstanceTag.Key]
-6. [StaticTag][StaticTag]
+5. [StaticTag][StaticTag]
 	1. [StaticTag.Has][StaticTag.Has]
 	2. [StaticTag.Is][StaticTag.Is]
 
@@ -91,24 +72,6 @@ Tag.empty: EmptyTag
 
 The **empty** constant contains the [empty tag][EmptyTag].
 
-## Tag.error
-[Tag.error]: #user-content-tagerror
-```
-Tag.error(msg: any): ErrorTag
-```
-
-The **error** constructor returns an [error tag][ErrorTag] with *msg*
-as the error message.
-
-## Tag.errorf
-[Tag.errorf]: #user-content-tagerrorf
-```
-Tag.errorf(format: string, ...any): ErrorTag
-```
-
-The **errorf** constructor returns an [error tag][ErrorTag] with a
-formatted string as the error message.
-
 ## Tag.static
 [Tag.static]: #user-content-tagstatic
 ```
@@ -126,8 +89,8 @@ Tag.typeof(value: any): string?
 
 The **typeof** function returns the type of the value as a string, or
 nil if the value is not known by the module. Known types are
-[EmptyTag][EmptyTag], [StaticTag][StaticTag], [ClassTag][ClassTag],
-[InstanceTag][InstanceTag], and [ErrorTag][ErrorTag].
+[EmptyTag][EmptyTag], [StaticTag][StaticTag], [ClassTag][ClassTag], and
+[InstanceTag][InstanceTag].
 
 # ClassTag
 [ClassTag]: #user-content-classtag
@@ -181,36 +144,6 @@ EmptyTag:Is(tag: Tag): boolean
 ```
 
 The **Is** method returns true only if *tag* is EmptyTag.
-
-# ErrorTag
-[ErrorTag]: #user-content-errortag
-
-The **ErrorTag** type is a tag containing the error result of an
-operation. Produced error tags are always unique.
-
-## ErrorTag.Has
-[ErrorTag.Has]: #user-content-errortaghas
-```
-ErrorTag:Has(tag: Tag): boolean
-```
-
-The **Has** method always returns false.
-
-## ErrorTag.Is
-[ErrorTag.Is]: #user-content-errortagis
-```
-ErrorTag:Is(tag: Tag): boolean
-```
-
-The **Is** method always returns false.
-
-## ErrorTag.Error
-[ErrorTag.Error]: #user-content-errortagerror
-```
-ErrorTag:Error(): any
-```
-
-The **Error** method returns the message of the error.
 
 # InstanceTag
 [InstanceTag]: #user-content-instancetag
