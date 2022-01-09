@@ -122,7 +122,7 @@ local function populate(proxy: any, template: {[any]: any}): Tag
 end
 
 -- Creates and initializes a new proxy value.
-local function new(hash: string, type: string, template: {[any]: any}): any
+local function new(hash: string, template: {[any]: any}): any
 	local self = _TAG[hash]
 	if self then
 		return self
@@ -130,7 +130,7 @@ local function new(hash: string, type: string, template: {[any]: any}): any
 	self = newproxy(true)
 	_TAG[hash] = self
 	_HASH[self] = hash
-	_TYPE[self] = type
+	_TYPE[self] = template.__type
 	return populate(self, template)
 end
 
@@ -209,7 +209,7 @@ local StaticTag = {
 function export.static(kind: string): StaticTag
 	assert(type(kind) == "string", "tag kind must be a string")
 	assert(not string.match(kind, "\0"), "tag kind must not contain null characters")
-	local self = new(hash_kind("s", kind), "StaticTag", StaticTag)
+	local self = new(hash_kind("s", kind), StaticTag)
 	_KINDS[self] = table.freeze({[kind]=true})
 	return self
 end
@@ -270,7 +270,7 @@ local ClassTag = {
 function export.class(kind: string): ClassTag
 	assert(type(kind) == "string", "tag kind must be a string")
 	assert(not string.match(kind, "\0"), "tag kind must not contain null characters")
-	local self = new(hash_kind("c", kind), "ClassTag", ClassTag)
+	local self = new(hash_kind("c", kind), ClassTag)
 	_KINDS[self] = table.freeze({[kind]=true})
 	return self
 end
@@ -329,7 +329,7 @@ local InstanceTag = {
 -- *key* as the key.
 function ClassTag:__call(key: string): InstanceTag
 	assert(type(key) == "string", "key must be a string")
-	local instance = new(hash_prekinds_key(_HASH[self], key), "InstanceTag", InstanceTag)
+	local instance = new(hash_prekinds_key(_HASH[self], key), InstanceTag)
 	_KINDS[instance] = _KINDS[self]
 	_KEY[instance] = key
 	return instance
@@ -383,14 +383,14 @@ end
 
 local function add_static(a, b)
 	local kinds = union(_KINDS[a], _KINDS[b])
-	local tag = new(hash_kinds("s", kinds), "StaticTag", StaticTag)
+	local tag = new(hash_kinds("s", kinds), StaticTag)
 	_KINDS[tag] = kinds
 	return tag
 end
 
 local function add_class(a, b)
 	local kinds = union(_KINDS[a], _KINDS[b])
-	local tag = new(hash_kinds("c", kinds), "ClassTag", ClassTag)
+	local tag = new(hash_kinds("c", kinds), ClassTag)
 	_KINDS[tag] = kinds
 	return tag
 end
@@ -398,7 +398,7 @@ end
 local function add_instance(a, b)
 	local kinds = union(_KINDS[a], _KINDS[b])
 	local key = _KEY[a]
-	local tag = new(hash_kinds_key("c", kinds, key), "InstanceTag", InstanceTag)
+	local tag = new(hash_kinds_key("c", kinds, key), InstanceTag)
 	_KINDS[tag] = kinds
 	_KEY[tag] = key
 	return tag
@@ -463,7 +463,7 @@ local function sub_static(a, b)
 	if empty then
 		return Empty
 	end
-	local tag = new(hash_kinds("s", kinds), "StaticTag", StaticTag)
+	local tag = new(hash_kinds("s", kinds), StaticTag)
 	_KINDS[tag] = kinds
 	return tag
 end
@@ -473,7 +473,7 @@ local function sub_class(a, b)
 	if empty then
 		return Empty
 	end
-	local tag = new(hash_kinds("c", kinds), "ClassTag", ClassTag)
+	local tag = new(hash_kinds("c", kinds), ClassTag)
 	_KINDS[tag] = kinds
 	return tag
 end
@@ -484,7 +484,7 @@ local function sub_instance(a, b)
 		return Empty
 	end
 	local key = _KEY[a]
-	local tag = new(hash_kinds_key("c", kinds, key), "InstanceTag", InstanceTag)
+	local tag = new(hash_kinds_key("c", kinds, key), InstanceTag)
 	_KINDS[tag] = kinds
 	_KEY[tag] = key
 	return tag
