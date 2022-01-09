@@ -3,8 +3,43 @@
 
 The Tag module enables the creation of instanceable symbol-like values.
 
-There are 3 types of tags: [static][StaticTag], [class][ClassTag] and
-[instance][InstanceTag].
+There are 5 types of tags: [empty][EmptyTag], [static][StaticTag],
+[class][ClassTag], [instance][InstanceTag] and [error][ErrorTag].
+
+A tag can have multiple kinds. These kinds can be composed by adding or
+subtracting tags from each other. There are several rules based on the types
+of the operands:
+- Adding EmptyTag with another tag returns the other tag.
+    - `Tag + Empty == Tag`
+    - `Empty + Tag == Tag`
+- Adding ErrorTag with another tag returns the error tag.
+    - `Tag + Error == Error`
+    - `Error + Tag == Error`
+- Adding two ErrorTags returns the error on the left.
+    - `ErrorA + ErrorB == ErrorA`
+- Adding StaticTags, ClassTags, and InstanceTags produces the union of the
+  kinds of the tags. The type of the result will be the operand type with the
+  highest priority (from highest to lowest): InstanceTag (also inherits the
+  key), ClassTag, StaticTag.
+- Adding two InstanceTags returns an ErrorTag indicating that instance tags
+  cannot be added.
+- Subtracting EmptyTag from a tag returns that tag.
+    - `Tag - Empty == Tag`
+- Subtracting a tag from EmptyTag returns EmptyTag.
+    - `Empty - Tag == Empty`
+- Subtracting an ErrorTag from another tag returns the error tag.
+    - `Tag - Error == Error`
+- Subtracting a tag from an ErrorTag returns the error tag.
+    - `Error - Tag == Error`
+- Subtracting two ErrorTags returns the error on the left.
+    - `ErrorA - ErrorB == ErrorA`
+- Subtracting StaticTags, ClassTags, and InstanceTags produces the complement
+  of the kinds of the tags. The type of the result will the type of the left
+  operand (the key is inherited for InstanceTags).
+- If the complement of the two operands is the empty set, then EmptyTag is
+  returned.
+- Subtracting two InstanceTags returns an ErrorTag indicating that instance
+  tags cannot be subtracted.
 
 <table>
 <thead><tr><th>Table of Contents</th></tr></thead>
@@ -12,18 +47,29 @@ There are 3 types of tags: [static][StaticTag], [class][ClassTag] and
 
 1. [Tag][Tag]
 	1. [Tag.class][Tag.class]
-	2. [Tag.static][Tag.static]
-	3. [Tag.typeof][Tag.typeof]
+	2. [Tag.empty][Tag.empty]
+	3. [Tag.error][Tag.error]
+	4. [Tag.errorf][Tag.errorf]
+	5. [Tag.static][Tag.static]
+	6. [Tag.typeof][Tag.typeof]
 2. [ClassTag][ClassTag]
 	1. [ClassTag.Has][ClassTag.Has]
-	2. [ClassTag.Kind][ClassTag.Kind]
+	2. [ClassTag.Is][ClassTag.Is]
 	3. [ClassTag.__call][ClassTag.__call]
-3. [InstanceTag][InstanceTag]
-	1. [InstanceTag.IsA][InstanceTag.IsA]
-	2. [InstanceTag.Key][InstanceTag.Key]
-	3. [InstanceTag.Kind][InstanceTag.Kind]
-4. [StaticTag][StaticTag]
-	1. [StaticTag.Kind][StaticTag.Kind]
+3. [EmptyTag][EmptyTag]
+	1. [EmptyTag.Has][EmptyTag.Has]
+	2. [EmptyTag.Is][EmptyTag.Is]
+4. [ErrorTag][ErrorTag]
+	1. [ErrorTag.Has][ErrorTag.Has]
+	2. [ErrorTag.Is][ErrorTag.Is]
+	3. [ErrorTag.Error][ErrorTag.Error]
+5. [InstanceTag][InstanceTag]
+	1. [InstanceTag.Has][InstanceTag.Has]
+	2. [InstanceTag.Is][InstanceTag.Is]
+	3. [InstanceTag.Key][InstanceTag.Key]
+6. [StaticTag][StaticTag]
+	1. [StaticTag.Has][StaticTag.Has]
+	2. [StaticTag.Is][StaticTag.Is]
 
 </td></tr></tbody>
 </table>
@@ -36,6 +82,32 @@ Tag.class(kind: string): ClassTag
 
 The **class** constructor returns a [class tag][ClassTag] with *kind* as
 the kind. *kind* must not contain null characters.
+
+## Tag.empty
+[Tag.empty]: #user-content-tagempty
+```
+Tag.empty: EmptyTag
+```
+
+The **empty** constant contains the [empty tag][EmptyTag].
+
+## Tag.error
+[Tag.error]: #user-content-tagerror
+```
+Tag.error(msg: any): ErrorTag
+```
+
+The **error** constructor returns an [error tag][ErrorTag] with *msg*
+as the error message.
+
+## Tag.errorf
+[Tag.errorf]: #user-content-tagerrorf
+```
+Tag.errorf(format: string, ...any): ErrorTag
+```
+
+The **errorf** constructor returns an [error tag][ErrorTag] with a
+formatted string as the error message.
 
 ## Tag.static
 [Tag.static]: #user-content-tagstatic
@@ -54,7 +126,8 @@ Tag.typeof(value: any): string?
 
 The **typeof** function returns the type of the value as a string, or
 nil if the value is not known by the module. Known types are
-[StaticTag][StaticTag], [ClassTag][ClassTag], and [InstanceTag][InstanceTag].
+[EmptyTag][EmptyTag], [StaticTag][StaticTag], [ClassTag][ClassTag],
+[InstanceTag][InstanceTag], and [ErrorTag][ErrorTag].
 
 # ClassTag
 [ClassTag]: #user-content-classtag
@@ -65,18 +138,18 @@ The **ClassTag** type is a tag of which
 ## ClassTag.Has
 [ClassTag.Has]: #user-content-classtaghas
 ```
-ClassTag:Has(): string
+ClassTag:Has(tag: Tag): boolean
 ```
 
-The **Has** method returns whether *tag* is an instance of the tag.
+The **Has** method returns true if the tag has any kind from *tag*.
 
-## ClassTag.Kind
-[ClassTag.Kind]: #user-content-classtagkind
+## ClassTag.Is
+[ClassTag.Is]: #user-content-classtagis
 ```
-ClassTag:Kind(): string
+ClassTag:Is(tag: Tag): boolean
 ```
 
-The **Kind** method returns the kind of the tag.
+The **Is** method returns true if the tag is all kinds from *tag*.
 
 ## ClassTag.__call
 [ClassTag.__call]: #user-content-classtag__call
@@ -87,19 +160,79 @@ ClassTag(key: string): InstanceTag
 Calling a ClassTag returns an [instance][InstanceTag] of the tag with
 *key* as the key.
 
+# EmptyTag
+[EmptyTag]: #user-content-emptytag
+
+The **EmptyTag** type is the tag with no kind. It is returned by
+operations that produce the empty set of kinds.
+
+## EmptyTag.Has
+[EmptyTag.Has]: #user-content-emptytaghas
+```
+EmptyTag:Has(tag: Tag): boolean
+```
+
+The **Has** method returns true only if *tag* is EmptyTag.
+
+## EmptyTag.Is
+[EmptyTag.Is]: #user-content-emptytagis
+```
+EmptyTag:Is(tag: Tag): boolean
+```
+
+The **Is** method returns true only if *tag* is EmptyTag.
+
+# ErrorTag
+[ErrorTag]: #user-content-errortag
+
+The **ErrorTag** type is a tag containing the error result of an
+operation. Produced error tags are always unique.
+
+## ErrorTag.Has
+[ErrorTag.Has]: #user-content-errortaghas
+```
+ErrorTag:Has(tag: Tag): boolean
+```
+
+The **Has** method always returns false.
+
+## ErrorTag.Is
+[ErrorTag.Is]: #user-content-errortagis
+```
+ErrorTag:Is(tag: Tag): boolean
+```
+
+The **Is** method always returns false.
+
+## ErrorTag.Error
+[ErrorTag.Error]: #user-content-errortagerror
+```
+ErrorTag:Error(): any
+```
+
+The **Error** method returns the message of the error.
+
 # InstanceTag
 [InstanceTag]: #user-content-instancetag
 
 The **InstanceTag** type is a tag that is the instance of a [class
-tag][ClassTag].
+tag][ClassTag]. Instances have a "key", which is an arbitrary string.
 
-## InstanceTag.IsA
-[InstanceTag.IsA]: #user-content-instancetagisa
+## InstanceTag.Has
+[InstanceTag.Has]: #user-content-instancetaghas
 ```
-InstanceTag:IsA(): string
+InstanceTag:Has(tag: Tag): boolean
 ```
 
-The **IsA** method returns whether the tag is an instance of *tag*.
+The **Has** method returns true if the tag has any kind from *tag*.
+
+## InstanceTag.Is
+[InstanceTag.Is]: #user-content-instancetagis
+```
+InstanceTag:Is(tag: Tag): boolean
+```
+
+The **Is** method returns true if the tag has all kinds from *tag*.
 
 ## InstanceTag.Key
 [InstanceTag.Key]: #user-content-instancetagkey
@@ -109,24 +242,24 @@ InstanceTag:Key(): string
 
 The **Key** method returns the key of the instance.
 
-## InstanceTag.Kind
-[InstanceTag.Kind]: #user-content-instancetagkind
-```
-InstanceTag:Kind(): string
-```
-
-The **Kind** method returns the kind of the tag.
-
 # StaticTag
 [StaticTag]: #user-content-statictag
 
-The **StaticTag** type is a tag with only a kind.
+The **StaticTag** type is a tag that cannot be instanced.
 
-## StaticTag.Kind
-[StaticTag.Kind]: #user-content-statictagkind
+## StaticTag.Has
+[StaticTag.Has]: #user-content-statictaghas
 ```
-StaticTag:Kind(): string
+StaticTag:Has(tag: Tag): boolean
 ```
 
-The **Kind** method returns the kind of the tag.
+The **Has** method returns true if the tag has any kind from *tag*.
+
+## StaticTag.Is
+[StaticTag.Is]: #user-content-statictagis
+```
+StaticTag:Is(tag: Tag): boolean
+```
+
+The **Is** method returns true if the tag has all kinds from *tag*.
 

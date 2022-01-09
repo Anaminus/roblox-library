@@ -2,9 +2,119 @@
 --@ord: -1
 --@doc: The Tag module enables the creation of instanceable symbol-like values.
 --
--- There are 3 types of tags: [static][StaticTag], [class][ClassTag] and
--- [instance][InstanceTag].
+-- There are 5 types of tags: [empty][EmptyTag], [static][StaticTag],
+-- [class][ClassTag], [instance][InstanceTag] and [error][ErrorTag].
+--
+-- A tag can have multiple kinds. These kinds can be composed by adding or
+-- subtracting tags from each other. There are several rules based on the types
+-- of the operands:
+-- - Adding EmptyTag with another tag returns the other tag.
+--     - `Tag + Empty == Tag`
+--     - `Empty + Tag == Tag`
+-- - Adding ErrorTag with another tag returns the error tag.
+--     - `Tag + Error == Error`
+--     - `Error + Tag == Error`
+-- - Adding two ErrorTags returns the error on the left.
+--     - `ErrorA + ErrorB == ErrorA`
+-- - Adding StaticTags, ClassTags, and InstanceTags produces the union of the
+--   kinds of the tags. The type of the result will be the operand type with the
+--   highest priority (from highest to lowest): InstanceTag (also inherits the
+--   key), ClassTag, StaticTag.
+-- - Adding two InstanceTags returns an ErrorTag indicating that instance tags
+--   cannot be added.
+-- - Subtracting EmptyTag from a tag returns that tag.
+--     - `Tag - Empty == Tag`
+-- - Subtracting a tag from EmptyTag returns EmptyTag.
+--     - `Empty - Tag == Empty`
+-- - Subtracting an ErrorTag from another tag returns the error tag.
+--     - `Tag - Error == Error`
+-- - Subtracting a tag from an ErrorTag returns the error tag.
+--     - `Error - Tag == Error`
+-- - Subtracting two ErrorTags returns the error on the left.
+--     - `ErrorA - ErrorB == ErrorA`
+-- - Subtracting StaticTags, ClassTags, and InstanceTags produces the complement
+--   of the kinds of the tags. The type of the result will the type of the left
+--   operand (the key is inherited for InstanceTags).
+-- - If the complement of the two operands is the empty set, then EmptyTag is
+--   returned.
+-- - Subtracting two InstanceTags returns an ErrorTag indicating that instance
+--   tags cannot be subtracted.
+
 local export = {}
+
+-- Kind is a string representing a kind of tag. Must contain no null characters.
+type Kind = string
+
+-- Hash is a string hashed from a tag type, set of Kinds, and optional key
+-- string.
+--
+-- Without key:
+--
+--     tKindA\0KindB\0etc
+--
+-- With key:
+--
+--     tKindA\0KindB\0etc\0\0Key
+--
+-- `t` is the tag type.
+--
+--    `s` for StaticTag.
+--    `c` for ClassTag and InstanceTag.
+type Hash = string
+
+type Set = {[Kind]: boolean}
+
+-- Returns union of two sets.
+local function union(a: Set, b: Set): Set
+	local c = {}
+	for k in pairs(a) do
+		c[k] = true
+	end
+	for k in pairs(b) do
+		c[k] = true
+	end
+	return table.freeze(c)
+end
+
+-- Returns complement of sets a and b, and whether set is empty.
+local function complement(a: Set, b: Set): (Set, boolean)
+	local c = {}
+	for k in pairs(a) do
+		c[k] = true
+	end
+	for k in pairs(b) do
+		c[k] = nil
+	end
+	return table.freeze(c), next(c) == nil
+end
+
+local function hash_kind(t: string, kind: Kind): Hash
+	return t .. kind
+end
+
+local function hash_kinds(t: string, kinds: Set): string
+	local hash = {}
+	for k in pairs(kinds) do
+		table.insert(hash, k)
+	end
+	table.sort(hash)
+	return t .. table.concat(hash, "\0")
+end
+
+local function hash_kinds_key(t: string, kinds: Set, key: string): string
+	local hash = {}
+	for k in pairs(kinds) do
+		table.insert(hash, k)
+	end
+	table.sort(hash)
+	table.insert(hash, "")
+	table.insert(hash, key)
+	return t .. table.concat(hash, "\0")
+end
+
+local function hash_prekinds_key(kinds: Hash, key: string): Hash
+	return kinds .. "\0\0" .. key
+end
 
 local modeV = {__mode="v"}
 local modeK = {__mode="k"}
@@ -12,11 +122,11 @@ local modeK = {__mode="k"}
 local _TAG = setmetatable({}, modeV) -- [hash] = tag
 local _HASH = setmetatable({}, modeK) -- [tag] = hash
 local _TYPE = setmetatable({}, modeK) -- [tag] = type
-local _KIND = setmetatable({}, modeK) -- [tag] = kind
+local _KINDS = setmetatable({}, modeK) -- [tag] = kind
 local _KEY = setmetatable({}, modeK) -- [tag] = key
 
 -- Populates the metatable of *proxy* with *template* by copying.
-local function populate(proxy: any, template: {[any]: any}): any
+local function populate(proxy: any, template: {[any]: any}): Tag
 	local mt = getmetatable(proxy)
 	for k, v in pairs(template) do
 		mt[k] = v
@@ -42,15 +152,127 @@ end
 --@def: Tag.typeof(value: any): string?
 --@doc: The **typeof** function returns the type of the value as a string, or
 -- nil if the value is not known by the module. Known types are
--- [StaticTag][StaticTag], [ClassTag][ClassTag], and [InstanceTag][InstanceTag].
-local function typeof(value: any): string?
+-- [EmptyTag][EmptyTag], [StaticTag][StaticTag], [ClassTag][ClassTag],
+-- [InstanceTag][InstanceTag], and [ErrorTag][ErrorTag].
+function export.typeof(value: any): string?
 	return _TYPE[value]
 end
-export.typeof = typeof
+
+--@sec: EmptyTag
+--@doc: The **EmptyTag** type is the tag with no kind. It is returned by
+-- operations that produce the empty set of kinds.
+local EmptyTag = {
+	__type = "EmptyTag",
+	__metatable = "The metatable is locked",
+	__index = {},
+}
+
+--@sec: Tag.empty
+--@ord: -1
+--@def: Tag.empty: EmptyTag
+--@doc: The **empty** constant contains the [empty tag][EmptyTag].
+local Empty = newproxy(true)
+_TYPE[Empty] = "EmptyTag"
+export.empty = Empty
+
+-- Returns a readable representation of the tag.
+function EmptyTag:__tostring(): string
+	return "EmptyTag"
+end
+
+--@sec: EmptyTag.Is
+--@ord: -1
+--@def: EmptyTag:Is(tag: Tag): boolean
+--@doc: The **Is** method returns true only if *tag* is EmptyTag.
+function EmptyTag.__index:Is(tag: Tag): boolean
+	return tag == self
+end
+
+--@sec: EmptyTag.Has
+--@ord: -1
+--@def: EmptyTag:Has(tag: Tag): boolean
+--@doc: The **Has** method returns true only if *tag* is EmptyTag.
+function EmptyTag.__index:Has(tag: Tag): boolean
+	return tag == self
+end
+
+--@sec: ErrorTag
+--@doc: The **ErrorTag** type is a tag containing the error result of an
+-- operation. Produced error tags are always unique.
+local ErrorTag = {
+	__type = "ErrorTag",
+	__metatable = "The metatable is locked",
+	__index = {},
+}
+
+--@sec: Tag.error
+--@ord: -1
+--@def: Tag.error(msg: any): ErrorTag
+--@doc: The **error** constructor returns an [error tag][ErrorTag] with *msg*
+-- as the error message.
+local function newError(msg: any): ErrorTag
+	local self = {Message = msg}
+	_TYPE[self] = "ErrorTag"
+	return setmetatable(self, ErrorTag)
+end
+export.error = newError
+
+--@sec: Tag.errorf
+--@ord: -1
+--@def: Tag.errorf(format: string, ...any): ErrorTag
+--@doc: The **errorf** constructor returns an [error tag][ErrorTag] with a
+-- formatted string as the error message.
+function export.errorf(format: string, ...: any): ErrorTag
+	local self = {Message = string.format(format, ...)}
+	_TYPE[self] = "ErrorTag"
+	return setmetatable(self, ErrorTag)
+end
+
+-- Returns a readable representation of the tag.
+function ErrorTag:__tostring(): string
+	return self:Error()
+end
+
+--@sec: ErrorTag.Is
+--@ord: -1
+--@def: ErrorTag:Is(tag: Tag): boolean
+--@doc: The **Is** method always returns false.
+function ErrorTag.__index:Is(tag: Tag): boolean
+	return false
+end
+
+--@sec: ErrorTag.Has
+--@ord: -1
+--@def: ErrorTag:Has(tag: Tag): boolean
+--@doc: The **Has** method always returns false.
+function ErrorTag.__index:Has(tag: Tag): boolean
+	return false
+end
+
+--@sec: ErrorTag.Error
+--@def: ErrorTag:Error(): any
+--@doc: The **Error** method returns the message of the error.
+function ErrorTag.__index:Error(): string
+	return string.format("ErrorTag<%s>", tostring(self.Message))
+end
+
+-- Converts a Set to a string with ordered elements.
+local function list_kinds(kinds: Set): string
+	local list = {}
+	for kind in pairs(kinds) do
+		table.insert(list, kind)
+	end
+	table.sort(list)
+	return table.concat(list, ",")
+end
 
 --@sec: StaticTag
---@doc: The **StaticTag** type is a tag with only a kind.
-local StaticTag = {__index={}}
+--@doc: The **StaticTag** type is a tag that cannot be instanced.
+local StaticTag = {
+	__type = "StaticTag",
+	__metatable = "The metatable is locked",
+	__index = {},
+}
 
 --@sec: Tag.static
 --@ord: -1
@@ -60,27 +282,58 @@ local StaticTag = {__index={}}
 function export.static(kind: string): StaticTag
 	assert(type(kind) == "string", "tag kind must be a string")
 	assert(not string.match(kind, "\0"), "tag kind must not contain null characters")
-	local self = new(kind, "StaticTag", StaticTag)
-	_KIND[self] = kind
+	local self = new(hash_kind("s", kind), "StaticTag", StaticTag)
+	_KINDS[self] = table.freeze({[kind]=true})
 	return self
 end
 
 -- Returns a readable representation of the tag.
 function StaticTag:__tostring(): string
-	return "StaticTag<" .. _KIND[self] .. ">"
+	return "StaticTag<" .. list_kinds(_KINDS[self]) .. ">"
 end
 
---@sec: StaticTag.Kind
---@def: StaticTag:Kind(): string
---@doc: The **Kind** method returns the kind of the tag.
-function StaticTag.__index:Kind(): string
-	return _KIND[self]
+--@sec: StaticTag.Is
+--@ord: -1
+--@def: StaticTag:Is(tag: Tag): boolean
+--@doc: The **Is** method returns true if the tag has all kinds from *tag*.
+function StaticTag.__index:Is(tag: Tag): boolean
+	if not _KINDS[tag] then
+		return false
+	end
+	local kinds = _KINDS[self]
+	for kind in pairs(_KINDS[tag]) do
+		if not kinds[kind] then
+			return false
+		end
+	end
+	return true
+end
+
+--@sec: StaticTag.Has
+--@ord: -1
+--@def: StaticTag:Has(tag: Tag): boolean
+--@doc: The **Has** method returns true if the tag has any kind from *tag*.
+function StaticTag.__index:Has(tag: Tag): boolean
+	if not _KINDS[tag] then
+		return false
+	end
+	local kinds = _KINDS[self]
+	for kind in pairs(_KINDS[tag]) do
+		if kinds[kind] then
+			return true
+		end
+	end
+	return false
 end
 
 --@sec: ClassTag
 --@doc: The **ClassTag** type is a tag of which
 -- [instances][InstanceTag] can be [created][ClassTag.__call].
-local ClassTag = {__index={}}
+local ClassTag = {
+	__type = "ClassTag",
+	__metatable = "The metatable is locked",
+	__index = {},
+}
 
 --@sec: Tag.class
 --@ord: -1
@@ -90,34 +343,58 @@ local ClassTag = {__index={}}
 function export.class(kind: string): ClassTag
 	assert(type(kind) == "string", "tag kind must be a string")
 	assert(not string.match(kind, "\0"), "tag kind must not contain null characters")
-	local self = new(kind, "ClassTag", ClassTag)
-	_KIND[self] = kind
+	local self = new(hash_kind("c", kind), "ClassTag", ClassTag)
+	_KINDS[self] = table.freeze({[kind]=true})
 	return self
 end
 
 -- Returns a readable representation of the tag.
 function ClassTag:__tostring(): string
-	return "ClassTag<" .. _KIND[self] .. ">"
+	return "ClassTag<" .. list_kinds(_KINDS[self]) .. ">"
 end
 
---@sec: ClassTag.Kind
---@def: ClassTag:Kind(): string
---@doc: The **Kind** method returns the kind of the tag.
-function ClassTag.__index:Kind(): string
-	return _KIND[self]
+--@sec: ClassTag.Is
+--@ord: -1
+--@def: ClassTag:Is(tag: Tag): boolean
+--@doc: The **Is** method returns true if the tag is all kinds from *tag*.
+function ClassTag.__index:Is(tag: Tag): boolean
+	if not _KINDS[tag] then
+		return false
+	end
+	local kinds = _KINDS[self]
+	for kind in pairs(_KINDS[tag]) do
+		if not kinds[kind] then
+			return false
+		end
+	end
+	return true
 end
 
 --@sec: ClassTag.Has
---@def: ClassTag:Has(): string
---@doc: The **Has** method returns whether *tag* is an instance of the tag.
-function ClassTag.__index:Has(tag: InstanceTag): boolean
-	return _TYPE[tag] == "InstanceTag" and _KIND[tag] == _KIND[self]
+--@ord: -1
+--@def: ClassTag:Has(tag: Tag): boolean
+--@doc: The **Has** method returns true if the tag has any kind from *tag*.
+function ClassTag.__index:Has(tag: Tag): boolean
+	if not _KINDS[tag] then
+		return false
+	end
+	local kinds = _KINDS[self]
+	for kind in pairs(_KINDS[tag]) do
+		if kinds[kind] then
+			return true
+		end
+	end
+	return false
 end
 
 --@sec: InstanceTag
 --@doc: The **InstanceTag** type is a tag that is the instance of a [class
--- tag][ClassTag].
-local InstanceTag = {__index={}}
+-- tag][ClassTag]. Instances have a "key", which is an arbitrary string.
+local InstanceTag = {
+	__type = "InstanceTag",
+	__metatable = "The metatable is locked",
+	__index = {},
+}
 
 --@sec: ClassTag.__call
 --@def: ClassTag(key: string): InstanceTag
@@ -125,29 +402,49 @@ local InstanceTag = {__index={}}
 -- *key* as the key.
 function ClassTag:__call(key: string): InstanceTag
 	assert(type(key) == "string", "key must be a string")
-	local instance = new(_KIND[self].."\0"..key, "InstanceTag", InstanceTag)
-	_KIND[instance] = _KIND[self]
+	local instance = new(hash_prekinds_key(_HASH[self], key), "InstanceTag", InstanceTag)
+	_KINDS[instance] = _KINDS[self]
 	_KEY[instance] = key
 	return instance
 end
 
 -- Returns a readable representation of the tag.
 function InstanceTag:__tostring(): string
-	return string.format("InstanceTag<%s> %q", _KIND[self], _KEY[self])
+	return string.format("InstanceTag<%s> %q", list_kinds(_KINDS[self]), _KEY[self])
 end
 
---@sec: InstanceTag.Kind
---@def: InstanceTag:Kind(): string
---@doc: The **Kind** method returns the kind of the tag.
-function InstanceTag.__index:Kind(): string
-	return _KIND[self]
+--@sec: InstanceTag.Is
+--@ord: -1
+--@def: InstanceTag:Is(tag: Tag): boolean
+--@doc: The **Is** method returns true if the tag has all kinds from *tag*.
+function InstanceTag.__index:Is(tag: Tag): boolean
+	if not _KINDS[tag] then
+		return false
+	end
+	local kinds = _KINDS[self]
+	for kind in pairs(_KINDS[tag]) do
+		if not kinds[kind] then
+			return false
+		end
+	end
+	return true
 end
 
---@sec: InstanceTag.IsA
---@def: InstanceTag:IsA(): string
---@doc: The **IsA** method returns whether the tag is an instance of *tag*.
-function InstanceTag.__index:IsA(tag: ClassTag): boolean
-	return _TYPE[tag] == "ClassTag" and _KIND[self] == _KIND[tag]
+--@sec: InstanceTag.Has
+--@ord: -1
+--@def: InstanceTag:Has(tag: Tag): boolean
+--@doc: The **Has** method returns true if the tag has any kind from *tag*.
+function InstanceTag.__index:Has(tag: Tag): boolean
+	if not _KINDS[tag] then
+		return false
+	end
+	local kinds = _KINDS[self]
+	for kind in pairs(_KINDS[tag]) do
+		if kinds[kind] then
+			return true
+		end
+	end
+	return false
 end
 
 --@sec: InstanceTag.Key
@@ -157,8 +454,226 @@ function InstanceTag.__index:Key(): string
 	return _KEY[self]
 end
 
+local function add_static(a, b)
+	local kinds = union(_KINDS[a], _KINDS[b])
+	local tag = new(hash_kinds("s", kinds), "StaticTag", StaticTag)
+	_KINDS[tag] = kinds
+	return tag
+end
+
+local function add_class(a, b)
+	local kinds = union(_KINDS[a], _KINDS[b])
+	local tag = new(hash_kinds("c", kinds), "ClassTag", ClassTag)
+	_KINDS[tag] = kinds
+	return tag
+end
+
+local function add_instance(a, b)
+	local kinds = union(_KINDS[a], _KINDS[b])
+	local key = _KEY[a]
+	local tag = new(hash_kinds_key("c", kinds, key), "InstanceTag", InstanceTag)
+	_KINDS[tag] = kinds
+	_KEY[tag] = key
+	return tag
+end
+
+local function add_tags(a: Tag, b: Tag): Tag
+	local ta = _TYPE[a]
+	local tb = _TYPE[b]
+	if ta == "EmptyTag" then
+		if tb == "EmptyTag" then
+			return Empty
+		elseif tb == "ErrorTag" or
+			tb == "StaticTag" or
+			tb == "ClassTag" or
+			tb == "InstanceTag" then
+			return b
+		else
+			return newError("addition of tag and non-tag")
+		end
+	elseif ta == "ErrorTag" then
+		if tb == "EmptyTag" or
+			tb == "ErrorTag" or
+			tb == "StaticTag" or
+			tb == "ClassTag" or
+			tb == "InstanceTag" then
+			return a
+		else
+			return newError("addition of tag and non-tag")
+		end
+	elseif ta == "StaticTag" then
+		if tb == "EmptyTag" then
+			return a
+		elseif tb == "ErrorTag" then
+			return b
+		elseif tb == "StaticTag" then
+			return add_static(a, b)
+		elseif tb == "ClassTag" then
+			return add_class(a, b)
+		elseif tb == "InstanceTag" then
+			return add_instance(b, a)
+		else
+			return newError("addition of tag and non-tag")
+		end
+	elseif ta == "ClassTag" then
+		if tb == "EmptyTag" then
+			return a
+		elseif tb == "ErrorTag" then
+			return b
+		elseif tb == "StaticTag" then
+			return add_class(a, b)
+		elseif tb == "ClassTag" then
+			return add_class(a, b)
+		elseif tb == "InstanceTag" then
+			return add_instance(b, a)
+		else
+			return newError("addition of tag and non-tag")
+		end
+	elseif ta == "InstanceTag" then
+		if tb == "EmptyTag" then
+			return a
+		elseif tb == "ErrorTag" then
+			return b
+		elseif tb == "StaticTag" then
+			return add_instance(a, b)
+		elseif tb == "ClassTag" then
+			return add_instance(a, b)
+		elseif tb == "InstanceTag" then
+			return newError("addition of InstanceTag and InstanceTag")
+		else
+			return newError("addition of tag and non-tag")
+		end
+	else
+		return newError("addition of non-tag and tag")
+	end
+end
+
+local function sub_static(a, b)
+	local kinds, empty = complement(_KINDS[a], _KINDS[b])
+	if empty then
+		return Empty
+	end
+	local tag = new(hash_kinds("s", kinds), "StaticTag", StaticTag)
+	_KINDS[tag] = kinds
+	return tag
+end
+
+local function sub_class(a, b)
+	local kinds, empty = complement(_KINDS[a], _KINDS[b])
+	if empty then
+		return Empty
+	end
+	local tag = new(hash_kinds("c", kinds), "ClassTag", ClassTag)
+	_KINDS[tag] = kinds
+	return tag
+end
+
+local function sub_instance(a, b)
+	local kinds, empty = complement(_KINDS[a], _KINDS[b])
+	if empty then
+		return Empty
+	end
+	local key = _KEY[a]
+	local tag = new(hash_kinds_key("c", kinds, key), "InstanceTag", InstanceTag)
+	_KINDS[tag] = kinds
+	_KEY[tag] = key
+	return tag
+end
+
+local function sub_tags(a: Tag, b: Tag): Tag
+	local ta = _TYPE[a]
+	local tb = _TYPE[b]
+	if ta == "EmptyTag" then
+		if tb == "ErrorTag" then
+			return b
+		elseif tb == "EmptyTag" or
+			tb == "StaticTag" or
+			tb == "ClassTag" or
+			tb == "InstanceTag" then
+			return Empty
+		else
+			return newError("subtraction of tag and non-tag")
+		end
+	elseif ta == "ErrorTag" then
+		if tb == "EmptyTag" or
+			tb == "ErrorTag" or
+			tb == "StaticTag" or
+			tb == "ClassTag" or
+			tb == "InstanceTag" then
+			return a
+		else
+			return newError("subtraction of tag and non-tag")
+		end
+	elseif ta == "StaticTag" then
+		if tb == "EmptyTag" then
+			return a
+		elseif tb == "ErrorTag" then
+			return b
+		elseif tb == "StaticTag" or
+			tb == "ClassTag" or
+			tb == "InstanceTag" then
+				return sub_static(a, b)
+		else
+			return newError("subtraction of tag and non-tag")
+		end
+	elseif ta == "ClassTag" then
+		if tb == "EmptyTag" then
+			return a
+		elseif tb == "ErrorTag" then
+			return b
+		elseif tb == "StaticTag" or
+			tb == "ClassTag" or
+			tb == "InstanceTag" then
+			return sub_class(a, b)
+		else
+			return newError("subtraction of tag and non-tag")
+		end
+	elseif ta == "InstanceTag" then
+		if tb == "EmptyTag" then
+			return a
+		elseif tb == "ErrorTag" then
+			return b
+		elseif tb == "StaticTag" or
+			tb == "ClassTag" then
+			return sub_instance(a, b)
+		elseif tb == "InstanceTag" then
+			return newError("subtraction of InstanceTag and InstanceTag")
+		else
+			return newError("subtraction of tag and non-tag")
+		end
+	else
+		return newError("subtraction of non-tag and tag")
+	end
+end
+
+EmptyTag.__add = add_tags
+EmptyTag.__sub = sub_tags
+populate(Empty, EmptyTag)
+
+ErrorTag.__add = add_tags
+ErrorTag.__sub = sub_tags
+
+StaticTag.__add = add_tags
+StaticTag.__sub = sub_tags
+
+ClassTag.__add = add_tags
+ClassTag.__sub = sub_tags
+
+InstanceTag.__add = add_tags
+InstanceTag.__sub = sub_tags
+
+export type Tag = typeof(setmetatable({
+	Is = function(self: Tag, tag: Tag): boolean return false end,
+	has = function(self: Tag, tag: Tag): boolean return false end,
+}, {
+	__add = function(a: Tag, b: Tag): Tag return Empty end,
+	__sub = function(a: Tag, b: Tag): Tag return Empty end,
+}))
+
+export type EmptyTag = typeof(Empty)
+export type ErrorTag = typeof(setmetatable({}, ErrorTag))
 export type StaticTag = typeof(populate(newproxy(true), StaticTag))
 export type ClassTag = typeof(populate(newproxy(true), ClassTag))
 export type InstanceTag = typeof(populate(newproxy(true), InstanceTag))
 
-return export
+return table.freeze(export)
