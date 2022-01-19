@@ -38,6 +38,7 @@ API
 ]=]
 
 local Selection = game:GetService('Selection')
+local ChangeHistoryService = game:GetService("ChangeHistoryService")
 
 local s = newproxy(true)
 local mt = getmetatable(s)
@@ -89,10 +90,12 @@ end
 
 function mt:__call(f)
 	if type(f) == 'function' then
+		ChangeHistoryService:SetWaypoint("Run expression on each selection")
 		for i, v in pairs(Selection:Get()) do
 			f(v, i)
 		end
 	elseif type(f) == 'string' then
+		ChangeHistoryService:SetWaypoint("Run expression on each selection")
 		local func, o = loadstring([[return function(v, i) ]]..f..[[ end]])
 		if func then
 			func = func()
