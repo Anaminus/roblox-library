@@ -9,9 +9,11 @@ local ContentProvider = game:GetService("ContentProvider")
 --@def: function ContentQueue.new(callback: Callback?): Queue
 --@doc: The **new** constructor returns a new queue with an optional callback.
 function export.new(callback: Callback?): Queue
-	local active: boolean = false -- Whether a group is preloading.
-	local queue: {thread} = {} -- List of
-	local threads: {[any]: {[number]: thread, appends: number}} = {}
+	local active: boolean = false
+	local queueID: {any} = {}
+	local queueContent: {{Instance|string}} = {}
+	local waitingThreads: {[any]: {groups: number, [number]: thread}} = {}
+
 	local self = {}
 	--@sec: Queue.Add
 	--@def: function Queue:Add(id: any, content: {Instance|string})
@@ -26,45 +28,52 @@ function export.new(callback: Callback?): Queue
 	-- [pa]: https://developer.roblox.com/en-us/api-reference/function/ContentProvider/PreloadAsync
 	function self:Add(id: any, content: {Instance|string})
 		assert(id ~= nil, "id must be non-nil")
-		if not threads[id] then
-			threads[id] = {appends=0}
+
+		table.insert(queueID, id)
+		table.insert(queueContent, content)
+
+		if not waitingThreads[id] then
+			waitingThreads[id] = {groups=0}
 		end
-		threads[id].appends += 1
-		task.spawn(function(threads, id, content, callback)
-			if active then
-				table.insert(queue, coroutine.running())
-				coroutine.yield()
+		waitingThreads[id].groups += 1
+
+		if active then
+			return
+		end
+		active = true
+		task.spawn(function()
+			while #queueID > 0 do
+				-- Dequeue next group.
+				local id = table.remove(queueID, 1)
+				local content = table.remove(queueContent, 1)
+				-- Preload content.
+				if callback then
+					ContentProvider:PreloadAsync(content, function(asset, status)
+						callback(id, asset, status)
+					end)
+				else
+					ContentProvider:PreloadAsync(content)
+				end
+				-- Handle waiting threads.
+				local threads = waitingThreads[id]
+				threads.groups -= 1
+				if threads.groups > 0 then
+					continue
+				end
+				waitingThreads[id] = nil
+				for _, thread in ipairs(threads) do
+					task.spawn(thread)
+				end
 			end
-			active = true
-			if callback then
-				ContentProvider:PreloadAsync(content, function(asset, status)
-					callback(id, asset, status)
-				end)
-			else
-				ContentProvider:PreloadAsync(content)
-			end
-			local list = threads[id]
-			list.appends -= 1
-			if list.appends > 0 then
-				return
-			end
-			threads[id] = nil
-			for _, thread in ipairs(list) do
-				task.spawn(thread)
-			end
-			if #queue > 0 then
-				task.spawn(table.remove(queue, 1)::thread)
-			else
-				active = false
-			end
-		end, threads, id, content, callback)
+			active = false
+		end)
 	end
 	--@sec: Queue.Has
 	--@def: function Queue:Has(id: any): boolean
 	--@doc: The **Has** method returns whether the queue contains at least one
 	-- group identified by *id*.
 	function self:Has(id: string)
-		return not not threads[id]
+		return not not waitingThreads[id]
 	end
 	--@sec: Queue.WaitFor
 	--@def: function Queue:WaitFor(id: any)
@@ -72,8 +81,8 @@ function export.new(callback: Callback?): Queue
 	-- in the queue. If no groups of *id* are in the queue, then WaitFor returns
 	-- immediately.
 	function self:WaitFor(id: string)
-		if threads[id] then
-			table.insert(threads[id], coroutine.running())
+		if waitingThreads[id] then
+			table.insert(waitingThreads[id], coroutine.running())
 			coroutine.yield()
 		end
 	end
