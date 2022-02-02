@@ -211,9 +211,11 @@ for _, action in ipairs(actions) do
 	proxy:SetAttribute("IconName", action.IconName)
 	proxy.Source = action.Source
 	proxy.Parent = container
+
+	local store = {ID=0}
 	actionMaid[id] = {
 		pluginAction.Triggered:Connect(function()
-			callback(plugin)
+			callback(plugin, store)
 		end),
 		proxy:GetPropertyChangedSignal("Source"):Connect(accumulate(2, function()
 			local err, cb = runString(proxy.Source, id)
@@ -224,6 +226,7 @@ for _, action in ipairs(actions) do
 				return
 			end
 			callback = cb
+			store.ID = (store.ID or 0) + 1
 			warn(string.format("updated %s action", id))
 		end)),
 	}
