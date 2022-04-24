@@ -110,6 +110,7 @@ pluginMaid.Unloading = plugin.Unloading:Connect(function()
 end)
 
 local actionMaid = Maid.new()
+pluginMaid.actionMaid = actionMaid
 
 local container = Instance.new("Folder")
 container.Name = "Actions"
