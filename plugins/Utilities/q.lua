@@ -232,6 +232,17 @@ Example:
 	-- Equivalent to:
 	_G.q'v.Name=="Leaves" and v@asc(v.ClassName=="Model" and v.Name=="Tree")'
 
+SKIP SELECTION
+
+If the entire query begins with "!", then this causes selected instances to not
+be added to the Selection service. This is usedful for running expressions on a
+query without the overhead of the Selection service.
+
+Example:
+
+	-- Make all red parts blue. Selection is unchanged.
+	_G.q'!v.BrickColor == BrickColor.Red()' 'v.BrickColor = BrickColor.Blue()'
+
 ]]
 local Selection = game:GetService("Selection")
 local CollectionService = game:GetService("CollectionService")
@@ -509,6 +520,12 @@ function _G.q(...)
 		objects = {select(2, ...)}
 	end
 
+	local skip = false
+	if string.sub(expr, 1, 1) == "!" then
+		skip = true
+		expr = string.sub(expr, 2)
+	end
+
 	local exprs = {}
 	for e in expr:gmatch("[^|]+") do
 		table.insert(exprs, e)
@@ -550,6 +567,8 @@ function _G.q(...)
 		end
 		objects = selection
 	end
-	Selection:Set(objects)
+	if not skip then
+		Selection:Set(objects)
+	end
 	return setmetatable(objects, ForEach)
 end
