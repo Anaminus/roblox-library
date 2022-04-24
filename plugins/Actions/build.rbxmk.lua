@@ -19,9 +19,6 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-Require(modules, "Base85/Base85.lua")
-Require(modules, "Bitbuf/Bitbuf.lua")
-Require(modules, "Binstruct/Binstruct.lua")
 Require(modules, "Maid/Maid.lua")
 Require(modules, "Dirty/Dirty.lua")
 

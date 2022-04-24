@@ -1,16 +1,5 @@
-local Base85 = require(script.Base85)
-local Binstruct = require(script.Binstruct)
 local Maid = require(script.Maid)
 local Dirty = require(script.Dirty)
-
-local ACTIONS_FORMAT = {"struct",
-	{"Length"    , {"uint", 16}},
-	{"ActionID"  , {"vector", "Length", {"string", 8}}},
-	{"Text"      , {"vector", "Length", {"string", 8}}},
-	{"StatusTip" , {"vector", "Length", {"string", 8}}},
-	{"IconName"  , {"vector", "Length", {"string", 8}}},
-	{"Source"    , {"vector", "Length", {"string", 32}}},
-}
 
 local function ifError(msg, err, level)
 	if err == nil then
@@ -62,65 +51,15 @@ local function runString(source, name)
 	return nil, result
 end
 
-local err, codec = Binstruct.new(ACTIONS_FORMAT)
-if err then
-	ifError("error compiling data format: %s", err)
-end
-
 local DATA_KEY = "ActionsData"
 
 local function LoadData()
-	local err, bytes
-	local encodedBytes = plugin:GetSetting(DATA_KEY)
-	if type(encodedBytes) ~= "string" or #encodedBytes == 0 then
-		bytes = "\0\0"
-	else
-		err, bytes = Base85.decode(encodedBytes)
-		ifError("error decoding data: Base85: %s", err)
-		if #bytes == 0 then
-			bytes = "\0\0"
-		end
-	end
-	local err, data = codec:Decode(bytes)
-	ifError("error decoding data: %s", err)
-
-	local actions = table.create(data.Length)
-	for i = 1, data.Length do
-		table.insert(actions, {
-			ActionID = data.ActionID[i],
-			Text = data.Text[i],
-			StatusTip = data.StatusTip[i],
-			IconName = data.IconName[i],
-			Source = data.Source[i],
-		})
-	end
-
+	local actions = plugin:GetSetting(DATA_KEY)
 	return actions
 end
 
 local function SaveData(actions)
-	local data = {
-		Length = #actions,
-		ActionID = table.create(#actions),
-		Text = table.create(#actions),
-		StatusTip = table.create(#actions),
-		IconName = table.create(#actions),
-		Source = table.create(#actions),
-	}
-	for i, action in ipairs(actions) do
-		data.ActionID[i] = action.ActionID
-		data.Text[i] = action.Text
-		data.StatusTip[i] = action.StatusTip
-		data.IconName[i] = action.IconName
-		data.Source[i] = action.Source
-	end
-
-	local err, bytes = codec:Encode(data)
-	ifError("error encoding data: %s", err)
-
-	local encodedBytes = Base85.encode(bytes)
-
-	plugin:SetSetting(DATA_KEY, encodedBytes)
+	plugin:SetSetting(DATA_KEY, actions)
 end
 
 local function UpdateData(container)
