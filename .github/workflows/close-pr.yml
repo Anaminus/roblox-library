@@ -10,6 +10,6 @@ jobs:
     steps:
     - uses: superbrothers/close-pull-request@v3
       with:
-        comment: "To ensure that code in this repository remains in the [public domain](https://github.com/Anaminus/roblox-library/blob/master/UNLICENSE), no contributions will be accepted. If desired, you may [open an issue](https://github.com/Anaminus/roblox-library/issues/new) instead."
+        comment: "No contributions to this repository will be accepted. If desired, you may [open an issue](https://github.com/Anaminus/roblox-library/issues/new) instead."
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
