@@ -428,7 +428,7 @@ they are used. If the constructor is exported by the module, then it can be
 defined that way directly:
 
 ```lua
-function Module.class()
+function export.class()
 end
 ```
 
@@ -438,7 +438,7 @@ function. The primary constructor should be named `new<class>`:
 ```lua
 local function newClass()
 end
-Module.class = newClass
+export.class = newClass
 ```
 
 Typically, the name of the constructor is the name of the class in
@@ -587,12 +587,21 @@ There are several types of module, which is determined by the content:
 A library-type module contains a number of related classes, procedures, and
 constants.
 
+The convention for the returned table is to name it `export`, to indicate that
+values are being exported by the module, analogous to Luau's `export type`
+syntax.
+
 ```lua
-local Module = {}
+local export = {}
+
+export.Enum = table.freeze({
+	Foo = 1,
+	Bar = 2,
+})
 
 local Foo = {__index={}}
 
-function Module.foo()
+function export.foo()
 	return setmetatable({}, Foo)
 end
 
@@ -602,7 +611,7 @@ end
 
 local Bar = {__index={}}
 
-function Module.bar()
+function export.bar()
 	return setmetatable({}, Bar)
 end
 
@@ -610,34 +619,29 @@ function Bar.__index:Method()
 	return "foo"
 end
 
-return Module
+return table.freeze(export)
 ```
+
+It is preferred that all exported tables are frozen, to prevent accidental
+modification.
 
 #### Class-type module
 A class-type module is structured around a single class.
 
-```lua
-local Foobar = {}
+Generally structured similar to libraries, except that the name of the module
+corresponds to the name of the class, and there is generally a `new` method. It
+is meant to be analogous to Roblox's type constructors (e.g. `CFrame.new`,
+`Vector3.fromNormalId`, etc).
 
-local mt = {__index={}}
-
-function Foobar.new()
-	return setmetatable({}, mt)
-end
-
-function mt.__index:Method()
-	return "foobar"
-end
-
-return Foobar
-```
-
-Alternatively, the module table can created at the end:
+Same as library-type modules, the convention is to name the returned table
+`export`. The name of the metatable is the name of the class.
 
 ```lua
+local export = {}
+
 local Foobar = {__index={}}
 
-local function new()
+function export.new()
 	return setmetatable({}, Foobar)
 end
 
@@ -645,17 +649,15 @@ function Foobar.__index:Method()
 	return "foobar"
 end
 
-return {
-	new = new,
-}
+return table.freeze(export)
 ```
 
 #### Data-type module
 A data-type module returns static data. Conceptually, it is similar to a global
-variable.
+variable. As usual, tables should be frozen.
 
 ```lua
-return {
+return table.freeze {
 	A = 1,
 	B = 2,
 	C = 3,
@@ -666,36 +668,36 @@ return {
 A module should never access its own returned table:
 
 ```lua
-local Module = {}
+local export = {}
 
-function Module.foo()
+function export.foo()
 	print("foo")
 end
 
-function Module.bar()
-	Module.foo() -- Bad!
+function export.bar()
+	export.foo() -- Bad!
 	print("bar")
 end
 
-return Module
+return table.freeze(export)
 ```
 
 Instead, define the value locally, *then* add it to the table:
 
 ```lua
-local Module = {}
+local export = {}
 
 local function foo()
 	print("foo")
 end
-Module.foo = foo
+export.foo = foo
 
-function Module.bar()
+function export.bar()
 	foo() -- Good!
 	print("bar")
 end
 
-return Module
+return table.freeze(export)
 ```
 
 ### Type checking
@@ -708,7 +710,7 @@ a type, followed by the value to check. It should return false if the given type
 is not known by the function.
 
 ```lua
-function Module.is(type, value)
+function export.is(type, value)
 	if type == "Class" then
 		return getmetatable(value) == Class
 	elseif type == "Foo" then
@@ -723,15 +725,15 @@ end
 This may instead be defined as a number of functions, one for each class:
 
 ```lua
-function Module.isClass(value)
+function export.isClass(value)
 	return getmetatable(value) == Class
 end
 
-function Module.isFoo(value)
+function export.isFoo(value)
 	return getmetatable(value) == Foo
 end
 
-function Module.isBar(value)
+function export.isBar(value)
 	return getmetatable(value) == Bar
 end
 ```
@@ -739,8 +741,8 @@ end
 For class-type modules, which has a single class, the type name can be omitted:
 
 ```lua
-function Class.is(value)
-	return getmetatable(value) == ClassMetatable
+function export.is(value)
+	return getmetatable(value) == Class
 end
 ```
 
