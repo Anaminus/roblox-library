@@ -18,7 +18,7 @@ print("\n" .. tostring(results))
 local ServerScriptService = game:GetService("ServerScriptService")
 local runner = Instance.new("Script")
 runner.Name = "Runner"
-runner.Source = types.ProtectedString(runnerSource)
+rbxmk.set(runner, "Source", runnerSource, "ProtectedString")
 runner.Parent = ServerScriptService
 local modules = Instance.new("Folder")
 modules.Name = "Modules"
