@@ -7,7 +7,7 @@
 --
 -- [Ascii85]: https://en.wikipedia.org/wiki/Ascii85
 -- [RFC1924]: https://tools.ietf.org/html/rfc1924
-local Base85 = {}
+local export = {}
 
 local encodeTable = {
 	"0", "1", "2", "3", "4",
@@ -32,7 +32,7 @@ local encodeTable = {
 --@sec: Base85.encode
 --@def: Base85.encode(source: string): (data: string)
 --@doc: encode returns the data encoded from source.
-function Base85.encode(source)
+function export.encode(source)
 	local i = 1
 	local j = 1
 	local data = table.create(math.floor((#source+3)/4)*5)
@@ -81,7 +81,7 @@ local decodeTable = {
 --@doc: decode returns the data decoded from source. Returns an error if the
 -- source contains invalid base85 data or invalid bytes. Bytes that are spaces
 -- are ignored.
-function Base85.decode(source)
+function export.decode(source)
 	local data = table.create(math.floor(#source*4/5))
 	local bytes = 0
 	local value = 0
@@ -119,4 +119,4 @@ function Base85.decode(source)
 	return nil, table.concat(data)
 end
 
-return Base85
+return export
