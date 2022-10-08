@@ -1,3 +1,6 @@
+--!nocheck
+--!nolint UnknownGlobal
+
 --[[
 Testing
 
