@@ -518,7 +518,7 @@ function T.TestBuffer_String(t, require)
 	local Bitbuf = require()
 
 	local bytes = "\x18\x2D\x44\x54\xFB\x21\x09\x40"
-	for i = 0, #bytes do
+	for i = 0, #bytes, 1 do
 		local want = string.sub(bytes, 1, i)
 		local buf = Bitbuf.fromString(want)
 		local got = buf:String()
