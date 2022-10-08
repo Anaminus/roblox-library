@@ -4,7 +4,7 @@
 --@ord: -1
 --@doc: Bitbuf implements a bit-level buffer, suitable for serialization and
 -- storing data in-memory.
-local Bitbuf = {}
+local export = {}
 
 -- Returns uint as int of *size* bits.
 local function int_from_uint(size, v)
@@ -69,7 +69,7 @@ local Buffer = {__index={}}
 --@def: function Bitbuf.new(size: number?): Buffer
 --@doc: new returns a new Buffer *size* bits in length, with the cursor set to
 -- 0. Defaults to a zero-length buffer.
-function Bitbuf.new(size)
+function export.new(size)
 	assert(size == nil or type(size) == "number", "number expected")
 	size = size or 0
 	local self = {
@@ -84,7 +84,7 @@ end
 --@def: function Bitbuf.fromString(s: string): Buffer
 --@doc: fromString returns a Buffer with the contents initialized with the bits
 -- of *s*. The cursor is set to 0.
-function Bitbuf.fromString(s)
+function export.fromString(s)
 	assert(type(s) == "string", "string expected")
 	local n = math.ceil(#s/4)
 	local self = {
@@ -654,8 +654,8 @@ end
 --@sec: Bitbuf.isBuffer
 --@def: function Bitbuf.isBuffer(value: any): boolean
 --@doc: isBuffer returns whether *value* is a Buffer.
-function Bitbuf.isBuffer(value)
+function export.isBuffer(value)
 	return getmetatable(value) == Buffer
 end
 
-return Bitbuf
+return export
