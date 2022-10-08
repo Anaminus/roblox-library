@@ -1005,7 +1005,7 @@ function T.TestBuffer_ReadByte(t, require)
 	testSuite(t, Bitbuf, suite, function(buf, l, i, _, v)
 		buf:WriteByte(v.value)
 		buf:SetIndex(i)
-		local value = buf:ReadByte(s)
+		local value = buf:ReadByte()
 
 		local expi = i + 8
 		local explen = math.max(expi, l)
