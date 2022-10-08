@@ -1147,8 +1147,8 @@ function ModuleResult.__index:BenchmarkResults()
 		end
 		return a[3] < b[3]
 	end)
-	rows = formatRows(rows)
-	return rows .. "\n" .. table.concat(failed)
+	local formattedRows = formatRows(rows)
+	return formattedRows .. "\n" .. table.concat(failed)
 end
 
 local TestResult = {}
