@@ -104,7 +104,7 @@ export type Callback = (id: any, asset: string, status: Enum.AssetFetchStatus) -
 -- first in the queue.
 export type Queue = {
 	Add: (self: Queue, id: any, content: {Instance|string}) -> (),
-	Has: (self: Queue, id: any) -> (),
+	Has: (self: Queue, id: any) -> boolean,
 	WaitFor: (self: Queue, id: any) -> (),
 }
 
