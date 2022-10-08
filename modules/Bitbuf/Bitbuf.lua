@@ -1,4 +1,5 @@
---v1.0.0
+--!strict
+--!nolint FunctionUnused
 
 --@sec: Bitbuf
 --@ord: -1
@@ -7,7 +8,7 @@
 local export = {}
 
 -- Returns uint as int of *size* bits.
-local function int_from_uint(size, v)
+local function int_from_uint(size: number, v: number): number
 	local n = 2^size
 	v %= n
 	if v >= n/2 then
@@ -16,39 +17,39 @@ local function int_from_uint(size, v)
 	return v
 end
 
-local function int_to_uint(size, v)
+local function int_to_uint(size: number, v: number): number
 	return v % 2^size
 end
 
-local function float32_to_uint(v)
+local function float32_to_uint(v: number): number
 	return string.unpack("<I4", string.pack("<f", v))
 end
 
-local function float32_from_uint(v)
+local function float32_from_uint(v: number): number
 	return string.unpack("<f", string.pack("<I4", v))
 end
 
-local function float64_to_uint(v)
+local function float64_to_uint(v: number): number
 	return string.unpack("<I8", string.pack("<d", v))
 end
 
-local function float64_from_uint(v)
+local function float64_from_uint(v: number): number
 	return string.unpack("<d", string.pack("<I8", v))
 end
 
-local function float_to_fixed(i, f, v)
+local function float_to_fixed(i: number, f: number, v: number): number
 	return int_from_uint(i + f, math.floor(v * 2^f))
 end
 
-local function float_from_fixed(i, f, v)
+local function float_from_fixed(i: number, f: number, v: number): number
 	return math.floor(int_from_uint(i + f, v)) * 2^-f
 end
 
-local function float_to_ufixed(i, f, v)
+local function float_to_ufixed(i: number, f: number, v: number): number
 	return int_to_uint(i + f, math.floor(v * 2^f))
 end
 
-local function float_from_ufixed(i, f, v)
+local function float_from_ufixed(i: number, f: number, v: number): number
 	return math.floor(int_to_uint(i + f, v)) * 2^-f
 end
 
@@ -65,26 +66,65 @@ end
 -- Bits are written in little-endian.
 local Buffer = {__index={}}
 
+export type Buffer = {
+	Fits: (self: Buffer, size: number) -> boolean,
+	Index: (self: Buffer) -> number,
+	Len: (self: Buffer) -> number,
+	ReadAlign: (self: Buffer, size: number) -> (),
+	ReadBool: (self: Buffer) -> boolean,
+	ReadByte: (self: Buffer) -> (v: number) -> (),
+	ReadBytes: (self: Buffer, size: number) -> string,
+	ReadFixed: (self: Buffer, i: number, f: number) -> number,
+	ReadFloat: (self: Buffer, size: number) -> number,
+	ReadInt: (self: Buffer, size: number) -> number,
+	ReadPad: (self: Buffer, size: number) -> (),
+	ReadUfixed: (self: Buffer, i: number, f: number) -> number,
+	ReadUint: (self: Buffer, size: number) -> number,
+	Reset: (self: Buffer) -> (),
+	SetIndex: (self: Buffer, i: number) -> (),
+	SetLen: (self: Buffer, size: number) -> (),
+	String: (self: Buffer) -> string,
+	WriteAlign: (self: Buffer, size: number) -> (),
+	WriteBool: (self: Buffer, v: any?) -> (),
+	WriteByte: (self: Buffer, v: number) -> (),
+	WriteBytes: (self: Buffer, v: string) -> (),
+	WriteFixed: (self: Buffer, i: number, f: number, v: number) -> (),
+	WriteFloat: (self: Buffer, size: number, v: number) -> (),
+	WriteInt: (self: Buffer, size: number, v: number) -> (),
+	WritePad: (self: Buffer, size: number) -> (),
+	WriteUfixed: (self: Buffer, i: number, f: number, v: number) -> (),
+	WriteUint: (self: Buffer, size: number, v: number) -> (),
+}
+
+type _Buffer = Buffer & {
+	buf: {number},
+	len: number,
+	i: number,
+	writeUnit: (self: _Buffer, size: number, v: number) -> (),
+	readUnit: (self: _Buffer, size: number) -> number,
+}
+
+
 --@sec: Bitbuf.new
 --@def: function Bitbuf.new(size: number?): Buffer
 --@doc: new returns a new Buffer *size* bits in length, with the cursor set to
 -- 0. Defaults to a zero-length buffer.
-function export.new(size)
+function export.new(size: number?): Buffer
 	assert(size == nil or type(size) == "number", "number expected")
 	size = size or 0
 	local self = {
-		buf = table.create(math.ceil(size/32), 0),
+		buf = table.create(math.ceil(size::number/32), 0),
 		len = size,
 		i = 0,
 	}
-	return setmetatable(self, Buffer)
+	return setmetatable(self, Buffer)::any
 end
 
 --@sec: Bitbuf.fromString
 --@def: function Bitbuf.fromString(s: string): Buffer
 --@doc: fromString returns a Buffer with the contents initialized with the bits
 -- of *s*. The cursor is set to 0.
-function export.fromString(s)
+function export.fromString(s: string): Buffer
 	assert(type(s) == "string", "string expected")
 	local n = math.ceil(#s/4)
 	local self = {
@@ -99,14 +139,15 @@ function export.fromString(s)
 	for i = 0, #s%4-1 do
 		self.buf[n] = bit32.bor(self.buf[n], string.byte(s, (n-1)*4+i+1)*256^i)
 	end
-	return setmetatable(self, Buffer)
+	return setmetatable(self, Buffer)::any
 end
 
 --@sec: Buffer.String
 --@def: function Buffer:String(): string
 --@doc: String converts the content of the buffer to a string. If the length is
 -- not a multiple of 8, then the result will be padded with zeros until it is.
-function Buffer.__index:String()
+function Buffer.__index:String(): string
+	self = self::_Buffer
 	local n = math.ceil(self.len/32)
 	local s = table.create(n, "")
 	for i in ipairs(s) do
@@ -134,7 +175,8 @@ end
 -- capacity of the buffer is extended as needed to write the value.
 --
 -- The buffer is assumed to be a sequence of 32-bit unsigned integers.
-function Buffer.__index:writeUnit(size, v)
+function Buffer.__index:writeUnit(size: number, v: number)
+	self = self::_Buffer
 	assert(size>=0 and size<=32, "size must be in range [0,32]")
 	if size == 0 then
 		return
@@ -171,7 +213,8 @@ end
 --
 -- The buffer is assumed to be a sequence of 32-bit unsigned integers. Bits past
 -- the length of the buffer are read as zeros.
-function Buffer.__index:readUnit(size)
+function Buffer.__index:readUnit(size: number): number
+	self = self::_Buffer
 	assert(size>=0 and size<=32, "size must be in range [0,32]")
 	if size == 0 then
 		return 0
@@ -199,7 +242,8 @@ end
 --@sec: Buffer.Len
 --@def: function Buffer:Len(): number
 --@doc: Len returns the length of the buffer in bits.
-function Buffer.__index:Len()
+function Buffer.__index:Len(): number
+	self = self::_Buffer
 	return self.len
 end
 
@@ -208,7 +252,8 @@ end
 --@doc: SetLen shrinks or grows the length of the buffer. Shrinking truncates
 -- the buffer, and growing pads the buffer with zeros. If the cursor is greater
 -- than *size*, then it is set to *size*.
-function Buffer.__index:SetLen(size)
+function Buffer.__index:SetLen(size: number)
+	self = self::_Buffer
 	if size < 0 then
 		size = 0
 	end
@@ -236,7 +281,8 @@ end
 --@sec: Buffer.Index
 --@def: function Buffer:Index(): number
 --@doc: Index returns the position of the cursor, in bits.
-function Buffer.__index:Index()
+function Buffer.__index:Index(): number
+	self = self::_Buffer
 	return self.i
 end
 
@@ -244,7 +290,8 @@ end
 --@def: function Buffer:SetIndex(i: number)
 --@doc: SetIndex sets the position of the cursor to *i*, in bits. If *i* is
 -- greater than the length of the buffer, then buffer is grown to length *i*.
-function Buffer.__index:SetIndex(i)
+function Buffer.__index:SetIndex(i: number)
+	self = self::_Buffer
 	if i < 0 then
 		i = 0
 	end
@@ -258,19 +305,20 @@ end
 --@def: function Buffer:Fits(size: number): boolean
 --@doc: Fits returns whether *size* bits can be read from or written to the
 -- buffer without exceeding its length.
-function Buffer.__index:Fits(size)
+function Buffer.__index:Fits(size: number): boolean
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	return size <= self.len - self.i
 end
 
-local function readPad(self, size)
+local function readPad(self: _Buffer, size: number)
 	self.i += size
 	if self.i > self.len then
 		self.len = self.i
 	end
 end
 
-local function writePad(self, size)
+local function writePad(self: _Buffer, size: number)
 	for i = 1, math.floor(size/32) do
 		self:writeUnit(32, 0)
 	end
@@ -281,7 +329,8 @@ end
 --@def: function Buffer:WritePad(size: number)
 --@doc: WritePad pads the buffer with *size* zero bits. Does nothing if *size*
 -- is less than or equal to zero.
-function Buffer.__index:WritePad(size)
+function Buffer.__index:WritePad(size: number)
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	if size <= 0 then
 		return
@@ -293,7 +342,8 @@ end
 --@def: function Buffer:ReadPad(size: number)
 --@doc: ReadPad moves the cursor by *size* bits without reading any data. Does
 -- nothing if *size* is less than or equal to zero.
-function Buffer.__index:ReadPad(size)
+function Buffer.__index:ReadPad(size: number)
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	if size <= 0 then
 		return
@@ -306,7 +356,8 @@ end
 --@doc: WriteAlign pads the buffer with zero bits until the position of the
 -- cursor is a multiple of *size*. Does nothing if *size* is less than or equal
 -- to 1.
-function Buffer.__index:WriteAlign(size)
+function Buffer.__index:WriteAlign(size: number)
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	if size <= 1 or self.i%size == 0 then
 		return
@@ -319,7 +370,8 @@ end
 --@def: function Buffer:ReadAlign(size: number)
 --@doc: ReadAlign moves the cursor until its position is a multiple of *size*
 -- without reading any data. Does nothing if *size* is less than or equal to 1.
-function Buffer.__index:ReadAlign(size)
+function Buffer.__index:ReadAlign(size: number)
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	if size <= 1 or self.i%size == 0 then
 		return
@@ -332,6 +384,7 @@ end
 --@def: function Buffer:Reset()
 --@doc: Reset clears the buffer, setting the length and cursor to 0.
 function Buffer.__index:Reset()
+	self = self::_Buffer
 	self.i = 0
 	self.len = 0
 	table.clear(self.buf)
@@ -340,7 +393,7 @@ end
 --@def: function fastWriteBytes(buf: Buffer, s: string)
 --@doc: fastWriteBytes writes a raw sequence of bytes by assuming that the
 -- buffer is aligned to 8 bits.
-local function fastWriteBytes(self, s)
+local function fastWriteBytes(self: _Buffer, s: string)
 	-- Handle short string.
 	if #s <= 4 then
 		self:writeUnit(#s*8, (string.unpack("<I"..#s, s)))
@@ -373,7 +426,8 @@ end
 --@sec: Buffer.WriteBytes
 --@def: function buffer:WriteBytes(v: string)
 --@doc: WriteBytes writes *v* by interpreting it as a raw sequence of bytes.
-function Buffer.__index:WriteBytes(v)
+function Buffer.__index:WriteBytes(v: string)
+	self = self::_Buffer
 	assert(type(v) == "string", "string expected")
 	if v == "" then
 		return
@@ -390,7 +444,7 @@ end
 --@def: function fastReadBytes(buf: Buffer, size: number): (v: string)
 --@doc: fastReadBytes reads a raw sequence of bytes by assuming that the buffer
 -- is aligned to 8 bits.
-local function fastReadBytes(self, size)
+local function fastReadBytes(self: _Buffer, size: number): string
 	-- Handle short string.
 	if size <= 4 then
 		return string.pack("<I"..size, self:readUnit(size*8))
@@ -398,7 +452,7 @@ local function fastReadBytes(self, size)
 
 	local a = math.floor(3-(self.i/8-1)%4)
 	local r = (size-a)%4
-	local v = table.create((size-a)/4 + r, nil)
+	local v = table.create((size-a)/4 + r)
 	local i = 1
 
 	-- Read until cursor is aligned to unit.
@@ -434,7 +488,8 @@ end
 --@sec: Buffer.ReadBytes
 --@def: function Buffer:ReadBytes(size: number): (v: string)
 --@doc: ReadBytes reads *size* bytes from the buffer as a raw sequence of bytes.
-function Buffer.__index:ReadBytes(size)
+function Buffer.__index:ReadBytes(size: number): string
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	if size == 0 then
 		return ""
@@ -453,7 +508,8 @@ end
 --@def: function Buffer:WriteUint(size: number, v: number)
 --@doc: WriteUint writes *v* as an unsigned integer of *size* bits. *size* must
 -- be an integer between 0 and 53.
-function Buffer.__index:WriteUint(size, v)
+function Buffer.__index:WriteUint(size: number, v: number)
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	assert(type(v) == "number", "number expected")
 	assert(size>=0 and size<=53, "size must be in range [0,53]")
@@ -472,7 +528,8 @@ end
 --@def: function Buffer:ReadUint(size: number): (v: number)
 --@doc: ReadUint reads *size* bits as an unsigned integer. *size* must be an
 -- integer between 0 and 53.
-function Buffer.__index:ReadUint(size)
+function Buffer.__index:ReadUint(size: number): number
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	assert(size>=0 and size<=53, "size must be in range [0,53]")
 	if size == 0 then
@@ -486,7 +543,8 @@ end
 --@sec: Buffer.WriteBool
 --@def: function Buffer:WriteBool(v: any?)
 --@doc: WriteBool writes a 0 bit if *v* is falsy, or a 1 bit if *v* is truthy.
-function Buffer.__index:WriteBool(v)
+function Buffer.__index:WriteBool(v: unknown)
+	self = self::_Buffer
 	if v then
 		self:writeUnit(1, 1)
 		return
@@ -498,14 +556,16 @@ end
 --@def: function Buffer:ReadBool(): boolean
 --@doc: ReadBool reads one bit and returns false if the bit is 0, or true if the
 -- bit is 1.
-function Buffer.__index:ReadBool()
+function Buffer.__index:ReadBool(): boolean
+	self = self::_Buffer
 	return self:readUnit(1) == 1
 end
 
 --@sec: Buffer.WriteByte
 --@def: function Buffer:WriteByte(v: number)
 --@doc: WriteByte is shorthand for `Buffer:WriteUint(8, v)`.
-function Buffer.__index:WriteByte(v)
+function Buffer.__index:WriteByte(v: number)
+	self = self::_Buffer
 	assert(type(v) == "number", "number expected")
 	self:writeUnit(8, v)
 end
@@ -513,7 +573,8 @@ end
 --@sec: Buffer.ReadByte
 --@def: function Buffer:ReadByte(): (v: number)
 --@doc: ReadByte is shorthand for `Buffer:ReadUint(8, v)`.
-function Buffer.__index:ReadByte()
+function Buffer.__index:ReadByte(): number
+	self = self::_Buffer
 	return self:readUnit(8)
 end
 
@@ -521,7 +582,8 @@ end
 --@def: function Buffer:WriteInt(size: number, v: number)
 --@doc: WriteInt writes *v* as a signed integer of *size* bits. *size* must be
 -- an integer between 0 and 53.
-function Buffer.__index:WriteInt(size, v)
+function Buffer.__index:WriteInt(size: number, v: number)
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	assert(type(v) == "number", "number expected")
 	assert(size>=0 and size<=53, "size must be in range [0,53]")
@@ -541,7 +603,8 @@ end
 --@def: function Buffer:ReadInt(size: number): (v: number)
 --@doc: ReadInt reads *size* bits as a signed integer. *size* must be an integer
 -- between 0 and 53.
-function Buffer.__index:ReadInt(size)
+function Buffer.__index:ReadInt(size: number): number
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	assert(size>=0 and size<=53, "size must be in range [0,53]")
 	if size == 0 then
@@ -563,7 +626,8 @@ end
 --
 -- - `32`: IEEE 754 binary32
 -- - `64`: IEEE 754 binary64
-function Buffer.__index:WriteFloat(size, v)
+function Buffer.__index:WriteFloat(size: number, v: number)
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	assert(type(v) == "number", "number expected")
 	assert(size==32 or size==64, "size must be 32 or 64")
@@ -581,7 +645,8 @@ end
 --
 -- - `32`: IEEE 754 binary32
 -- - `64`: IEEE 754 binary64
-function Buffer.__index:ReadFloat(size)
+function Buffer.__index:ReadFloat(size: number): number
+	self = self::_Buffer
 	assert(type(size) == "number", "number expected")
 	assert(size==32 or size==64, "size must be 32 or 64")
 	local s = self:ReadBytes(size/8)
@@ -598,7 +663,8 @@ end
 -- number of bits used for the integer portion, and *f* is the number of bits
 -- used for the fractional portion. Their combined size must be between 0 and
 -- 53.
-function Buffer.__index:WriteUfixed(i, f, v)
+function Buffer.__index:WriteUfixed(i: number, f: number, v: number)
+	self = self::_Buffer
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
 	assert(i>=0, "integer size must be >= 0")
@@ -613,7 +679,8 @@ end
 --@doc: ReadUfixed reads an unsigned fixed-point number. *i* is the number of
 -- bits used for the integer portion, and *f* is the number of bits used for the
 -- fractional portion. Their combined size must be between 0 and 53.
-function Buffer.__index:ReadUfixed(i, f)
+function Buffer.__index:ReadUfixed(i: number, f: number): number
+	self = self::_Buffer
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
 	assert(i>=0, "integer size must be >= 0")
@@ -627,7 +694,8 @@ end
 --@doc: WriteFixed writes *v* as a signed fixed-point number. *i* is the number
 -- of bits used for the integer portion, and *f* is the number of bits used for
 -- the fractional portion. Their combined size must be between 0 and 53.
-function Buffer.__index:WriteFixed(i, f, v)
+function Buffer.__index:WriteFixed(i: number, f: number, v: number)
+	self = self::_Buffer
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
 	assert(i>=0, "integer size must be >= 0")
@@ -642,7 +710,8 @@ end
 --@doc: ReadFixed reads a signed fixed-point number. *i* is the number of bits
 -- used for the integer portion, and *f* is the number of bits used for the
 -- fractional portion. Their combined size must be between 0 and 53.
-function Buffer.__index:ReadFixed(i, f)
+function Buffer.__index:ReadFixed(i: number, f: number): number
+	self = self::_Buffer
 	assert(type(i) == "number", "number expected")
 	assert(type(f) == "number", "number expected")
 	assert(i>=0, "integer size must be >= 0")
@@ -654,7 +723,7 @@ end
 --@sec: Bitbuf.isBuffer
 --@def: function Bitbuf.isBuffer(value: any): boolean
 --@doc: isBuffer returns whether *value* is a Buffer.
-function export.isBuffer(value)
+function export.isBuffer(value: any): boolean
 	return getmetatable(value) == Buffer
 end
 

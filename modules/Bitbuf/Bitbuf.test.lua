@@ -578,6 +578,7 @@ function T.TestBuffer_readUnit(t, require)
 		if value ~= want then
 			return "expected value %d, got %d", want, value
 		end
+		return
 	end)
 end
 
@@ -645,7 +646,7 @@ function T.TestBuffer_Index(t, require)
 	pass(t, buf:Index() == 0, "setting negative buffer index clamps to 0")
 	bits(t, buf, string.rep("0", 202))
 
-	local buf = Bitbuf.new()
+	buf = Bitbuf.new()
 	for i = 0, 256 do
 		buf:SetIndex(i)
 		if buf:Index() ~= i then
@@ -678,6 +679,7 @@ function T.TestBuffer_Fits(t, require)
 		if buf:Fits(s) ~= (i+s <= l) then
 			return "%d+%d > %d", i, s, l
 		end
+		return
 	end)
 end
 
@@ -893,6 +895,7 @@ function T.TestBuffer_ReadUint(t, require)
 		if value ~= want then
 			return "expected value %d, got %d", want, value
 		end
+		return
 	end)
 end
 
@@ -949,6 +952,7 @@ function T.TestBuffer_ReadBool(t, require)
 				return "expected index %d, got %d", expi, buf:Index()
 			end
 		end
+		return
 	end)
 
 	t:Log("true")
@@ -968,6 +972,7 @@ function T.TestBuffer_ReadBool(t, require)
 				return "expected index %d, got %d", expi, buf:Index()
 			end
 		end
+		return
 	end)
 end
 
@@ -1019,6 +1024,7 @@ function T.TestBuffer_ReadByte(t, require)
 		if value ~= want then
 			return "expected value %d, got %d", want, value
 		end
+		return
 	end)
 end
 
@@ -1074,6 +1080,7 @@ function T.TestBuffer_ReadInt(t, require)
 		if value ~= want then
 			return "expected value %d, got %d", want, value
 		end
+		return
 	end)
 end
 
@@ -1086,7 +1093,7 @@ function T.TestBuffer_WriteFloat(t, require)
 	pass(t, buf:Index() == 32, "buffer index is 32")
 	pass(t, buf:String() == pi32Bits, "32-bit pi")
 
-	local buf = Bitbuf.new()
+	buf = Bitbuf.new()
 	buf:WriteFloat(64, math.pi)
 	pass(t, buf:Len() == 64, "buffer length is 64")
 	pass(t, buf:Index() == 64, "buffer index is 64")
@@ -1103,7 +1110,7 @@ function T.TestBuffer_ReadFloat(t, require)
 	pass(t, buf:ReadFloat(32) == pi32, "32-bit pi")
 	pass(t, buf:Index() == 32, "buffer index is 32")
 
-	local buf = Bitbuf.fromString(pi64Bits)
+	buf = Bitbuf.fromString(pi64Bits)
 	pass(t, buf:ReadFloat(64) == math.pi, "64-bit pi")
 	pass(t, buf:Index() == 64, "buffer index is 32")
 
@@ -1111,22 +1118,18 @@ function T.TestBuffer_ReadFloat(t, require)
 end
 
 function T.TestBuffer_WriteUfixed(t, require)
-	local Bitbuf = require()
 	--TODO: WriteUfixed
 end
 
 function T.TestBuffer_ReadUfixed(t, require)
-	local Bitbuf = require()
 	--TODO: ReadUfixed
 end
 
 function T.TestBuffer_WriteFixed(t, require)
-	local Bitbuf = require()
 	--TODO: WriteFixed
 end
 
 function T.TestBuffer_ReadFixed(t, require)
-	local Bitbuf = require()
 	--TODO: ReadFixed
 end
 
@@ -1172,7 +1175,7 @@ function T.BenchmarkNew(b, require)
 	local Bitbuf = require()
 	b:ResetTimer()
 	for i = 1, b.N do
-		local buf = Bitbuf.new()
+		local _ = Bitbuf.new()
 	end
 end
 
@@ -1205,7 +1208,7 @@ local function benchmarkReadBool(n)
 		for i = 1, b.N do
 			buf:SetIndex(0)
 			for j = 1, n do
-				local v = buf:ReadBool()
+				local _ = buf:ReadBool()
 			end
 		end
 	end
@@ -1263,7 +1266,7 @@ local function benchmarkReadUint(n)
 		for i = 1, b.N do
 			buf:SetIndex(0)
 			for j = 1, n do
-				local v = buf:ReadUint(32)
+				local _ = buf:ReadUint(32)
 			end
 		end
 	end
@@ -1284,9 +1287,9 @@ local function benchmarkReadUint_Unaligned(n)
 		b:ResetTimer()
 		for i = 1, b.N do
 			buf:SetIndex(0)
-			local v = buf:ReadBool()
+			local _ = buf:ReadBool()
 			for j = 1, n do
-				local v = buf:ReadUint(32)
+				local _ = buf:ReadUint(32)
 			end
 		end
 	end
@@ -1313,7 +1316,7 @@ function T.BenchmarkReadInt(b, require)
 	b:ResetTimer()
 	for i = 1, b.N do
 		buf:SetIndex(0)
-		local v = buf:ReadInt(32)
+		local _ = buf:ReadInt(32)
 	end
 end
 
@@ -1334,7 +1337,7 @@ function T.BenchmarkReadFloat32(b, require)
 	b:ResetTimer()
 	for i = 1, b.N do
 		buf:SetIndex(0)
-		local v = buf:ReadFloat(32)
+		local _ = buf:ReadFloat(32)
 	end
 end
 
@@ -1390,7 +1393,7 @@ local function benchmarkReadString(n)
 		for i = 1, b.N do
 			buf:SetIndex(0)
 			local n = buf:ReadUint(32)
-			local v = buf:ReadBytes(n)
+			local _ = buf:ReadBytes(n)
 		end
 	end
 end
@@ -1435,7 +1438,7 @@ local function benchmarkReadString_Unaligned(n)
 			buf:SetIndex(0)
 			buf:ReadBool()
 			local n = buf:ReadUint(32)
-			local v = buf:ReadBytes(n)
+			local _ = buf:ReadBytes(n)
 		end
 	end
 end
@@ -1454,7 +1457,7 @@ local function benchmarkString(n)
 		buf:WriteBytes(s)
 		b:ResetTimer()
 		for i = 1, b.N do
-			local v = buf:String()
+			local _ = buf:String()
 		end
 	end
 end
@@ -1471,7 +1474,7 @@ local function benchmarkFromString(n)
 		local Bitbuf = require()
 		b:ResetTimer()
 		for i = 1, b.N do
-			local buf = Bitbuf.fromString(s)
+			local _ = Bitbuf.fromString(s)
 		end
 	end
 end
