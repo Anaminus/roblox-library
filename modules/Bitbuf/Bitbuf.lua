@@ -5,6 +5,39 @@
 --@ord: -1
 --@doc: Bitbuf implements a bit-level buffer, suitable for serialization and
 -- storing data in-memory.
+--
+-- ```lua
+-- -- Create buffer.
+-- local buf = Bitbuf.new(32*6 + 8 + 8*(2^8-1))
+--
+-- -- Encode part data.
+-- buf:WriteFloat(32, part.Position.X)
+-- buf:WriteFloat(32, part.Position.Y)
+-- buf:WriteFloat(32, part.Position.Z)
+-- buf:WriteFloat(32, part.Size.X)
+-- buf:WriteFloat(32, part.Size.Y)
+-- buf:WriteFloat(32, part.Size.Z)
+-- buf:WriteUint(8, #part.Name)
+-- buf:WriteBytes(part.Name)
+--
+-- -- Move cursor to start.
+-- buf:SetIndex(0)
+--
+-- -- Decode part data.
+-- local copy = Instance.new("Part")
+-- copy.Position = Vector3.new(
+-- 	buf:ReadFloat(32),
+-- 	buf:ReadFloat(32),
+-- 	buf:ReadFloat(32)
+-- )
+-- copy.Size = Vector3.new(
+-- 	buf:ReadFloat(32),
+-- 	buf:ReadFloat(32),
+-- 	buf:ReadFloat(32)
+-- )
+-- copy.Name = buf:ReadBytes(buf:ReadUint(8))
+-- ```
+
 local export = {}
 
 -- Returns uint as int of *size* bits.
