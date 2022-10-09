@@ -17,9 +17,11 @@
 	(total       : 56 bits, 7 bytes)
 ]]
 
+local BitBuf = require(script.Parent.Bitbuf)
+
 local Block = {}
 
-function Block.encode(buf, part)
+function Block.encode(buf: Bitbuf.Buffer, part: BasePart)
 	-- Encode position with each component as an integer between 0 and 255.
 	buf:WriteUint(8, part.Position.X)
 	buf:WriteUint(8, part.Position.Y)
@@ -48,7 +50,7 @@ function Block.encode(buf, part)
 	buf:WriteAlign(8)
 end
 
-function Block.decode(buf)
+function Block.decode(buf: Bitbuf.Buffer): BasePart
 	local part = Instance.new("Part")
 	part.Anchored = true
 	part.TopSurface = Enum.SurfaceType.Smooth
