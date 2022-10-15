@@ -75,7 +75,7 @@ function Dirty.monitor(root, window, callback)
 
 	return function()
 		if maid then
-			maid:FinishAll()
+			maid:Destroy()
 			maid = nil
 		end
 	end

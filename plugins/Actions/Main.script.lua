@@ -106,7 +106,7 @@ end
 
 local pluginMaid = Maid.new()
 pluginMaid.Unloading = plugin.Unloading:Connect(function()
-	pluginMaid:FinishAll()
+	pluginMaid:Destroy()
 end)
 
 local actionMaid = Maid.new()
