@@ -1,289 +1,413 @@
---@sec: Errors
---@def: type Errors = {error}
---@doc: Errors is a list of errors.
-local Errors = {}
-function Errors:__tostring()
-	if #self == 0 then
-		return "no errors"
-	elseif #self == 1 then
-		return tostring(self[1])
-	end
-	local s = table.create(#self+1)
-	table.insert(s, "multiple errors:")
-	for _, err in ipairs(self) do
-		table.insert(s, "\t" .. string.gsub(tostring(err), "\n", "\n\t"))
-	end
-	return table.concat(s, "\n")
-end
-
-local function newErrors()
-	return setmetatable({}, Errors)
-end
-
---@sec: TaskError
---@def: type TaskError = {Name: any, Err: error}
---@doc: TaskError indicates an error that occurred from the completion of a
--- task. The Name field is the name of the task that errored. The type will be a
--- number if the task was unnamed. The Err field is the underlying error that
--- occurred.
-local TaskError = {}
-function TaskError:__tostring()
-	return string.format("task %s: %s", tostring(self.Name), tostring(self.Err))
-end
-
-local function newTaskError(name, err)
-	return setmetatable({
-		Name = name,
-		Err = err,
-	}, TaskError)
-end
-
 --@sec: Maid
---@ord: -1
---@doc: Maid manages tasks. A task is a value that represents the active state
--- of some procedure or object. Finishing a task causes the procedure or object
--- to be finalized. How this occurs depends on the type:
+--@doc: The Maid module provides methods to manage tasks. A **task** is any
+-- value that encapsulates the finalization of some procedure or state.
+-- "Cleaning" a task invokes it, causing the procedure or state to be finalized.
 --
--- - `() -> error?`: The function is called. If an error is returned, it is
---   propagated to the caller as a [TaskError][TaskError].
--- - `RBXScriptConnection`: The Disconnect method is called.
--- - `Instance`: The Parent property is set to nil.
--- - `Maid`: The FinishAll method is called. If an error is returned, it is
---   propagated to the caller as a [TaskError][TaskError].
--- - `table` (no metatable): Each element is finalized.
+-- All tasks have the following contract when cleaning:
 --
--- Unknown task types are held by the maid until finished, but are otherwise
--- ignored.
+-- - A task must not produce an error.
+-- - A task must not yield.
+-- - A task must finalize only once; cleaning an already cleaned task should be
+--   a no-op.
+-- - A task must not cause the production of more tasks.
 --
--- A task that yields is treated as an error. Additionally, an error occurs if a
--- maid tries to finalize a task while already finalizing a task.
-local Maid = {__index={}}
+-- ### Maid class
+--
+-- The **Maid** class is used to manage tasks more conveniently. Tasks can be
+-- assigned to a maid to be cleaned later.
+--
+-- A task can be assigned to a maid as "named" or "unnamed". With a named task:
+--
+-- - The name can be any non-nil value.
+-- - A named task can be individually cleaned.
+-- - A named task can be individually unassigned from the maid without cleaning
+--   it.
+--
+-- Unnamed tasks can only be cleaned by destroying the maid.
+--
+-- Any value can be assigned to a maid. Even if a task is not a known task type,
+-- the maid will still hold on to the value. This might be used to hold off
+-- garbage collection of a value that otherwise has only weak references.
+--
+-- A maid is not reusable; after a maid has been destroyed, any tasks assigned
+-- to the maid are cleaned immediately.
+local export = {}
 
--- finalizeTask checks the type of a task and finalizes it as appropriate.
--- Unknown types are ignored.
-local function finalizeTask(task, ref)
-	local t = typeof(task)
-	if t == "function" then
-		local err = task()
-		return err
-	elseif t == "RBXScriptConnection" then
+local DEBUG = false
+
+export type Task = any
+
+local task_cancel = task.cancel
+
+-- Cleans *task*. *refs* is used to keep track of tables that have already been
+-- traversed.
+local function clean(task: Task, refs: {[any]:true}?)
+	if not task then
+		return
+	end
+	if type(task) == "function" then
+		task()
+	elseif type(task) == "thread" then
+		task_cancel(task)
+	elseif typeof(task) == "RBXScriptConnection" then
 		task:Disconnect()
-		return nil
-	elseif t == "Instance" then
-		task.Parent = nil
-		return nil
-	elseif t == "table" then
-		local mt = getmetatable(task)
-		if mt == Maid then
-			return task:FinishAll()
-		elseif mt == nil then
-			if ref then
-				if ref[task] then
-					return nil
+	elseif typeof(task) == "Instance" then
+		task:Destroy()
+	elseif type(task) == "table" then
+		if getmetatable(task) == nil then
+			if refs then
+				if refs[task] then
+					return
 				end
-				ref[task] = true
+				refs[task] = true
 			else
-				ref = {[task]=true}
+				refs = {[task]=true}
 			end
-			local errs = nil
-			for k, v in pairs(task) do
-				local err = finalizeTask(v, ref)
-				if err ~= nil then
-					if errs == nil then
-						errs = newErrors()
-					end
-					table.insert(errs, newTaskError(k, err))
-				end
+			for k, v in task do
+				clean(v, refs)
 			end
-			return errs
+			if not table.isfrozen(task) then
+				table.clear(task)
+			end
+		elseif type(task.Destroy) == "function" then
+			task:Destroy()
 		end
 	end
-	return nil
 end
+
+--@sec: Maid.clean
+--@ord: -2
+--@def: function Maid.clean(...: Task)
+--@doc: The **clean** function cleans each argument. Does nothing for arguments
+-- that are not known task types. The following types are handled:
+--
+-- - `function`: The function is called.
+-- - `thread`: The thread is canceled with `task.cancel`.
+-- - `RBXScriptConnection`: The Disconnect method is called.
+-- - `Instance`: The Destroy method is called.
+-- - `table` without metatable: The value of each entry is cleaned. This applies
+--   recursively, and such tables are cleaned only once. The table is cleared
+--   unless it is frozen.
+-- - `table` with metatable and Destroy function: Destroy is called as a method.
+function export.clean(...: Task)
+	for i = 1, select("#", ...) do
+		local task = select(i, ...)
+		clean(task)
+	end
+end
+
+--@sec: Maid.wrap
+--@ord: -2
+--@def: function Maid.wrap(...: Task): () -> ()
+--@doc: The **wrap** function encapsulates the given tasks in a function that
+-- cleans them when called.
+--
+-- **Example:**
+-- ```lua
+-- local conn = RunService.Heartbeat:Connect(function(dt)
+-- 	print("delta time", dt)
+-- end)
+-- return Maid.wrap(conn)
+-- ```
+function export.wrap(...: Task): () -> ()
+	local tasks
+	if select("#", ...) == 1 then
+		tasks = ...
+	else
+		tasks = {...}
+	end
+	return function()
+		local t = tasks
+		if t then
+			tasks = nil
+			clean(t)
+		end
+	end
+end
+
+-- If debugging, wrap returns a callable table instead of a function, allowing
+-- the contents to be inspected.
+if DEBUG then
+	function export.wrap(...: Task): () -> ()
+		local self
+		if select("#", ...) == 1 then
+			self = {tasks = ...}
+		else
+			self = {tasks = {...}}
+		end
+		setmetatable(self, {
+			__call = function(self)
+				local tasks = self.tasks
+				if tasks then
+					self.tasks = nil
+					clean(tasks)
+				end
+			end,
+		})
+		return self
+	end
+end
+
+local Maid = {__index=setmetatable({}, {
+	__index = function(self, k)
+		error(string.format("cannot index maid with %q", tostring(k)), 2)
+	end,
+})}
+
+export type Maid = typeof(setmetatable({}, Maid))
 
 --@sec: Maid.new
---@ord: -3
---@def: Maid.new(): Maid
---@doc: new returns a new Maid instance.
-local function new()
-	return setmetatable({
-		_tasks = {},
-		_thread = false,
-	}, Maid)
-end
-
---@sec: Maid.finish
---@ord: -2
---@def: Maid.finish(task: any): error
---@doc: finish completes the given task. *task* is any value that can be
--- assigned to a Maid. Returns an error if the task failed. If the task throws
--- an error, then finish makes no attempt to catch it.
-local function finish(task)
-	return finalizeTask(task)
-end
-
---@sec: Maid.is
 --@ord: -1
---@def: Maid.is(v: any): boolean
---@doc: is returns whether *v* is an instance of Maid.
-local function is(v)
-	return getmetatable(v) == Maid
-end
-
-local success = newproxy()
-local taskerr = newproxy()
--- threadTask runs a task within a thread, which will both catch errors and
--- detect if the task yields. The thread can be reused as long as a task
--- behaves.
-local function threadTask(self, task)
-	if not self._thread then
-		self._thread = coroutine.create(function(task)
-			while true do
-				local err = finalizeTask(task)
-				if err == nil then
-					task = coroutine.yield(success)
-				else
-					task = coroutine.yield(taskerr, err)
-				end
-			end
-		end)
-	end
-	if coroutine.status(self._thread) ~= "suspended" then
-		return "cannot run finalizer within finalizer"
-	end
-	local ok, status, err = coroutine.resume(self._thread, task)
-	if not ok then
-		-- Task errored, return it.
-		self._thread = false
-		return status
-	elseif status == taskerr then
-		return err
-	elseif status ~= success then
-		-- Task yielded, which isn't allowed.
-		self._thread = false
-		return "unexpected yield while finishing task"
-	end
-	return nil
-end
-
-local function assertName(name)
-	if type(name) == "string" then
-		assert(string.sub(name, 1, 1) ~= "_", "string name cannot begin with underscore")
-	end
-end
-
---@sec: Maid.Task
---@def: Maid:Task(name: any, task: any?): (err: error?)
---@doc: Task assigns *task* to the maid with the given name. If *task* is nil,
--- and the maid has task *name*, then the task is completed. Returns a
--- [TaskError][TaskError] if the completed task yielded or errored.
+--@def: function Maid.new(): Maid
+--@doc: The **new** constructor returns a new instance of the Maid class.
 --
--- If *name* is a string, it is not allowed to begin with an underscore.
-function Maid.__index:Task(name, task)
-	assertName(name)
-	local prev = self._tasks[name]
-	self._tasks[name] = task
-	if prev == nil then
+-- **Example:**
+-- ```lua
+-- local maid = Maid.new()
+-- ```
+function export.new(): Maid
+	local self = {
+		-- Map of names to tasks. Can be nil, indicating that the maid is
+		-- destroyed.
+		_namedTasks = {},
+		-- List of unnamed tasks.
+		_unnamedTasks = {},
+	}
+	return setmetatable(self, Maid)
+end
+
+--@sec: Maid.Alive
+--@def: function Maid:Alive(): boolean
+--@doc: The **Alive** method returns false when the maid is destroyed, and true
+-- otherwise.
+--
+-- **Example:**
+-- ```lua
+-- if maid:Alive() then
+-- 	maid.heartbeat = RunService.Heartbeat:Connect(function(dt)
+-- 		print("delta time", dt)
+-- 	end)
+-- end
+-- ```
+function Maid.__index:Alive(): boolean
+	return not not self._namedTasks
+end
+
+--@sec: Maid.Assign
+--@def: function Maid:Assign(name: any, task: Task?)
+--@doc: The **Assign** method performs an action depending on the type of
+-- *task*. If *task* is nil, then the task assigned as *name* is cleaned, if
+-- present. Otherwise, *task* is assigned to the maid as *name*. If a different
+-- task (according to rawequal) is already assigned as *name*, then it is
+-- cleaned.
+--
+-- If the maid is destroyed, *task* is cleaned immediately.
+--
+-- **Examples:**
+-- ```lua
+-- maid:Assign("part", Instance.new("Part"))
+-- ```
+--
+-- Setting an assigned task to nil unassigns it from the maid and cleans it.
+--
+-- ```lua
+-- maid:Assign("part", nil) -- Remove task and clean it.
+-- ```
+--
+-- Assigning a task with a name that is already assigned cleans the previous
+-- task first.
+--
+-- ```lua
+-- maid:Assign("part", Instance.new("Part"))
+-- maid:Assign("part", Instance.new("WedgePart"))
+-- ```
+function Maid.__index:Assign(name: any, task: Task?)
+	if not self._namedTasks then
+		clean(task)
+		return
+	end
+	if task then
+		local prev = self._namedTasks[name]
+		if not rawequal(prev, task) then
+			self._namedTasks[name] = task
+			if prev then
+				clean(prev)
+			end
+		end
+	else
+		local prev = self._namedTasks[name]
+		self._namedTasks[name] = nil
+		clean(prev)
+	end
+end
+
+--@sec: Maid.AssignEach
+--@def: function Maid:AssignEach(...: Task)
+--@doc: The **AssignEach** method assigns each given argument as an unnamed
+-- task.
+--
+-- If the maid is destroyed, the each task is cleaned immediately.
+function Maid.__index:AssignEach(...: Task)
+	if not self._namedTasks then
+		for i = 1, select("#", ...) do
+			local task = select(i, ...)
+			clean(task)
+		end
+		return
+	end
+	for i = 1, select("#", ...) do
+		local task = select(i, ...)
+		if task then
+			table.insert(self._unnamedTasks, task)
+		end
+	end
+end
+
+--@sec: Maid.Clean
+--@def: function Maid:Clean(...: any)
+--@doc: The **Clean** method receives a number of names, and cleans the task
+-- assigned to the maid for each name. Does nothing if the maid is destroyed,
+-- and does nothing for names that have no assigned task.
+function Maid.__index:Clean(...: any)
+	if not self._namedTasks then
+		return
+	end
+	for i = 1, select("#", ...) do
+		local name = select(i, ...)
+		local task = self._namedTasks[name]
+		self._namedTasks[name] = nil
+		clean(task)
+	end
+end
+
+--@sec: Maid.Connect
+--@def: function Maid:Connect(name: any?, signal: RBXScriptSignal, listener: () -> ())
+--@doc: The **Connect** method connects *listener* to *signal*, then assigns the
+-- resulting connection to the maid as *name*. If *name* is nil, then the
+-- connection is assigned as an unnamed task instead. Does nothing if the maid
+-- is destroyed.
+--
+-- Connect is the preferred method when using maids to manage signals, primarily
+-- to resolve problems concerning the assignment to a destroyed maid:
+-- - Slightly more efficient than regular assignment, since the connection of
+--   the signal is never made.
+-- - Certain signals can have side-effects when connecting, so avoiding the
+--   connection entirely is more correct.
+--
+-- **Example:**
+-- ```lua
+-- maid:Connect("heartbeat", RunService.Heartbeat, function(dt)
+-- 	print("delta time", dt)
+-- end)
+-- ```
+function Maid.__index:Connect(name: any, signal: RBXScriptSignal, listener: () -> ())
+	if not self._namedTasks then
+		return
+	end
+	local connection = signal:Connect(listener)
+	if name == nil then
+		table.insert(self._unnamedTasks, connection)
+	else
+		self:Assign(name, connection)
+	end
+end
+
+--@sec: Maid.Destroy
+--@def: function Maid:Destroy()
+--@doc: The **Destroy** method cleans all tasks currently assigned to the maid.
+-- Does nothing if the maid is destroyed.
+--
+-- **Example:**
+-- ```lua
+-- maid:Destroy()
+-- ```
+function Maid.__index:Destroy()
+	local namedTasks = self._namedTasks
+	if not namedTasks then
+		return
+	end
+	local unnamedTasks = self._unnamedTasks
+	self._namedTasks = false
+	self._unnamedTasks = false
+	clean(namedTasks)
+	clean(unnamedTasks)
+end
+
+--@sec: Maid.Unassign
+--@def: function Maid:Unassign(name: any): Task
+--@doc: The **Unassign** method removes the task assigned to the maid as *name*,
+-- returning the task. Returns nil if no task is assigned as *name*, or if the
+-- maid is Destroyed.
+function Maid.__index:Unassign(name: any): Task
+	if not self._namedTasks then
 		return nil
 	end
-	local err = threadTask(self, prev)
-	if err ~= nil then
-		return newTaskError(name, err)
-	end
-	return nil
+	local task = self._namedTasks[name]
+	self._namedTasks[name] = nil
+	return task
 end
 
---@sec: Maid.\__newindex
---@def: Maid[name: any] = (task: any?)
---@doc: Alias for Task. If an error occurs, it is thrown.
-function Maid:__newindex(name, task)
-	local err = self:Task(name, task)
-	if err ~= nil then
-		--TODO: return err directly once the engine can receive any value type.
-		error(tostring(err), 2)
-	end
-end
-
---@sec: Maid.TaskEach
---@def: Maid:TaskEach(...: any)
---@doc: TaskEach assigns each argument as an unnamed task.
-function Maid.__index:TaskEach(...)
-	local tasks = table.pack(...)
-	for i = 1, tasks.n do
-		table.insert(self._tasks, tasks[i])
-	end
-end
-
---@sec: Maid.Skip
---@def: Maid:Skip(...: any)
---@doc: Skip removes the tasks of the given names without completing them. Names
--- with no assigned task are ignored.
+--@sec: Maid.Wrap
+--@def: function Maid:Wrap(): () -> ()
+--@doc: The **Wrap** method encapsulates the maid by returning a function that
+-- cleans the maid when called.
 --
--- If a name is a string, it is not allowed to begin with an underscore.
-function Maid.__index:Skip(...)
-	local names = table.pack(...)
-	for i = 1, names.n do
-		assertName(names[i])
-	end
-	for i = 1, names.n do
-		self._tasks[names[i]] = nil
-	end
+-- **Example:**
+-- ```lua
+-- return maid:Wrap()
+-- ```
+function Maid.__index:Wrap(): () -> ()
+	return export.wrap(self)
 end
 
-local function finishSnapshot(self, snapshot)
-	local errs = nil
-	for name, task in pairs(snapshot) do
-		local err = threadTask(self, task)
-		if err then
-			if errs == nil then
-				errs = newErrors()
-			end
-			table.insert(errs, newTaskError(name, err))
-		end
-	end
-	return errs
-end
-
---@sec: Maid.Finish
---@def: Maid:Finish(...: any): (errs: Errors?)
---@doc: Finish completes the tasks of the given names. Names with no assigned
--- task are ignored. Returns a [TaskError][TaskError] for each task that yields
--- or errors, or nil if all tasks finished successfully.
+--@sec: Maid.__newindex
+--@def: Maid[any] = Task?
+--@doc: Assigns a task according to the [Assign][Maid.Assign] method, where the
+-- index is the name, and the value is the task. If the index is a string that
+-- is a single underscore, then the task is assigned according to
+-- [AssignEach][Maid.AssignEach] instead.
 --
--- If a name is a string, it is not allowed to begin with an underscore.
-function Maid.__index:Finish(...)
-	local names = table.pack(...)
-	for i = 1, names.n do
-		assertName(names[i])
+-- Tasks can be assigned to the maid like a table:
+--
+-- ```lua
+-- maid.foo = task -- Assign task as "foo".
+-- ```
+--
+-- Setting an assigned task to nil unassigns it from the maid and cleans it:
+--
+-- ```lua
+-- maid.foo = nil -- Remove task and clean it.
+-- ```
+--
+-- Assigning a task with a name that is already assigned cleans the previous
+-- task first:
+--
+-- ```lua
+-- maid.foo = task      -- Assign task as "foo".
+-- maid.foo = otherTask -- Remove task, clean it, and assign otherTask as "foo".
+-- ```
+--
+-- Assigning to the special `_` index assigns an unnamed task (to explicitly
+-- assign as `_`, use the [Assign][Maid.Assign] method).
+--
+-- ```lua
+-- maid._ = task      -- Assign task.
+-- maid._ = otherTask -- Assign otherTask.
+-- ```
+--
+-- **Note**: Tasks assigned to the maid cannot be indexed:
+--
+-- ```lua
+-- print(maid.foo)
+-- --> ERROR: cannot index maid with "foo"
+-- ```
+
+function Maid:__newindex(name: any, task: Task?)
+	if name == "_" then
+		self:AssignEach(task)
+	else
+		self:Assign(name, task)
 	end
-	local snapshot = {}
-	for i = 1, names.n do
-		local name = names[i]
-		local task = self._tasks[name]
-		if task ~= nil then
-			snapshot[name] = task
-			self._tasks[name] = nil
-		end
-	end
-	return finishSnapshot(self, snapshot)
 end
 
---@sec: Maid.FinishAll
---@def: Maid:FinishAll(): (errs: Errors?)
---@doc: FinishAll completes all assigned tasks. Returns a [TaskError][TaskError]
--- for each task that yields or errors, or nil if all tasks finished
--- successfully.
-function Maid.__index:FinishAll()
-	local snapshot = {}
-	for name, task in pairs(self._tasks) do
-		snapshot[name] = task
-	end
-	table.clear(self._tasks)
-	return finishSnapshot(self, snapshot)
-end
-
-return {
-	new = new,
-	finish = finish,
-	is = is,
-}
+return table.freeze(export)

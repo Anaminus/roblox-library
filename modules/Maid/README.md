@@ -1,147 +1,286 @@
 # Maid
 [Maid]: #user-content-maid
 
-Maid manages tasks. A task is a value that represents the active state
-of some procedure or object. Finishing a task causes the procedure or object
-to be finalized. How this occurs depends on the type:
+The Maid module provides methods to manage tasks. A **task** is any
+value that encapsulates the finalization of some procedure or state.
+"Cleaning" a task invokes it, causing the procedure or state to be finalized.
 
-- `() -> error?`: The function is called. If an error is returned, it is
-  propagated to the caller as a [TaskError][TaskError].
-- `RBXScriptConnection`: The Disconnect method is called.
-- `Instance`: The Parent property is set to nil.
-- `Maid`: The FinishAll method is called. If an error is returned, it is
-  propagated to the caller as a [TaskError][TaskError].
-- `table` (no metatable): Each element is finalized.
+All tasks have the following contract when cleaning:
 
-Unknown task types are held by the maid until finished, but are otherwise
-ignored.
+- A task must not produce an error.
+- A task must not yield.
+- A task must finalize only once; cleaning an already cleaned task should be
+  a no-op.
+- A task must not cause the production of more tasks.
 
-A task that yields is treated as an error. Additionally, an error occurs if a
-maid tries to finalize a task while already finalizing a task.
+### Maid class
+
+The **Maid** class is used to manage tasks more conveniently. Tasks can be
+assigned to a maid to be cleaned later.
+
+A task can be assigned to a maid as "named" or "unnamed". With a named task:
+
+- The name can be any non-nil value.
+- A named task can be individually cleaned.
+- A named task can be individually unassigned from the maid without cleaning
+  it.
+
+Unnamed tasks can only be cleaned by destroying the maid.
+
+Any value can be assigned to a maid. Even if a task is not a known task type,
+the maid will still hold on to the value. This might be used to hold off
+garbage collection of a value that otherwise has only weak references.
+
+A maid is not reusable; after a maid has been destroyed, any tasks assigned
+to the maid are cleaned immediately.
 
 <table>
 <thead><tr><th>Table of Contents</th></tr></thead>
 <tbody><tr><td>
 
 1. [Maid][Maid]
-	1. [Maid.new][Maid.new]
-	2. [Maid.finish][Maid.finish]
-	3. [Maid.is][Maid.is]
-	4. [Maid.Finish][Maid.Finish]
-	5. [Maid.FinishAll][Maid.FinishAll]
-	6. [Maid.Skip][Maid.Skip]
-	7. [Maid.Task][Maid.Task]
-	8. [Maid.TaskEach][Maid.TaskEach]
-	9. [Maid.\__newindex][Maid.\__newindex]
-2. [Errors][Errors]
-3. [TaskError][TaskError]
+	1. [Maid.clean][Maid.clean]
+	2. [Maid.wrap][Maid.wrap]
+	3. [Maid.new][Maid.new]
+	4. [Maid.Alive][Maid.Alive]
+	5. [Maid.Assign][Maid.Assign]
+	6. [Maid.AssignEach][Maid.AssignEach]
+	7. [Maid.Clean][Maid.Clean]
+	8. [Maid.Connect][Maid.Connect]
+	9. [Maid.Destroy][Maid.Destroy]
+	10. [Maid.Unassign][Maid.Unassign]
+	11. [Maid.Wrap][Maid.Wrap]
+	12. [Maid.__newindex][Maid.__newindex]
 
 </td></tr></tbody>
 </table>
 
+## Maid.clean
+[Maid.clean]: #user-content-maidclean
+```
+function Maid.clean(...: Task)
+```
+
+The **clean** function cleans each argument. Does nothing for arguments
+that are not known task types. The following types are handled:
+
+- `function`: The function is called.
+- `thread`: The thread is canceled with `task.cancel`.
+- `RBXScriptConnection`: The Disconnect method is called.
+- `Instance`: The Destroy method is called.
+- `table` without metatable: The value of each entry is cleaned. This applies
+  recursively, and such tables are cleaned only once. The table is cleared
+  unless it is frozen.
+- `table` with metatable and Destroy function: Destroy is called as a method.
+
+## Maid.wrap
+[Maid.wrap]: #user-content-maidwrap
+```
+function Maid.wrap(...: Task): () -> ()
+```
+
+The **wrap** function encapsulates the given tasks in a function that
+cleans them when called.
+
+**Example:**
+```lua
+local conn = RunService.Heartbeat:Connect(function(dt)
+	print("delta time", dt)
+end)
+return Maid.wrap(conn)
+```
+
 ## Maid.new
 [Maid.new]: #user-content-maidnew
 ```
-Maid.new(): Maid
+function Maid.new(): Maid
 ```
 
-new returns a new Maid instance.
+The **new** constructor returns a new instance of the Maid class.
 
-## Maid.finish
-[Maid.finish]: #user-content-maidfinish
-```
-Maid.finish(task: any): error
-```
-
-finish completes the given task. *task* is any value that can be
-assigned to a Maid. Returns an error if the task failed. If the task throws
-an error, then finish makes no attempt to catch it.
-
-## Maid.is
-[Maid.is]: #user-content-maidis
-```
-Maid.is(v: any): boolean
+**Example:**
+```lua
+local maid = Maid.new()
 ```
 
-is returns whether *v* is an instance of Maid.
-
-## Maid.Finish
-[Maid.Finish]: #user-content-maidfinish
+## Maid.Alive
+[Maid.Alive]: #user-content-maidalive
 ```
-Maid:Finish(...: any): (errs: Errors?)
+function Maid:Alive(): boolean
 ```
 
-Finish completes the tasks of the given names. Names with no assigned
-task are ignored. Returns a [TaskError][TaskError] for each task that yields
-or errors, or nil if all tasks finished successfully.
+The **Alive** method returns false when the maid is destroyed, and true
+otherwise.
 
-If a name is a string, it is not allowed to begin with an underscore.
-
-## Maid.FinishAll
-[Maid.FinishAll]: #user-content-maidfinishall
-```
-Maid:FinishAll(): (errs: Errors?)
-```
-
-FinishAll completes all assigned tasks. Returns a [TaskError][TaskError]
-for each task that yields or errors, or nil if all tasks finished
-successfully.
-
-## Maid.Skip
-[Maid.Skip]: #user-content-maidskip
-```
-Maid:Skip(...: any)
+**Example:**
+```lua
+if maid:Alive() then
+	maid.heartbeat = RunService.Heartbeat:Connect(function(dt)
+		print("delta time", dt)
+	end)
+end
 ```
 
-Skip removes the tasks of the given names without completing them. Names
-with no assigned task are ignored.
-
-If a name is a string, it is not allowed to begin with an underscore.
-
-## Maid.Task
-[Maid.Task]: #user-content-maidtask
+## Maid.Assign
+[Maid.Assign]: #user-content-maidassign
 ```
-Maid:Task(name: any, task: any?): (err: error?)
+function Maid:Assign(name: any, task: Task?)
 ```
 
-Task assigns *task* to the maid with the given name. If *task* is nil,
-and the maid has task *name*, then the task is completed. Returns a
-[TaskError][TaskError] if the completed task yielded or errored.
+The **Assign** method performs an action depending on the type of
+*task*. If *task* is nil, then the task assigned as *name* is cleaned, if
+present. Otherwise, *task* is assigned to the maid as *name*. If a different
+task (according to rawequal) is already assigned as *name*, then it is
+cleaned.
 
-If *name* is a string, it is not allowed to begin with an underscore.
+If the maid is destroyed, *task* is cleaned immediately.
 
-## Maid.TaskEach
-[Maid.TaskEach]: #user-content-maidtaskeach
-```
-Maid:TaskEach(...: any)
-```
-
-TaskEach assigns each argument as an unnamed task.
-
-## Maid.\__newindex
-[Maid.\__newindex]: #user-content-maid__newindex
-```
-Maid[name: any] = (task: any?)
+**Examples:**
+```lua
+maid:Assign("part", Instance.new("Part"))
 ```
 
-Alias for Task. If an error occurs, it is thrown.
+Setting an assigned task to nil unassigns it from the maid and cleans it.
 
-# Errors
-[Errors]: #user-content-errors
-```
-type Errors = {error}
+```lua
+maid:Assign("part", nil) -- Remove task and clean it.
 ```
 
-Errors is a list of errors.
+Assigning a task with a name that is already assigned cleans the previous
+task first.
 
-# TaskError
-[TaskError]: #user-content-taskerror
-```
-type TaskError = {Name: any, Err: error}
+```lua
+maid:Assign("part", Instance.new("Part"))
+maid:Assign("part", Instance.new("WedgePart"))
 ```
 
-TaskError indicates an error that occurred from the completion of a
-task. The Name field is the name of the task that errored. The type will be a
-number if the task was unnamed. The Err field is the underlying error that
-occurred.
+## Maid.AssignEach
+[Maid.AssignEach]: #user-content-maidassigneach
+```
+function Maid:AssignEach(...: Task)
+```
+
+The **AssignEach** method assigns each given argument as an unnamed
+task.
+
+If the maid is destroyed, the each task is cleaned immediately.
+
+## Maid.Clean
+[Maid.Clean]: #user-content-maidclean
+```
+function Maid:Clean(...: any)
+```
+
+The **Clean** method receives a number of names, and cleans the task
+assigned to the maid for each name. Does nothing if the maid is destroyed,
+and does nothing for names that have no assigned task.
+
+## Maid.Connect
+[Maid.Connect]: #user-content-maidconnect
+```
+function Maid:Connect(name: any?, signal: RBXScriptSignal, listener: () -> ())
+```
+
+The **Connect** method connects *listener* to *signal*, then assigns the
+resulting connection to the maid as *name*. If *name* is nil, then the
+connection is assigned as an unnamed task instead. Does nothing if the maid
+is destroyed.
+
+Connect is the preferred method when using maids to manage signals, primarily
+to resolve problems concerning the assignment to a destroyed maid:
+- Slightly more efficient than regular assignment, since the connection of
+  the signal is never made.
+- Certain signals can have side-effects when connecting, so avoiding the
+  connection entirely is more correct.
+
+**Example:**
+```lua
+maid:Connect("heartbeat", RunService.Heartbeat, function(dt)
+	print("delta time", dt)
+end)
+```
+
+## Maid.Destroy
+[Maid.Destroy]: #user-content-maiddestroy
+```
+function Maid:Destroy()
+```
+
+The **Destroy** method cleans all tasks currently assigned to the maid.
+Does nothing if the maid is destroyed.
+
+**Example:**
+```lua
+maid:Destroy()
+```
+
+## Maid.Unassign
+[Maid.Unassign]: #user-content-maidunassign
+```
+function Maid:Unassign(name: any): Task
+```
+
+The **Unassign** method removes the task assigned to the maid as *name*,
+returning the task. Returns nil if no task is assigned as *name*, or if the
+maid is Destroyed.
+
+## Maid.Wrap
+[Maid.Wrap]: #user-content-maidwrap
+```
+function Maid:Wrap(): () -> ()
+```
+
+The **Wrap** method encapsulates the maid by returning a function that
+cleans the maid when called.
+
+**Example:**
+```lua
+return maid:Wrap()
+```
+
+## Maid.__newindex
+[Maid.__newindex]: #user-content-maid__newindex
+```
+Maid[any] = Task?
+```
+
+Assigns a task according to the [Assign][Maid.Assign] method, where the
+index is the name, and the value is the task. If the index is a string that
+is a single underscore, then the task is assigned according to
+[AssignEach][Maid.AssignEach] instead.
+
+Tasks can be assigned to the maid like a table:
+
+```lua
+maid.foo = task -- Assign task as "foo".
+```
+
+Setting an assigned task to nil unassigns it from the maid and cleans it:
+
+```lua
+maid.foo = nil -- Remove task and clean it.
+```
+
+Assigning a task with a name that is already assigned cleans the previous
+task first:
+
+```lua
+maid.foo = task      -- Assign task as "foo".
+maid.foo = otherTask -- Remove task, clean it, and assign otherTask as "foo".
+```
+
+Assigning to the special `_` index assigns an unnamed task (to explicitly
+assign as `_`, use the [Assign][Maid.Assign] method).
+
+```lua
+maid._ = task      -- Assign task.
+maid._ = otherTask -- Assign otherTask.
+```
+
+**Note**: Tasks assigned to the maid cannot be indexed:
+
+```lua
+print(maid.foo)
+--> ERROR: cannot index maid with "foo"
+```
 
