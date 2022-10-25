@@ -1,0 +1,12 @@
+{
+	"name": "library",
+	"globIgnorePaths": [
+		"*.test.lua",
+		"**/etc",
+		"**/examples",
+		"*.rbxmk.lua"
+	],
+	"tree": {
+		"$path": "modules"
+	}
+}

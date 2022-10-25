@@ -23,7 +23,8 @@ runner.Parent = ServerScriptService
 local modules = Instance.new("Folder")
 modules.Name = "Modules"
 modules.Parent = runner
-local testing = fs.read("../Testing/Testing.lua")
+local testing = fs.read("../Testing/init.lua")
+testing.Name = "Testing"
 testing.Parent = runner
 
 local testPairs = {}
@@ -31,6 +32,9 @@ for _, file in ipairs(fs.dir(dir)) do
 	if not file.IsDir then
 		local stem = string.match(file.Name, "^(.+).lua$")
 		if stem then
+			if stem == "init" then
+				stem = path.split(dir, "base")
+			end
 			if not testPairs[stem] then
 				testPairs[stem] = {}
 			end
@@ -52,6 +56,7 @@ for name, pair in pairs(testPairs) do
 	if pair.Module and pair.Test then
 		local module = fs.read(pair.Module)
 		local test = fs.read(pair.Test)
+		module.Name = name
 		module.Parent = modules
 		test.Parent = modules
 		hasTestPairs = true
