@@ -29,3 +29,28 @@ local function Join(a, b)
 	table.move(b, 1, #b, #a+1, c)
 	return c
 end
+
+-- FastRemove removes an element without preserving order. Assumes 1 <= i <= #a
+local function FastRemove(a, i)
+	local n = #a
+	if n > 0 then
+		a[i] = a[n]
+		a[n] = nil
+	end
+end
+
+-- BulkFastRemove removes elements for which *cond* returns true, without
+-- preserving order.
+local function BulkFastRemove(a, cond)
+	local i = 1
+	local n = #a
+	while i <= n do
+		if cond(a[i]) then
+			a[i] = a[n]
+			a[n] = nil
+			n -= 1
+		else
+			i += 1
+		end
+	end
+end
