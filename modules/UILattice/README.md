@@ -1,5 +1,5 @@
 # UILattice
-[UILattice]: #user-content-uilattice
+[UILattice]: #uilattice
 
 The UILattice module provides an implementation of the **Lattice
 algorithm**. The Lattice algorithm converts a [flexbox][flexbox]-like grid
@@ -45,7 +45,7 @@ inexpensive.
 </table>
 
 ## UILattice.update
-[UILattice.update]: #user-content-uilatticeupdate
+[UILattice.update]: #uilatticeupdate
 ```
 function UILattice.update(parent: Instance): Instance
 ```
@@ -76,7 +76,7 @@ On child GuiObjects, the following attributes are recognized:
   Any other type causes Visible to be set to false.
 
 ## UILattice.new
-[UILattice.new]: #user-content-uilatticenew
+[UILattice.new]: #uilatticenew
 ```
 function UILattice.new(parent: Instance?): (parent: Instance, disconnect: () -> ())
 ```
@@ -90,7 +90,7 @@ defaults.
 be released.
 
 ## UILattice.bind
-[UILattice.bind]: #user-content-uilatticebind
+[UILattice.bind]: #uilatticebind
 ```
 function UILattice.bind(tag: string?): () -> ()
 ```

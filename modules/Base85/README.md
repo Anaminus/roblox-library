@@ -1,5 +1,5 @@
 # Base85
-[Base85]: #user-content-base85
+[Base85]: #base85
 
 Implements Base85 encoding similar to [Ascii85][Ascii85].
 
@@ -16,16 +16,13 @@ exceptionally. Wrappers (such as `<~ ... ~>`) are neither added nor expected.
 
 1. [Base85][Base85]
 	1. [Base85.decode][Base85.decode]
-	2. [Base85.defaultEncoding][Base85.defaultEncoding]
-	3. [Base85.encode][Base85.encode]
-	4. [Base85.newCodec][Base85.newCodec]
-2. [Encoding][Encoding]
+	2. [Base85.encode][Base85.encode]
 
 </td></tr></tbody>
 </table>
 
 ## Base85.decode
-[Base85.decode]: #user-content-base85decode
+[Base85.decode]: #base85decode
 ```
 Base85.decode(source: string): (err: error, data: string)
 ```
@@ -35,7 +32,7 @@ source contains invalid base85 data or invalid bytes. Bytes that are spaces
 are ignored.
 
 ## Base85.encode
-[Base85.encode]: #user-content-base85encode
+[Base85.encode]: #base85encode
 ```
 Base85.encode(source: string): (data: string)
 ```

@@ -1,5 +1,5 @@
 # Maid
-[Maid]: #user-content-maid
+[Maid]: #maid
 
 The Maid module provides methods to manage tasks. A **task** is any
 value that encapsulates the finalization of some procedure or state.
@@ -56,7 +56,7 @@ to the maid are cleaned immediately.
 </table>
 
 ## Maid.clean
-[Maid.clean]: #user-content-maidclean
+[Maid.clean]: #maidclean
 ```
 function Maid.clean(...: Task)
 ```
@@ -74,7 +74,7 @@ that are not known task types. The following types are handled:
 - `table` with metatable and Destroy function: Destroy is called as a method.
 
 ## Maid.wrap
-[Maid.wrap]: #user-content-maidwrap
+[Maid.wrap]: #maidwrap
 ```
 function Maid.wrap(...: Task): () -> ()
 ```
@@ -91,7 +91,7 @@ return Maid.wrap(conn)
 ```
 
 ## Maid.new
-[Maid.new]: #user-content-maidnew
+[Maid.new]: #maidnew
 ```
 function Maid.new(): Maid
 ```
@@ -104,7 +104,7 @@ local maid = Maid.new()
 ```
 
 ## Maid.Alive
-[Maid.Alive]: #user-content-maidalive
+[Maid.Alive]: #maidalive
 ```
 function Maid:Alive(): boolean
 ```
@@ -122,7 +122,7 @@ end
 ```
 
 ## Maid.Assign
-[Maid.Assign]: #user-content-maidassign
+[Maid.Assign]: #maidassign
 ```
 function Maid:Assign(name: any, task: Task?)
 ```
@@ -155,7 +155,7 @@ maid:Assign("part", Instance.new("WedgePart"))
 ```
 
 ## Maid.AssignEach
-[Maid.AssignEach]: #user-content-maidassigneach
+[Maid.AssignEach]: #maidassigneach
 ```
 function Maid:AssignEach(...: Task)
 ```
@@ -166,7 +166,7 @@ task.
 If the maid is destroyed, the each task is cleaned immediately.
 
 ## Maid.Clean
-[Maid.Clean]: #user-content-maidclean
+[Maid.Clean]: #maidclean
 ```
 function Maid:Clean(...: any)
 ```
@@ -176,7 +176,7 @@ assigned to the maid for each name. Does nothing if the maid is destroyed,
 and does nothing for names that have no assigned task.
 
 ## Maid.Connect
-[Maid.Connect]: #user-content-maidconnect
+[Maid.Connect]: #maidconnect
 ```
 function Maid:Connect(name: any?, signal: RBXScriptSignal, listener: () -> ())
 ```
@@ -201,7 +201,7 @@ end)
 ```
 
 ## Maid.Destroy
-[Maid.Destroy]: #user-content-maiddestroy
+[Maid.Destroy]: #maiddestroy
 ```
 function Maid:Destroy()
 ```
@@ -215,7 +215,7 @@ maid:Destroy()
 ```
 
 ## Maid.Unassign
-[Maid.Unassign]: #user-content-maidunassign
+[Maid.Unassign]: #maidunassign
 ```
 function Maid:Unassign(name: any): Task
 ```
@@ -225,7 +225,7 @@ returning the task. Returns nil if no task is assigned as *name*, or if the
 maid is Destroyed.
 
 ## Maid.Wrap
-[Maid.Wrap]: #user-content-maidwrap
+[Maid.Wrap]: #maidwrap
 ```
 function Maid:Wrap(): () -> ()
 ```
@@ -239,7 +239,7 @@ return maid:Wrap()
 ```
 
 ## Maid.__newindex
-[Maid.__newindex]: #user-content-maid__newindex
+[Maid.__newindex]: #maid__newindex
 ```
 Maid[any] = Task?
 ```

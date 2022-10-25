@@ -1,5 +1,5 @@
 # Binstruct
-[Binstruct]: #user-content-binstruct
+[Binstruct]: #binstruct
 
 Binstruct encodes and decodes binary structures.
 
@@ -90,7 +90,7 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 </table>
 
 ## Binstruct.new
-[Binstruct.new]: #user-content-binstructnew
+[Binstruct.new]: #binstructnew
 ```
 Binstruct.new(def: TypeDef): (err: string?, codec: Codec)
 ```
@@ -98,7 +98,7 @@ Binstruct.new(def: TypeDef): (err: string?, codec: Codec)
 new constructs a Codec from the given definition.
 
 # Codec
-[Codec]: #user-content-codec
+[Codec]: #codec
 ```
 type Codec
 ```
@@ -106,7 +106,7 @@ type Codec
 Codec contains instructions for encoding and decoding binary data.
 
 ## Codec.Decode
-[Codec.Decode]: #user-content-codecdecode
+[Codec.Decode]: #codecdecode
 ```
 Codec:Decode(buffer: string): (error, any)
 ```
@@ -115,7 +115,7 @@ Decode decodes a binary string into a value according to the codec.
 Returns the decoded value.
 
 ## Codec.DecodeBuffer
-[Codec.DecodeBuffer]: #user-content-codecdecodebuffer
+[Codec.DecodeBuffer]: #codecdecodebuffer
 ```
 Codec:DecodeBuffer(buffer: Bitbuf.Buffer): (error, any)
 ```
@@ -124,7 +124,7 @@ DecodeBuffer decodes a binary string into a value according to the
 codec. *buffer* is the buffer to read from. Returns the decoded value.
 
 ## Codec.Encode
-[Codec.Encode]: #user-content-codecencode
+[Codec.Encode]: #codecencode
 ```
 Codec:Encode(data: any): (error, string)
 ```
@@ -133,7 +133,7 @@ Encode encodes a value into a binary string according to the codec.
 Returns the encoded string.
 
 ## Codec.EncodeBuffer
-[Codec.EncodeBuffer]: #user-content-codecencodebuffer
+[Codec.EncodeBuffer]: #codecencodebuffer
 ```
 Codec:EncodeBuffer(data: any, buffer: Bitbuf.Buffer?): (error, Bitbuf.Buffer)
 ```
@@ -143,7 +143,7 @@ codec. *buffer* is an optional Buffer to write to. Returns the Buffer with
 the written data.
 
 # Filter
-[Filter]: #user-content-filter
+[Filter]: #filter
 ```
 type Filter = FilterFunc | FilterTable
 ```
@@ -152,7 +152,7 @@ Filter applies to a TypeDef by transforming a value before encoding, or
 after decoding.
 
 # FilterFunc
-[FilterFunc]: #user-content-filterfunc
+[FilterFunc]: #filterfunc
 ```
 type FilterFunc = (value: any?, params: ...any) -> (any?, error?)
 ```
@@ -166,7 +166,7 @@ TypeDef.
 A non-nil error causes the program to halt, returning the given value.
 
 # FilterTable
-[FilterTable]: #user-content-filtertable
+[FilterTable]: #filtertable
 ```
 type FilterTable = {[any] = any}
 ```
@@ -175,7 +175,7 @@ FilterTable transforms a value by mapping the original value to the
 transformed value.
 
 # Hook
-[Hook]: #user-content-hook
+[Hook]: #hook
 ```
 type Hook = (stack: (level: number)->any, global: table, h: boolean) -> (boolean, error?)
 ```
@@ -199,7 +199,7 @@ assigned values.
 only if no other hooks returned true.
 
 # TypeDef
-[TypeDef]: #user-content-typedef
+[TypeDef]: #typedef
 ```
 type TypeDef = {
 	encode = Filter?,

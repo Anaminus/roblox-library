@@ -1,5 +1,5 @@
 # SignalFire
-[SignalFire]: #user-content-signalfire
+[SignalFire]: #signalfire
 
 The SignalFire module provides a small implementation of the [observer
 pattern][observer].
@@ -39,7 +39,7 @@ Notable differences from Roblox's Signal pattern:
 </table>
 
 ## SignalFire.new
-[SignalFire.new]: #user-content-signalfirenew
+[SignalFire.new]: #signalfirenew
 ```
 function SignalFire.new(): (Connector, Fire, Destroyer)
 ```
@@ -48,13 +48,13 @@ The **new** constructor returns a signal, represented by associated
 [Connector][Connector], [Fire][Fire] and [Destroyer][Destroyer] functions.
 
 ## SignalFire.bindable
-[SignalFire.bindable]: #user-content-signalfirebindable
+[SignalFire.bindable]: #signalfirebindable
 
 The **bindable** constructor returns a new [Bindable][Bindable],
 implemented using the functions from [SignalFire.new][SignalFire.new].
 
 ## SignalFire.all
-[SignalFire.all]: #user-content-signalfireall
+[SignalFire.all]: #signalfireall
 ```
 function SignalFire.all(...: Connector): (Connector, Destroyer)
 ```
@@ -65,7 +65,7 @@ associated with the given connectors have fired. The signal will fire up to
 one time.
 
 ## SignalFire.any
-[SignalFire.any]: #user-content-signalfireany
+[SignalFire.any]: #signalfireany
 ```
 function SignalFire.any(...: Connector): (Connector, Destroyer)
 ```
@@ -77,7 +77,7 @@ arguments of the first signal that fired it. The signal will fire until
 destroyed.
 
 ## SignalFire.limit
-[SignalFire.limit]: #user-content-signalfirelimit
+[SignalFire.limit]: #signalfirelimit
 ```
 function SignalFire.limit(connect: Connector, limit: number?): Connector
 ```
@@ -87,7 +87,7 @@ The **limit** function wraps *connect*, returning a
 be fired only up to *limit* times. The limit defaults to 1.
 
 ## SignalFire.wait
-[SignalFire.wait]: #user-content-signalfirewait
+[SignalFire.wait]: #signalfirewait
 ```
 function SignalFire.wait(connect: Connector): (() -> (...any))
 ```
@@ -97,7 +97,7 @@ running thread. The thread is resumed after the signal associated with
 *connect* fires, returning the arguments passed through the signal.
 
 ## SignalFire.wrap
-[SignalFire.wrap]: #user-content-signalfirewrap
+[SignalFire.wrap]: #signalfirewrap
 ```
 function SignalFire.wrap(signal: RBXScriptSignal): Connector
 ```
@@ -108,7 +108,7 @@ is connected via a function that calls task.defer with the thread and the
 received arguments.
 
 # Connector
-[Connector]: #user-content-connector
+[Connector]: #connector
 ```
 type Connector = (listener: Listener) -> Disconnector
 ```
@@ -124,7 +124,7 @@ After the signal is destroyed, calling the function does nothing except
 return a disconnector, which also does nothing when called.
 
 # Listener
-[Listener]: #user-content-listener
+[Listener]: #listener
 ```
 type Listener = (...any) -> () | thread
 ```
@@ -132,7 +132,7 @@ type Listener = (...any) -> () | thread
 A **Listener** receives the arguments passed to a [Fire][Fire] function.
 
 # Disconnector
-[Disconnector]: #user-content-disconnector
+[Disconnector]: #disconnector
 ```
 type Disconnector = () -> ()
 ```
@@ -141,7 +141,7 @@ A **Disconnector** breaks the connection of a [Listener][Listener] to a
 signal when called. Does nothing if the connection is already broken.
 
 # Fire
-[Fire]: #user-content-fire
+[Fire]: #fire
 ```
 type Fire = (arguments: ...any) -> ()
 ```
@@ -155,7 +155,7 @@ The order in which listeners are invoked is **undefined**.
 After the signal is destroyed, calling this function throws an error.
 
 # Destroyer
-[Destroyer]: #user-content-destroyer
+[Destroyer]: #destroyer
 ```
 type Destroyer = () -> ()
 ```
@@ -166,7 +166,7 @@ Destroyer functions will throw an error. The [Connector][Connector] function
 will do nothing but return a disconnector, which will also do nothing.
 
 # Bindable
-[Bindable]: #user-content-bindable
+[Bindable]: #bindable
 ```
 type Bindable = {
 	Event   : Signal,
@@ -181,7 +181,7 @@ A **Bindable** implements the principle interface of
 [BindableEvent]: https://developer.roblox.com/en-us/api-reference/class/BindableEvent
 
 # Signal
-[Signal]: #user-content-signal
+[Signal]: #signal
 ```
 type Signal = {
 	Connect : (self: Signal, listener: Listener) -> (Connection),
@@ -197,7 +197,7 @@ represented by an associated [Connector][Connector], [Fire][Fire] and
 [RBXScriptSignal]: https://developer.roblox.com/en-us/api-reference/datatype/RBXScriptSignal
 
 # Connection
-[Connection]: #user-content-connection
+[Connection]: #connection
 ```
 type Connection = {
 	IsConnected : boolean,

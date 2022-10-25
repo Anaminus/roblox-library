@@ -1,5 +1,5 @@
 # Simplex
-[Simplex]: #user-content-simplex
+[Simplex]: #simplex
 
 Simplex noise algorithm in Lua.
 
@@ -29,7 +29,7 @@ Simplex noise algorithm in Lua.
 </table>
 
 ## Simplex.fromArray
-[Simplex.fromArray]: #user-content-simplexfromarray
+[Simplex.fromArray]: #simplexfromarray
 ```
 Simplex.new(permutations: {number}): Generator
 ```
@@ -40,7 +40,7 @@ Returns a generator with a state initialized by a table of permutations.
 between 0 and 255, inclusive.
 
 ## Simplex.fromFunction
-[Simplex.fromFunction]: #user-content-simplexfromfunction
+[Simplex.fromFunction]: #simplexfromfunction
 ```
 Simplex.new(func: (number)->(number)): Generator
 ```
@@ -52,7 +52,7 @@ Returns a generator with a state initialized by a random function.
 shuffled using this function. `math.random` is an example of such a function.
 
 ## Simplex.fromRandom
-[Simplex.fromRandom]: #user-content-simplexfromrandom
+[Simplex.fromRandom]: #simplexfromrandom
 ```
 Simplex.new(source: Random): Generator
 ```
@@ -63,7 +63,7 @@ Returns a generator with a state initialized by a Random source.
 permutations.
 
 ## Simplex.fromSeed
-[Simplex.fromSeed]: #user-content-simplexfromseed
+[Simplex.fromSeed]: #simplexfromseed
 ```
 Simplex.new(seed: number): Generator
 ```
@@ -75,7 +75,7 @@ number generator.
 array of permutations.
 
 ## Simplex.isGenerator
-[Simplex.isGenerator]: #user-content-simplexisgenerator
+[Simplex.isGenerator]: #simplexisgenerator
 ```
 Simplex.isGenerator(v: any): boolean
 ```
@@ -84,7 +84,7 @@ isGenerator returns whether *v* is an instance of
 [Generator][Generator].
 
 ## Simplex.new
-[Simplex.new]: #user-content-simplexnew
+[Simplex.new]: #simplexnew
 ```
 Simplex.new(): Generator
 ```
@@ -92,7 +92,7 @@ Simplex.new(): Generator
 Returns a generator with a state initialized by a random shuffle.
 
 # Generator
-[Generator]: #user-content-generator
+[Generator]: #generator
 ```
 type Generator
 ```
@@ -101,7 +101,7 @@ Generator holds the state for generating simplex noise. The state is
 based off of an array containing a permutation of integers.
 
 ## Generator.Noise2D
-[Generator.Noise2D]: #user-content-generatornoise2d
+[Generator.Noise2D]: #generatornoise2d
 ```
 Generator:Noise2D(x: number, y: number): number
 ```
@@ -110,7 +110,7 @@ Returns a number in the interval [-1, 1] based on the given
 two-dimensional coordinates and the generator's permutation state.
 
 ## Generator.Noise3D
-[Generator.Noise3D]: #user-content-generatornoise3d
+[Generator.Noise3D]: #generatornoise3d
 ```
 Generator:Noise3D(x: number, y: number, z: number): number
 ```
@@ -119,7 +119,7 @@ Returns a number in the interval [-1, 1] based on the given
 three-dimensional coordinates and the generator's permutation state.
 
 ## Generator.Noise4D
-[Generator.Noise4D]: #user-content-generatornoise4d
+[Generator.Noise4D]: #generatornoise4d
 ```
 Generator:Noise4D(x: number, y: number, z: number, w: number): number
 ```

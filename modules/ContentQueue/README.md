@@ -1,5 +1,5 @@
 # ContentQueue
-[ContentQueue]: #user-content-contentqueue
+[ContentQueue]: #contentqueue
 
 The **ContentQueue** module provides ordered content preloading.
 
@@ -19,7 +19,7 @@ The **ContentQueue** module provides ordered content preloading.
 </table>
 
 ## ContentQueue.new
-[ContentQueue.new]: #user-content-contentqueuenew
+[ContentQueue.new]: #contentqueuenew
 ```
 function ContentQueue.new(callback: Callback?): Queue
 ```
@@ -27,7 +27,7 @@ function ContentQueue.new(callback: Callback?): Queue
 The **new** constructor returns a new queue with an optional callback.
 
 # Callback
-[Callback]: #user-content-callback
+[Callback]: #callback
 ```
 type Callback = (id: any, asset: string, status: Enum.AssetFetchStatus) -> ()
 ```
@@ -37,7 +37,7 @@ identifier of the group from which the asset was loaded. *asset* is a Content
 string. *status* indicates whether *asset* was successfully fetched.
 
 # Queue
-[Queue]: #user-content-queue
+[Queue]: #queue
 ```
 type Queue
 ```
@@ -48,7 +48,7 @@ first-in-first-out. A group will only start preloading its content once it is
 first in the queue.
 
 ## Queue.Add
-[Queue.Add]: #user-content-queueadd
+[Queue.Add]: #queueadd
 ```
 function Queue:Add(id: any, content: {Instance|string})
 ```
@@ -64,7 +64,7 @@ of the queue as usual.
 [pa]: https://developer.roblox.com/en-us/api-reference/function/ContentProvider/PreloadAsync
 
 ## Queue.Has
-[Queue.Has]: #user-content-queuehas
+[Queue.Has]: #queuehas
 ```
 function Queue:Has(id: any): boolean
 ```
@@ -73,7 +73,7 @@ The **Has** method returns whether the queue contains at least one
 group identified by *id*.
 
 ## Queue.WaitFor
-[Queue.WaitFor]: #user-content-queuewaitfor
+[Queue.WaitFor]: #queuewaitfor
 ```
 function Queue:WaitFor(id: any)
 ```

@@ -1,5 +1,5 @@
 # Tag
-[Tag]: #user-content-tag
+[Tag]: #tag
 
 The Tag module enables the creation of instanceable symbol-like values.
 
@@ -56,7 +56,7 @@ of the operands:
 </table>
 
 ## Tag.class
-[Tag.class]: #user-content-tagclass
+[Tag.class]: #tagclass
 ```
 Tag.class(kind: string): ClassTag
 ```
@@ -65,7 +65,7 @@ The **class** constructor returns a [class tag][ClassTag] with *kind* as
 the kind. *kind* must not contain null characters.
 
 ## Tag.empty
-[Tag.empty]: #user-content-tagempty
+[Tag.empty]: #tagempty
 ```
 Tag.empty: EmptyTag
 ```
@@ -73,7 +73,7 @@ Tag.empty: EmptyTag
 The **empty** constant contains the [empty tag][EmptyTag].
 
 ## Tag.static
-[Tag.static]: #user-content-tagstatic
+[Tag.static]: #tagstatic
 ```
 Tag.static(kind: string): StaticTag
 ```
@@ -82,7 +82,7 @@ The **static** constructor returns a [static tag][StaticTag] with *kind*
 as the kind. *kind* must not contain null characters.
 
 ## Tag.typeof
-[Tag.typeof]: #user-content-tagtypeof
+[Tag.typeof]: #tagtypeof
 ```
 Tag.typeof(value: any): string?
 ```
@@ -93,13 +93,13 @@ nil if the value is not known by the module. Known types are
 [InstanceTag][InstanceTag].
 
 # ClassTag
-[ClassTag]: #user-content-classtag
+[ClassTag]: #classtag
 
 The **ClassTag** type is a tag of which
 [instances][InstanceTag] can be [created][ClassTag.__call].
 
 ## ClassTag.Has
-[ClassTag.Has]: #user-content-classtaghas
+[ClassTag.Has]: #classtaghas
 ```
 ClassTag:Has(tag: Tag): boolean
 ```
@@ -107,7 +107,7 @@ ClassTag:Has(tag: Tag): boolean
 The **Has** method returns true if the tag has any kind from *tag*.
 
 ## ClassTag.Is
-[ClassTag.Is]: #user-content-classtagis
+[ClassTag.Is]: #classtagis
 ```
 ClassTag:Is(tag: Tag): boolean
 ```
@@ -115,7 +115,7 @@ ClassTag:Is(tag: Tag): boolean
 The **Is** method returns true if the tag is all kinds from *tag*.
 
 ## ClassTag.__call
-[ClassTag.__call]: #user-content-classtag__call
+[ClassTag.__call]: #classtag__call
 ```
 ClassTag(key: string): InstanceTag
 ```
@@ -124,13 +124,13 @@ Calling a ClassTag returns an [instance][InstanceTag] of the tag with
 *key* as the key.
 
 # EmptyTag
-[EmptyTag]: #user-content-emptytag
+[EmptyTag]: #emptytag
 
 The **EmptyTag** type is the tag with no kind. It is returned by
 operations that produce the empty set of kinds.
 
 ## EmptyTag.Has
-[EmptyTag.Has]: #user-content-emptytaghas
+[EmptyTag.Has]: #emptytaghas
 ```
 EmptyTag:Has(tag: Tag): boolean
 ```
@@ -138,7 +138,7 @@ EmptyTag:Has(tag: Tag): boolean
 The **Has** method returns true only if *tag* is EmptyTag.
 
 ## EmptyTag.Is
-[EmptyTag.Is]: #user-content-emptytagis
+[EmptyTag.Is]: #emptytagis
 ```
 EmptyTag:Is(tag: Tag): boolean
 ```
@@ -146,13 +146,13 @@ EmptyTag:Is(tag: Tag): boolean
 The **Is** method returns true only if *tag* is EmptyTag.
 
 # InstanceTag
-[InstanceTag]: #user-content-instancetag
+[InstanceTag]: #instancetag
 
 The **InstanceTag** type is a tag that is the instance of a [class
 tag][ClassTag]. Instances have a "key", which is an arbitrary string.
 
 ## InstanceTag.Has
-[InstanceTag.Has]: #user-content-instancetaghas
+[InstanceTag.Has]: #instancetaghas
 ```
 InstanceTag:Has(tag: Tag): boolean
 ```
@@ -160,7 +160,7 @@ InstanceTag:Has(tag: Tag): boolean
 The **Has** method returns true if the tag has any kind from *tag*.
 
 ## InstanceTag.Is
-[InstanceTag.Is]: #user-content-instancetagis
+[InstanceTag.Is]: #instancetagis
 ```
 InstanceTag:Is(tag: Tag): boolean
 ```
@@ -168,7 +168,7 @@ InstanceTag:Is(tag: Tag): boolean
 The **Is** method returns true if the tag has all kinds from *tag*.
 
 ## InstanceTag.Key
-[InstanceTag.Key]: #user-content-instancetagkey
+[InstanceTag.Key]: #instancetagkey
 ```
 InstanceTag:Key(): string
 ```
@@ -176,12 +176,12 @@ InstanceTag:Key(): string
 The **Key** method returns the key of the instance.
 
 # StaticTag
-[StaticTag]: #user-content-statictag
+[StaticTag]: #statictag
 
 The **StaticTag** type is a tag that cannot be instanced.
 
 ## StaticTag.Has
-[StaticTag.Has]: #user-content-statictaghas
+[StaticTag.Has]: #statictaghas
 ```
 StaticTag:Has(tag: Tag): boolean
 ```
@@ -189,7 +189,7 @@ StaticTag:Has(tag: Tag): boolean
 The **Has** method returns true if the tag has any kind from *tag*.
 
 ## StaticTag.Is
-[StaticTag.Is]: #user-content-statictagis
+[StaticTag.Is]: #statictagis
 ```
 StaticTag:Is(tag: Tag): boolean
 ```

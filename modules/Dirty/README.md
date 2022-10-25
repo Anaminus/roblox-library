@@ -1,5 +1,5 @@
 # Dirty
-[Dirty]: #user-content-dirty
+[Dirty]: #dirty
 
 The **Dirty** module detects changes to an instance tree.
 
@@ -14,7 +14,7 @@ The **Dirty** module detects changes to an instance tree.
 </table>
 
 ## Dirty.monitor
-[Dirty.monitor]: #user-content-dirtymonitor
+[Dirty.monitor]: #dirtymonitor
 ```
 function Dirty.monitor(root: Instance, window: number, callback: (Instance) -> ()): (disconnect: () -> ())
 ```

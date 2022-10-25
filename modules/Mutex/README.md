@@ -1,5 +1,5 @@
 # Mutex
-[Mutex]: #user-content-mutex
+[Mutex]: #mutex
 ```
 function Mutex(): Mutex
 ```
@@ -19,7 +19,7 @@ Mutex is a mutual exclusion lock.
 </table>
 
 ## Mutex.Lock
-[Mutex.Lock]: #user-content-mutexlock
+[Mutex.Lock]: #mutexlock
 ```
 function Mutex:Lock()
 ```
@@ -28,7 +28,7 @@ Lock locks the mutex. If the lock is already in use, then the calling
 thread is blocked until the lock is available.
 
 ## Mutex.Unlock
-[Mutex.Unlock]: #user-content-mutexunlock
+[Mutex.Unlock]: #mutexunlock
 ```
 function Mutex:Unlock()
 ```
@@ -37,7 +37,7 @@ Unlock unlocks the mutex. If threads are blocked by the mutex, then the
 next blocked thread will be resumed.
 
 ## Mutex.Wrap
-[Mutex.Wrap]: #user-content-mutexwrap
+[Mutex.Wrap]: #mutexwrap
 ```
 function Mutex:Wrap(func: (...any)->(...any)): (...any)->(...any)
 ```

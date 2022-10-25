@@ -1,5 +1,5 @@
 # Sched
-[Sched]: #user-content-sched
+[Sched]: #sched
 
 Implements a custom scheduler for managing threads.
 
@@ -24,7 +24,7 @@ Implements a custom scheduler for managing threads.
 </table>
 
 ## Sched.driver
-[Sched.driver]: #user-content-scheddriver
+[Sched.driver]: #scheddriver
 ```
 Sched.driver = {
 	Heartbeat     = 0,
@@ -44,7 +44,7 @@ Stepped       | 1     | Uses RunService.Stepped as the driver.
 RenderStepped | 2     | Uses RunService.RenderStepped as the driver.
 
 ## Sched.new
-[Sched.new]: #user-content-schednew
+[Sched.new]: #schednew
 ```
 Sched.new(driver: Driver?): Scheduler
 ```
@@ -53,7 +53,7 @@ new returns a new Scheduler driven by *driver*, or Heartbeat if no
 driver is specified.
 
 # Scheduler
-[Scheduler]: #user-content-scheduler
+[Scheduler]: #scheduler
 ```
 type Scheduler
 ```
@@ -61,7 +61,7 @@ type Scheduler
 Scheduler manages the yielding and resuming of threads in a queue.
 
 ## Scheduler.Delay
-[Scheduler.Delay]: #user-content-schedulerdelay
+[Scheduler.Delay]: #schedulerdelay
 ```
 Scheduler:Delay(duration: number, func: ()->())
 ```
@@ -70,7 +70,7 @@ Delay queues *func* to be called after waiting for *duration* seconds.
 *duration* is affected by MinWaitTime.
 
 ## Scheduler.DelayCancel
-[Scheduler.DelayCancel]: #user-content-schedulerdelaycancel
+[Scheduler.DelayCancel]: #schedulerdelaycancel
 ```
 Scheduler:Delay(duration: number, func: ()->()): (cancel: ()->())
 ```
@@ -80,7 +80,7 @@ seconds. Returns a function that, when called, cancels the delayed call.
 *duration* is affected by MinWaitTime.
 
 ## Scheduler.SetBudget
-[Scheduler.SetBudget]: #user-content-schedulersetbudget
+[Scheduler.SetBudget]: #schedulersetbudget
 ```
 Scheduler:SetBudget(duration: number?)
 ```
@@ -92,7 +92,7 @@ When the budget is exceeded, the driver suspends, resuming where it left off
 on the next iteration.
 
 ## Scheduler.SetErrorHandler
-[Scheduler.SetErrorHandler]: #user-content-schedulerseterrorhandler
+[Scheduler.SetErrorHandler]: #schedulerseterrorhandler
 ```
 Scheduler:SetErrorHandler(handler: ((thread: thread, err: any) -> ())?)
 ```
@@ -105,7 +105,7 @@ value.
 By default, no function is set, causing any errors to be discarded.
 
 ## Scheduler.SetMinWaitTime
-[Scheduler.SetMinWaitTime]: #user-content-schedulersetminwaittime
+[Scheduler.SetMinWaitTime]: #schedulersetminwaittime
 ```
 Scheduler:SetMinWaitTime(duration: number?)
 ```
@@ -114,7 +114,7 @@ SetMinWaitTime specifies the minimum duration that threads are allowed
 to yield, in seconds. Defaults to 0.
 
 ## Scheduler.Spawn
-[Scheduler.Spawn]: #user-content-schedulerspawn
+[Scheduler.Spawn]: #schedulerspawn
 ```
 Scheduler:Spawn(func: ()->())
 ```
@@ -122,7 +122,7 @@ Scheduler:Spawn(func: ()->())
 Spawn queues *func* to be called as soon as possible.
 
 ## Scheduler.Wait
-[Scheduler.Wait]: #user-content-schedulerwait
+[Scheduler.Wait]: #schedulerwait
 ```
 Scheduler:Wait(duration: number)
 ```
@@ -131,7 +131,7 @@ Wait queues the running thread to be resumed after waiting for
 *duration* seconds. *duration* is affected by MinWaitTime.
 
 ## Scheduler.Yield
-[Scheduler.Yield]: #user-content-scheduleryield
+[Scheduler.Yield]: #scheduleryield
 ```
 Scheduler:Yield()
 ```
