@@ -92,7 +92,7 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 ## Binstruct.new
 [Binstruct.new]: #binstructnew
 ```
-Binstruct.new(def: TypeDef): (err: string?, codec: Codec)
+Binstruct.new(def: TypeDef): (err: error, codec: Codec)
 ```
 
 new constructs a Codec from the given definition.
@@ -117,7 +117,7 @@ Returns the decoded value.
 ## Codec.DecodeBuffer
 [Codec.DecodeBuffer]: #codecdecodebuffer
 ```
-Codec:DecodeBuffer(buffer: Bitbuf.Buffer): (error, any)
+Codec:DecodeBuffer(buffer: Buffer): (error, any)
 ```
 
 DecodeBuffer decodes a binary string into a value according to the
@@ -135,7 +135,7 @@ Returns the encoded string.
 ## Codec.EncodeBuffer
 [Codec.EncodeBuffer]: #codecencodebuffer
 ```
-Codec:EncodeBuffer(data: any, buffer: Bitbuf.Buffer?): (error, Bitbuf.Buffer)
+Codec:EncodeBuffer(data: any, buffer: Buffer?): (error, Buffer)
 ```
 
 EncodeBuffer encodes a value into a binary string according to the
@@ -180,13 +180,9 @@ transformed value.
 type Hook = (stack: (level: number)->any, global: table, h: boolean) -> (boolean, error?)
 ```
 
-Hook applies to a TypeDef by transforming *value* before encoding, or
-after decoding. *params* are the parameters of the TypeDef. Should return the
-transformed *value*.
-
-Hook indicates whether a type is traversed. If it returns true, then the type
-is traversed normally. If false is returned, then the type is skipped. If an
-error is returned, the program halts, returning the error.
+Hook indicates whether a type is traversed. If it returns true, then the
+type is traversed normally. If false is returned, then the type is skipped.
+If an error is returned, the program halts, returning the error.
 
 *stack* is used to index structures in the stack. *level* determines how far
 down to index the stack. level 0 returns the current structure. Returns nil
@@ -342,18 +338,13 @@ The following types are defined:
 
         The zero for this type is an empty struct.
 
-    {"array", number, TypeDef, level: number?}
+    {"array", number, TypeDef}
         A constant-size list of unnamed fields.
 
         The first parameter is the *size* of the array, indicating a constant
         size.
 
         The second parameter is the type of each element in the array.
-
-        If the *level* field is specified, then it indicates the ancestor
-        struct where *size* will be searched. If *level* is less than 1 or
-        greater than the number of ancestors, then *size* evaluates to 0.
-        Defaults to 1.
 
         *size* is passed to filters as additional arguments.
 
