@@ -303,7 +303,18 @@ type Buffer = Bitbuf.Buffer
 type Table = {
 	decode: Program,
 	encode: Program,
+
+	-- Track status of subroutines.
+	-- - nil: Def does not have a subroutine. Instructions are generated
+	--   unconditionally.
+	-- - false: Def has subroutine that has not yet been generated. This will be
+	--   observed during subroutine generation, causing instructions to be
+	--   generated. Afterward, the state is set to true.
+	-- - true: Def has subroutine that has been generated. Instead of generating
+	--   instructions, a SUBR instruction is generated.
+	_subr: {[TypeDef]:true?},
 }
+type Subrs = {[TypeDef]: Addr}
 type Addr = number
 type Program = {[Addr]: Instruction}
 
@@ -313,18 +324,19 @@ type Instruction = {
 }
 
 type Registers = {
-	PC: number,           -- Program counter.
-	BUFFER: Buffer,       -- Bit buffer.
-	GLOBAL: {[any]: any}, -- A general-purpose per-execution table.
-	STACK: {Frame},       -- Stores frames.
-	F: Frame,             -- Current frame.
+	PC     : number,       -- Program counter.
+	BUFFER : Buffer,       -- Bit buffer.
+	GLOBAL : {[any]: any}, -- A general-purpose per-execution table.
+	STACK  : {Frame},      -- Stores frames.
+	SUBR   : {Addr},       -- Stores call return addresses.
+	F      : Frame,        -- Current frame.
 }
 
 type Frame = {
-	TABLE: {[any]: any}, -- The working table.
-	KEY: any,            -- A key pointing to a field in TABLE.
-	N: number,           -- Maximum counter value.
-	H: boolean,          -- Accumulated result of each hook.
+	TABLE : {[any]: any}, -- The working table.
+	KEY   : any,          -- A key pointing to a field in TABLE.
+	N     : number,       -- Maximum counter value.
+	H     : boolean,      -- Accumulated result of each hook.
 }
 
 type Field = {
@@ -372,6 +384,10 @@ type insts = {
 -- function of the form `(registers, parameter): error`. If "encode" is a
 -- non-function, then it is copied from "decode".
 local INSTRUCTION: {[string]: insts} = {}
+
+-- NOTE: When we want to jump to an instruction to execute, we want to jump to
+-- the address *before* that instruction. This is because the program counter is
+-- incremented unconditionally after each instruction is executed.
 
 -- Get or set TABLE[KEY] from BUFFER.
 INSTRUCTION.SET = {
@@ -451,14 +467,14 @@ INSTRUCTION.POP = {
 		if err ~= nil then
 			return err
 		end
-		R.F = assert(table.remove(R.STACK))
+		R.F = assert(table.remove(R.STACK), "pop empty stack")
 		if R.F.KEY ~= nil then
 			R.F.TABLE[R.F.KEY] = v
 		end
 		return nil
 	end,
 	encode = function(R: Registers): error
-		R.F = assert(table.remove(R.STACK))
+		R.F = assert(table.remove(R.STACK), "pop empty stack")
 		return nil
 	end,
 }
@@ -466,15 +482,15 @@ INSTRUCTION.POP = {
 -- Pop structureless scope.
 INSTRUCTION.POPS = {
 	decode = function(R: Registers): error
-		R.F = assert(table.remove(R.STACK))
+		R.F = assert(table.remove(R.STACK), "pop empty stack")
 		return nil
 	end,
 }
 
 -- Initialize a loop with a constant terminator.
 INSTRUCTION.FORC = {
-	decode = function(R: Registers, params: {jumpaddr:Addr, size:number}): error
-		R.PC = params.jumpaddr - 1
+	decode = function(R: Registers, params: {addr:Addr, size:number}): error
+		R.PC = params.addr - 1
 		R.F.KEY = 0
 		if params.size >= 1 then
 			R.F.N = params.size
@@ -488,8 +504,8 @@ INSTRUCTION.FORC = {
 -- Initialize a loop with a dynamic terminator, determined by a field in the
 -- parent structure.
 INSTRUCTION.FORF = {
-	decode = function(R: Registers, params: {jumpaddr:Addr, field:any, level:number}): error
-		R.PC = params.jumpaddr - 1
+	decode = function(R: Registers, params: {addr:Addr, field:any, level:number}): error
+		R.PC = params.addr - 1
 		R.F.KEY = 0
 		local level = #R.STACK-params.level+1
 		if level > 1 then
@@ -546,14 +562,14 @@ end
 
 -- Call hook, jump to addr if false is returned.
 INSTRUCTION.HOOK = {
-	decode = function(R: Registers, params: {jumpaddr:Addr, hook:Hook}): error
+	decode = function(R: Registers, params: {addr:Addr, hook:Hook}): error
 		local r, err = params.hook(stackFn(R.STACK, R.F.TABLE), R.GLOBAL, R.F.H)
 		if err ~= nil then
 			return err
 		end
 		R.F.H = R.F.H and not r
 		if not r then
-			R.PC = params.jumpaddr
+			R.PC = params.addr
 		end
 		return nil
 	end,
@@ -569,12 +585,41 @@ INSTRUCTION.GLOBAL = {
 	end,
 }
 
+-- Unconditional jump.
+INSTRUCTION.JMP = {
+	decode = function(R: Registers, params: {addr:Addr, hook:Hook}): error
+		R.PC = params.addr
+		return nil
+	end,
+}
+
+-- Invoke subroutine.
+INSTRUCTION.SUBR = {
+	decode = function(R: Registers, addr: Addr): error
+		table.insert(R.SUBR, R.PC)
+		R.PC = addr
+		return nil
+	end,
+}
+
+-- Return from subroutine.
+INSTRUCTION.RET = {
+	decode = function(R: Registers): error
+		R.PC = assert(table.remove(R.SUBR), "return from root routine")
+		return nil
+	end,
+}
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- Set of value types. Each key is a type name. Each value is a function that
 -- receives an instruction list, followed by TypeDef parameters. The `append`
 -- function should be used to append instructions to the list.
-local Types: {[string]: (Table, any)->error} = {}
+local TYPES: {[string]: (Table, any)->error} = {}
+
+-- Maps a type to a function that recieves a TypeDef and returns a list of the
+-- definition's inner types.
+local GRAPH: {[string]: (any)->{TypeDef}} = {}
 
 -- Appends to *list* the instruction corresponding to *opcode*. Each remaining
 -- argument corresponds to an argument to be passed to the corresponding
@@ -590,9 +635,16 @@ end
 -- table.
 local function setJump(program: Table, addr: Addr?)
 	if addr ~= nil then
-		program.decode[addr].param.jumpaddr = #program.decode
-		program.encode[addr].param.jumpaddr = #program.encode
+		program.decode[addr].param.addr = #program.decode
+		program.encode[addr].param.addr = #program.encode
 	end
+end
+
+local function prepareJump(program: Table): Addr
+	return append(program, "JMP", {
+		decode = {addr=nil},
+		encode = {addr=nil},
+	})
 end
 
 local function prepareHook(program: Table, hook: Hook?): Addr?
@@ -675,7 +727,7 @@ function export.pad(size: number): pad
 	return {type="pad", size=size}
 end
 
-Types["pad"] = function(program: Table, def: pad): error
+TYPES["pad"] = function(program: Table, def: pad): error
 	local size = def.size
 	if size ~= nil and type(size) ~= "number" then
 		return "size must be a number or nil"
@@ -714,7 +766,7 @@ function export.align(size: number): align
 	return {type="align", size=size}
 end
 
-Types["align"] = function(program: Table, def: align): error
+TYPES["align"] = function(program: Table, def: align): error
 	local size = def.size
 	if size ~= nil and type(size) ~= "number" then
 		return "size must be a number or nil"
@@ -756,7 +808,7 @@ function export.const(value: any?): const
 	return {type="const", value=value}
 end
 
-Types["const"] = function(program: Table, def: const): error
+TYPES["const"] = function(program: Table, def: const): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local value = def.value
@@ -792,7 +844,7 @@ function export.bool(size: number?): bool
 	return {type="bool", size=size}
 end
 
-Types["bool"] = function(program: Table, def: bool): error
+TYPES["bool"] = function(program: Table, def: bool): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -860,7 +912,7 @@ function export.uint(size: number): uint
 	return {type="uint", size=size}
 end
 
-Types["uint"] = function(program: Table, def: uint): error
+TYPES["uint"] = function(program: Table, def: uint): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -909,7 +961,7 @@ function export.int(size: number): int
 	return {type="int", size=size}
 end
 
-Types["int"] = function(program: Table, def: int): error
+TYPES["int"] = function(program: Table, def: int): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -957,7 +1009,7 @@ function export.byte(): byte
 	return {type="byte"}
 end
 
-Types["byte"] = function(program: Table, def: byte): error
+TYPES["byte"] = function(program: Table, def: byte): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 
@@ -1002,7 +1054,7 @@ function export.float(size: number): float
 	return {type="float", size=size}
 end
 
-Types["float"] = function(program: Table, def: float): error
+TYPES["float"] = function(program: Table, def: float): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1053,7 +1105,7 @@ function export.ufixed(i: number, f: number): ufixed
 	return {type="ufixed", i=i, f=f}
 end
 
-Types["ufixed"] = function(program: Table, def: ufixed): error
+TYPES["ufixed"] = function(program: Table, def: ufixed): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local i = def.i
@@ -1107,7 +1159,7 @@ function export.fixed(i: number, f: number): fixed
 	return {type="fixed", i=i, f=f}
 end
 
-Types["fixed"] = function(program: Table, def: fixed): error
+TYPES["fixed"] = function(program: Table, def: fixed): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local i = def.i
@@ -1160,7 +1212,7 @@ function export.str(size: number): str
 	return {type="str", size=size}
 end
 
-Types["str"] = function(program: Table, def: str): error
+TYPES["str"] = function(program: Table, def: str): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1212,10 +1264,10 @@ function export.union(...: TypeDef): union
 	return {type="union", values={...}}
 end
 
-Types["union"] = function(program: Table, def: union): error
+TYPES["union"] = function(program: Table, def: union): error
 	append(program, "PUSHS", {})
 	local hookaddr = prepareHook(program, def.hook)
-	for i, subtype in ipairs(def) do
+	for i, subtype in ipairs(def.values) do
 		local err = parseDef(subtype, program)
 		if err ~= nil then
 			return string.format("union[%d]: %s", i, tostring(err))
@@ -1224,6 +1276,17 @@ Types["union"] = function(program: Table, def: union): error
 	setJump(program, hookaddr)
 	append(program, "POPS", {})
 	return nil
+end
+
+GRAPH["union"] = function(def: union): {TypeDef}
+	local types = table.create(#def.values)
+	for _, t in ipairs(def.values) do
+		if type(t) ~= "table" then
+			continue
+		end
+		table.insert(types, t)
+	end
+	return types
 end
 
 export type struct = {
@@ -1240,7 +1303,7 @@ function export.struct(...: any): struct
 	return {type="struct", fields=fieldPairs(...)}
 end
 
-Types["struct"] = function(program: Table, def: struct): error
+TYPES["struct"] = function(program: Table, def: struct): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 
@@ -1284,6 +1347,17 @@ Types["struct"] = function(program: Table, def: struct): error
 	return nil
 end
 
+GRAPH["struct"] = function(def: struct): {TypeDef}
+	local types = table.create(#def.fields)
+	for _, field in ipairs(def.fields) do
+		if type(field) ~= "table" then
+			continue
+		end
+		table.insert(types, field.value)
+	end
+	return types
+end
+
 export type array = {
 	type: "array",
 	size: number,
@@ -1299,7 +1373,7 @@ function export.array(size: number, value: TypeDef): array
 	return {type="array", size=size, value=value}
 end
 
-Types["array"] = function(program: Table, def: array): error
+TYPES["array"] = function(program: Table, def: array): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1323,7 +1397,7 @@ Types["array"] = function(program: Table, def: array): error
 			return v, err
 		end, "array"),
 	})
-	local params = {jumpaddr=nil, size=size}
+	local params = {addr=nil, size=size}
 	local jumpaddr = append(program, "FORC", {decode=params, encode=params})
 	local err = parseDef(vtype, program)
 	if err ~= nil then
@@ -1343,6 +1417,13 @@ Types["array"] = function(program: Table, def: array): error
 	return nil
 end
 
+GRAPH["array"] = function(def: array): {TypeDef}
+	if type(def.value) ~= "table" then
+		return {}
+	end
+	return {def.value}
+end
+
 export type vector = {
 	type: "vector",
 	size: any,
@@ -1359,7 +1440,7 @@ function export.vector(size: any, value: TypeDef, level: number?): vector
 	return {type="vector", size=size, value=value, level=level}
 end
 
-Types["vector"] = function(program: Table, def: vector): error
+TYPES["vector"] = function(program: Table, def: vector): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1383,7 +1464,7 @@ Types["vector"] = function(program: Table, def: vector): error
 	if level < 0 then
 		level = 0
 	end
-	local params = {jumpaddr=nil, size=size, level=level}
+	local params = {addr=nil, size=size, level=level}
 	local jumpaddr = append(program, "FORF", {decode=params, encode=params})
 	local err = parseDef(vtype, program)
 	if err ~= nil then
@@ -1403,6 +1484,13 @@ Types["vector"] = function(program: Table, def: vector): error
 	return nil
 end
 
+GRAPH["vector"] = function(def: vector): {TypeDef}
+	if type(def.value) ~= "table" then
+		return {}
+	end
+	return {def.value}
+end
+
 export type instance = {
 	type: "instance",
 	class: string,
@@ -1418,7 +1506,7 @@ function export.instance(class: string, ...: any): instance
 	return {type="instance", class=class, properties=fieldPairs(...)}
 end
 
-Types["instance"] = function(program: Table, def: instance): error
+TYPES["instance"] = function(program: Table, def: instance): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local class = def.class
@@ -1437,14 +1525,13 @@ Types["instance"] = function(program: Table, def: instance): error
 			return v, err
 		end, "instance"),
 	})
-	for i = 2, #def do
-		local property = def[i]
+	for i, property in ipairs(def.properties) do
 		if type(property) == "table" then
 			local name = property.key
 			append(program, "FIELD", {decode=name, encode=name})
 			local err = parseDef(property.value, program)
 			if err ~= nil then
-				return string.format("property %q: %s", name, tostring(err))
+				return string.format("property %q: %s", tostring(name), tostring(err))
 			end
 		end
 	end
@@ -1460,14 +1547,34 @@ Types["instance"] = function(program: Table, def: instance): error
 	return nil
 end
 
+GRAPH["instance"] = function(def: instance): {TypeDef}
+	local types = table.create(#def.properties)
+	for _, property in ipairs(def.properties) do
+		if type(property) ~= "table" then
+			continue
+		end
+		table.insert(types, property.value)
+	end
+	return types
+end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-function parseDef(def: TypeDef, programTable: Table): error
+function parseDef(def: TypeDef, programTable: Table, subr: boolean?): error
 	if type(def) ~= "table" then
 		return "type definition must be a table"
 	end
-	local valueType = Types[def.type]
+
+	if not subr and programTable._subr[def] then
+		-- Definition has an associated subroutine, so call it instead of
+		-- generating instructions directly. Parameters are resolved into actual
+		-- addresses later.
+		append(programTable, "SUBR", {decode=def, encode=def})
+		return
+	end
+
+	local valueType = TYPES[def.type]
 	if not valueType then
 		return string.format("unknown type %q", tostring(def.type))
 	end
@@ -1485,7 +1592,99 @@ function parseDef(def: TypeDef, programTable: Table): error
 	local fields = table.clone(def)
 	;(fields::any).decode = normalizeFilter(decode)
 	;(fields::any).encode = normalizeFilter(encode)
+
 	return valueType(programTable, fields)
+end
+
+-- Counts the number of times a TypeDef is traversed.
+type Graph = {
+	index: number,
+	map: {[TypeDef]: {index: number, count: number}},
+}
+
+-- Traverse type definitions to build graph of definition usage.
+local function buildGraph(graph: Graph, def: TypeDef)
+	if graph.map[def] then
+		graph.map[def].count += 1
+		return
+	else
+		local index = graph.index + 1
+		graph.index = index
+		graph.map[def] = {index=index, count=1}
+	end
+	local graphFunc = GRAPH[def.type]
+	if graphFunc then
+		for _, sub in graphFunc(def) do
+			buildGraph(graph, sub)
+		end
+	end
+end
+
+-- Build list of definitions for which subroutines will be generated.
+local function buildSubroutines(graph: Graph): ({TypeDef}, {[TypeDef]:true})
+	local subr: {TypeDef} = {}
+	local is: {[TypeDef]:true} = {}
+	for def, data in graph.map do
+		if data.count > 1 then
+			-- Insert def at index, retaining traversal order.
+			subr[data.index] = def
+			is[def] = true
+		else
+			-- Insert stub instead.
+			subr[data.index] = false
+		end
+	end
+	-- Filter out stubs.
+	local i, n = 1, graph.index
+	while i <= n do
+		if subr[i] then
+			i += 1
+		else
+			table.remove(subr, i)
+			n -= 1
+		end
+	end
+	-- List now contains only defs used more than once, sorted by traversal
+	-- order.
+	return subr, is
+end
+
+local function generateSubroutines(programTable: Table, defs: {TypeDef}): (Subrs, error)
+	if #defs == 0 then
+		return {}, nil
+	end
+	-- Insert JMP instruction at start of program to jump over subroutines.
+	local jumpaddr = prepareJump(programTable)
+	local subrs = {}
+	for _, def in defs do
+		-- Remember addresses of subroutines.
+		subrs[def] = #programTable.decode
+		-- Generate subroutine body.
+		local err = parseDef(def, programTable, true)
+		if err then
+			return subrs, err
+		end
+		append(programTable, "RET", {})
+	end
+	setJump(programTable, jumpaddr)
+	return subrs, nil
+end
+
+-- SUBR parameters are stubbed with the TypeDef. Use *subrs* to resolve into
+-- actual addresses.
+local function resolveSubroutineAddresses(programTable: Table, subrs: Subrs)
+	for i = 1, #programTable.decode do
+		local dinstr = programTable.decode[i]
+		local einstr = programTable.encode[i]
+		if dinstr.opcode == "SUBR" then
+			local addr = assert(subrs[dinstr.param], "invalid decoder SUBR parameter")
+			dinstr.param = addr
+		end
+		if einstr.opcode == "SUBR" then
+			local addr = assert(subrs[einstr.param], "invalid encoder SUBR parameter")
+			einstr.param = addr
+		end
+	end
 end
 
 --@sec: Codec
@@ -1500,17 +1699,31 @@ export type Codec = typeof(Codec)
 --@doc: new constructs a Codec from the given definition.
 function export.new(def: TypeDef): (error, Codec?)
 	assert(type(def) == "table", "table expected")
-	local programTable = {
+
+	local graph: Graph = {index=0, map={}}
+	buildGraph(graph, def)
+	local subrs, issubr = buildSubroutines(graph)
+
+	local programTable: Table = {
 		decode = {},
 		encode = {},
+		_subr = issubr,
 	}
+
+	local subrs, err = generateSubroutines(programTable, subrs)
+	if err ~= nil then
+		return err, nil
+	end
+
 	local err = parseDef(def, programTable)
 	if err ~= nil then
 		return err, nil
 	end
-	local self = {
-		programTable = programTable
-	}
+	programTable._subr = nil::any
+
+	resolveSubroutineAddresses(programTable, subrs)
+
+	local self = {programTable = programTable}
 	return nil, setmetatable(self, Codec)::any
 end
 
@@ -1538,15 +1751,16 @@ local function execute(pt: Table, k: "decode"|"encode", buffer: Buffer, data: an
 
 	-- Registers.
 	local R = {
-		PC = 1,          -- Program counter.
-		BUFFER = buffer, -- Bit buffer.
-		GLOBAL = {},     -- A general-purpose per-execution table.
-		STACK = {},      -- Stores frames.
+		PC = 1,
+		BUFFER = buffer,
+		GLOBAL = {},
+		STACK = {},
+		SUBR = {},
 		F = {
-			TABLE = {data}, -- The working table.
-			KEY = 1,        -- A key pointing to a field in TABLE.
-			N = 0,          -- Maximum counter value.
-			H = true,       -- Accumulated result of each hook.
+			TABLE = {data},
+			KEY = 1,
+			N = 0,
+			H = true,
 		},
 	}
 
@@ -1646,6 +1860,8 @@ local function formatArg(arg: any): string
 			s[i] = k.."="..formatArg(arg[k])
 		end
 		return "{"..table.concat(s, ", ").."}"
+	elseif arg == nil then
+		return ""
 	end
 	return tostring(arg)
 end
@@ -1679,7 +1895,7 @@ function Codec.__index:Dump(): string
 		" | %-" .. width[3] .. "s" ..
 		" )"
 	local out = table.create(#rows)
-	for i, cols in ipairs(rows) do
+	for i, cols in rows do
 		out[i] = string.format(fmt, table.unpack(cols))
 	end
 	return table.concat(out, "\n")
