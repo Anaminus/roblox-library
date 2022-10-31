@@ -624,9 +624,14 @@ local GRAPH: {[string]: (any)->{TypeDef}} = {}
 -- Appends to *list* the instruction corresponding to *opcode*. Each remaining
 -- argument corresponds to an argument to be passed to the corresponding
 -- instruction column. Returns the address of the appended instruction.
-local function append(program: Table, opcode: string, columns: {decode:any, encode:any})
-	table.insert(program.decode, {opcode=opcode, param=columns.decode})
-	table.insert(program.encode, {opcode=opcode, param=columns.encode})
+local function append(program: Table, opcode: string, columns: {decode:any, encode:any}?)
+	if columns then
+		table.insert(program.decode, {opcode=opcode, param=columns.decode})
+		table.insert(program.encode, {opcode=opcode, param=columns.encode})
+	else
+		table.insert(program.decode, {opcode=opcode})
+		table.insert(program.encode, {opcode=opcode})
+	end
 	return #program.decode
 end
 
@@ -1265,7 +1270,7 @@ function export.union(...: TypeDef): union
 end
 
 TYPES["union"] = function(program: Table, def: union): error
-	append(program, "PUSHS", {})
+	append(program, "PUSHS")
 	local hookaddr = prepareHook(program, def.hook)
 	for i, subtype in ipairs(def.values) do
 		local err = parseDef(subtype, program)
@@ -1274,7 +1279,7 @@ TYPES["union"] = function(program: Table, def: union): error
 		end
 	end
 	setJump(program, hookaddr)
-	append(program, "POPS", {})
+	append(program, "POPS")
 	return nil
 end
 
@@ -1664,7 +1669,7 @@ local function generateSubroutines(programTable: Table, defs: {TypeDef}): (Subrs
 		if err then
 			return subrs, err
 		end
-		append(programTable, "RET", {})
+		append(programTable, "RET")
 	end
 	setJump(programTable, jumpaddr)
 	return subrs, nil
