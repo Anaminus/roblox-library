@@ -452,6 +452,31 @@ INSTRUCTION.PUSHS = {
 	end,
 }
 
+-- Create scope to capture a result into N.
+INSTRUCTION.PUSHN = {
+	decode = function(R: Registers): error
+		table.insert(R.STACK, table.clone(R.F))
+		R.F.TABLE = {}
+		R.F.KEY = 1
+		R.F.H = true
+		return nil
+	end,
+	encode = function(R: Registers): error
+		table.insert(R.STACK, table.clone(R.F))
+		local t = R.F.TABLE[R.F.KEY]
+		local size
+		if type(t) == "table" then
+			size = #t
+		else
+			size = 0
+		end
+		R.F.TABLE = {size}
+		R.F.KEY = 1
+		R.F.H = true
+		return nil
+	end,
+}
+
 -- Set KEY to the parameter.
 INSTRUCTION.FIELD = {
 	decode = function(R: Registers, v: any): error
@@ -483,6 +508,30 @@ INSTRUCTION.POP = {
 INSTRUCTION.POPS = {
 	decode = function(R: Registers): error
 		R.F = assert(table.remove(R.STACK), "pop empty stack")
+		return nil
+	end,
+}
+
+-- Get result of TABLE[KEY], pop the scope, load the result to N.
+INSTRUCTION.POPN = {
+	decode = function(R: Registers): error
+		local size = R.F.TABLE[R.F.KEY]
+		if type(size) == "number" then
+			size = math.floor(size)
+		else
+			size = 0
+		end
+		R.F = assert(table.remove(R.STACK), "pop empty stack")
+		R.F.N = size
+		return nil
+	end,
+}
+
+-- Initialize a loop using the current terminator.
+INSTRUCTION.FOR = {
+	decode = function(R: Registers, params: {addr:Addr}): error
+		R.PC = params.addr - 1
+		R.F.KEY = 0
 		return nil
 	end,
 }
@@ -1364,7 +1413,7 @@ end
 
 export type array = {
 	type: "array",
-	size: number,
+	size: number|TypeDef,
 	value: TypeDef,
 
 	hook: Hook?,
@@ -1373,7 +1422,7 @@ export type array = {
 	global: any?,
 }
 
-function export.array(size: number, value: TypeDef): array
+function export.array(size: number|TypeDef, value: TypeDef): array
 	return {type="array", size=size, value=value}
 end
 
@@ -1382,42 +1431,75 @@ TYPES["array"] = function(program: Table, def: array): error
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
 	local vtype = def.value
-	if type(size) ~= "number" then
-		return "size must be a number"
+	if type(size) == "number" then
+		if size <= 0 then
+			-- Array is constantly empty.
+			return nil
+		end
+		local hookaddr = prepareHook(program, def.hook)
+		append(program, "PUSH", {
+			decode = NAME(function(buf: Buffer): (any, error)
+				return {}, nil
+			end, "array"),
+			encode = NAME(function(buf: Buffer, v: any): (any, error)
+				if v == nil then v = {} end
+				local v, err = efilter(v, size)
+				return v, err
+			end, "array"),
+		})
+		local params = {addr=nil, size=size}
+		local jumpaddr = append(program, "FORC", {decode=params, encode=params})
+		local err = parseDef(vtype, program)
+		if err ~= nil then
+			return string.format("array[%d]: %s", size, tostring(err))
+		end
+		append(program, "JMPN", {decode=jumpaddr, encode=jumpaddr})
+		setJump(program, jumpaddr)
+		append(program, "POP", {
+			decode = NAME(function(v: any): (any, error)
+				local v, err = dfilter(v, size)
+				return v, err
+			end, "array"),
+		})
+		appendGlobal(program, def.global)
+		setJump(program, hookaddr)
+	elseif type(size) == "table" then
+		append(program, "PUSHN")
+		local err = parseDef(size, program)
+		if err ~= nil then
+			return string.format("array[...]: size: %s", tostring(err))
+		end
+		append(program, "POPN")
+		local hookaddr = prepareHook(program, def.hook)
+		append(program, "PUSH", {
+			decode = NAME(function(buf: Buffer): (any, error)
+				return {}, nil
+			end, "array"),
+			encode = NAME(function(buf: Buffer, v: any): (any, error)
+				if v == nil then v = {} end
+				local v, err = efilter(v, size)
+				return v, err
+			end, "array"),
+		})
+		local params = {addr=nil}
+		local jumpaddr = append(program, "FOR", {decode=params, encode=params})
+		local err = parseDef(vtype, program)
+		if err ~= nil then
+			return string.format("array[...]: value: %s", tostring(err))
+		end
+		append(program, "JMPN", {decode=jumpaddr, encode=jumpaddr})
+		setJump(program, jumpaddr)
+		append(program, "POP", {
+			decode = NAME(function(v: any): (any, error)
+				local v, err = dfilter(v, size)
+				return v, err
+			end, "array"),
+		})
+		appendGlobal(program, def.global)
+		setJump(program, hookaddr)
+	else
+		return "size must be a number or TypeDef"
 	end
-
-	if size <= 0 then
-		-- Array is constantly empty.
-		return nil
-	end
-	local hookaddr = prepareHook(program, def.hook)
-	append(program, "PUSH", {
-		decode = NAME(function(buf: Buffer): (any, error)
-			return {}, nil
-		end, "array"),
-		encode = NAME(function(buf: Buffer, v: any): (any, error)
-			if v == nil then v = {} end
-			local v, err = efilter(v, size)
-			return v, err
-		end, "array"),
-	})
-	local params = {addr=nil, size=size}
-	local jumpaddr = append(program, "FORC", {decode=params, encode=params})
-	local err = parseDef(vtype, program)
-	if err ~= nil then
-		return string.format("array[%d]: %s", size, tostring(err))
-	end
-	append(program, "JMPN", {decode=jumpaddr, encode=jumpaddr})
-	setJump(program, jumpaddr)
-	append(program, "POP", {
-		decode = NAME(function(v: any): (any, error)
-			local v, err = dfilter(v, size)
-			return v, err
-		end, "array"),
-		encode = nil,
-	})
-	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1425,7 +1507,12 @@ GRAPH["array"] = function(def: array): {TypeDef}
 	if type(def.value) ~= "table" then
 		return {}
 	end
-	return {def.value}
+	local types = {}
+	if type(def.size) == "table" then
+		table.insert(types, def.size)
+	end
+	table.insert(types, def.value)
+	return types
 end
 
 export type vector = {
