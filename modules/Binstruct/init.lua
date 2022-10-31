@@ -1345,7 +1345,6 @@ TYPES["struct"] = function(program: Table, def: struct): error
 			local v, err = dfilter(v)
 			return v, err
 		end, "struct"),
-		encode = nil,
 	})
 	appendGlobal(program, def.global)
 	setJump(program, hookaddr)
@@ -1482,7 +1481,6 @@ TYPES["vector"] = function(program: Table, def: vector): error
 			local v, err = dfilter(v, size)
 			return v, err
 		end, "vector"),
-		encode = nil,
 	})
 	appendGlobal(program, def.global)
 	setJump(program, hookaddr)
@@ -1545,7 +1543,6 @@ TYPES["instance"] = function(program: Table, def: instance): error
 			local v, err = dfilter(v, class)
 			return v, err
 		end, "instance"),
-		encode = nil,
 	})
 	appendGlobal(program, def.global)
 	setJump(program, hookaddr)
