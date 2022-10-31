@@ -364,9 +364,10 @@ type TypeDef
 	| vector
 	| instance
 
-type Hook = (stack: (level: number)->any, global: {[any]:any}, h: boolean) -> (boolean, error?)
+type Hook = (stack: (level: number)->any, global: {[any]:any}, h: boolean) -> (boolean, error)
+type Calc = (stack: (level: number)->any, global: {[any]:any}) -> (number, error)
 type Filter = FilterFunc | FilterTable
-type FilterFunc = (value: any?, ...any) -> (any?, error?)
+type FilterFunc = (value: any?, ...any) -> (any?, error)
 type FilterTable = {[any]: any}
 
 local export = {}
@@ -375,6 +376,29 @@ type insts = {
 	decode: (Registers, ...any) -> error,
 	encode: ((Registers, ...any)-> error)?,
 }
+
+-- Prepare a function that indexes stack. If level is 0, then tab is indexed.
+local function stackFn(stack: {Frame}, tab: {[any]:any}): (number) -> any
+	if #stack == 0 then
+		-- Stack is empty; tab is root, which must be inaccessible. Therefore,
+		-- no level will return a valid value.
+		return function() return nil end
+	end
+	local n = #stack+1
+	return function(level: number): any
+		if level == 0 then
+			return tab
+		end
+		local i = n-level
+		if i > 1 then
+			local top = stack[i]
+			if top then
+				return top.TABLE
+			end
+		end
+		return nil
+	end
+end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -575,6 +599,24 @@ INSTRUCTION.FORF = {
 	end,
 }
 
+-- Initialize a loop with a calculated terminator.
+INSTRUCTION.FORX = {
+	decode = function(R: Registers, params: {addr:Addr, calc:Calc}): error
+		R.PC = params.addr - 1
+		R.F.KEY = 0
+		local r, err = params.calc(stackFn(R.STACK, R.F.TABLE), R.GLOBAL)
+		if err ~= nil then
+			return err
+		end
+		if type(r) == "number" then
+			R.F.N = r
+			return nil
+		end
+		R.F.N = 0
+		return nil
+	end,
+}
+
 -- Jump to loop start if KEY is less than N.
 INSTRUCTION.JMPN = {
 	decode = function(R: Registers, addr: Addr): error
@@ -585,29 +627,6 @@ INSTRUCTION.JMPN = {
 		return nil
 	end,
 }
-
--- Prepare a function that indexes stack. If level is 0, then tab is indexed.
-local function stackFn(stack: {Frame}, tab: {[any]:any}): (number) -> any
-	if #stack == 0 then
-		-- Stack is empty; tab is root, which must be inaccessible. Therefore,
-		-- no level will return a valid value.
-		return function() return nil end
-	end
-	local n = #stack+1
-	return function(level: number): any
-		if level == 0 then
-			return tab
-		end
-		local i = n-level
-		if i > 1 then
-			local top = stack[i]
-			if top then
-				return top.TABLE
-			end
-		end
-		return nil
-	end
-end
 
 -- Call hook, jump to addr if false is returned.
 INSTRUCTION.HOOK = {
@@ -1555,8 +1574,14 @@ TYPES["vector"] = function(program: Table, def: vector): error
 	if level < 0 then
 		level = 0
 	end
-	local params = {addr=nil, size=size, level=level}
-	local jumpaddr = append(program, "FORF", {decode=params, encode=params})
+	local jumpaddr
+	if type(size) == "function" then
+		local params = {addr=nil, calc=size}
+		jumpaddr = append(program, "FORX", {decode=params, encode=params})
+	else
+		local params = {addr=nil, size=size, level=level}
+		jumpaddr = append(program, "FORF", {decode=params, encode=params})
+	end
 	local err = parseDef(vtype, program)
 	if err ~= nil then
 		return string.format("vector[%s]: %s", tostring(size), tostring(err))
