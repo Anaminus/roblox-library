@@ -1381,12 +1381,14 @@ TYPES["struct"] = function(program: Table, def: struct): error
 				return string.format("field %q: hook must be a function", tostring(key))
 			end
 
+			local hookaddr = prepareHook(program, field.hook)
 			append(program, "FIELD", {decode=key, encode=key})
 			local err = parseDef(field.value, program)
 			if err ~= nil then
 				return string.format("field %q: %s", tostring(key), tostring(err))
 			end
 			appendGlobal(program, field.global)
+			setJump(program, hookaddr)
 		end
 	end
 	append(program, "POP", {
