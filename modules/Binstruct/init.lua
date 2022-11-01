@@ -809,7 +809,6 @@ TYPES["pad"] = function(program: Table, def: pad): error
 	if not size or size <= 0 then
 		return nil
 	end
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "CALL", {
 		decode = NAME(function(buf: Buffer): error
 			if not buf:Fits(size) then return EOF end
@@ -821,7 +820,6 @@ TYPES["pad"] = function(program: Table, def: pad): error
 			return nil
 		end, "pad", size),
 	})
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -848,7 +846,6 @@ TYPES["align"] = function(program: Table, def: align): error
 	if not size or size <= 0 then
 		return nil
 	end
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "CALL", {
 		decode = NAME(function(buf: Buffer): error
 			local i = buf:Index()
@@ -863,7 +860,6 @@ TYPES["align"] = function(program: Table, def: align): error
 			return nil
 		end, "align", size),
 	})
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -886,7 +882,6 @@ TYPES["const"] = function(program: Table, def: const): error
 	local efilter = normalizeFilter(def.encode)
 	local value = def.value
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			local v = value
@@ -899,7 +894,6 @@ TYPES["const"] = function(program: Table, def: const): error
 		end, "const", tostring(value)),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -964,10 +958,8 @@ TYPES["bool"] = function(program: Table, def: bool): error
 		end, "bool_wide", size)
 	end
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {decode=decode, encode=encode})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -993,7 +985,6 @@ TYPES["uint"] = function(program: Table, def: uint): error
 		return "size must be a number"
 	end
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(size) then return nil, EOF end
@@ -1016,7 +1007,6 @@ TYPES["uint"] = function(program: Table, def: uint): error
 		end, "uint", size),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1042,7 +1032,6 @@ TYPES["int"] = function(program: Table, def: int): error
 		return "size must be a number"
 	end
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(size) then return nil, EOF end
@@ -1065,7 +1054,6 @@ TYPES["int"] = function(program: Table, def: int): error
 		end, "int", size),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1086,7 +1074,6 @@ TYPES["byte"] = function(program: Table, def: byte): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(8) then return nil, EOF end
@@ -1109,7 +1096,6 @@ TYPES["byte"] = function(program: Table, def: byte): error
 		end, "byte"),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1136,7 +1122,6 @@ TYPES["float"] = function(program: Table, def: float): error
 	end
 	size = size or 64
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(size) then return nil, EOF end
@@ -1159,7 +1144,6 @@ TYPES["float"] = function(program: Table, def: float): error
 		end, "float", size),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1190,7 +1174,6 @@ TYPES["ufixed"] = function(program: Table, def: ufixed): error
 		return "fractional part must be a number"
 	end
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(i+f) then return nil, EOF end
@@ -1213,7 +1196,6 @@ TYPES["ufixed"] = function(program: Table, def: ufixed): error
 		end, "ufixed", i, f),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1244,7 +1226,6 @@ TYPES["fixed"] = function(program: Table, def: fixed): error
 		return "fractional part must be a number"
 	end
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(i+f) then return nil, EOF end
@@ -1267,7 +1248,6 @@ TYPES["fixed"] = function(program: Table, def: fixed): error
 		end, "fixed", i, f),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1293,7 +1273,6 @@ TYPES["str"] = function(program: Table, def: str): error
 		return "size must be a number"
 	end
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(size) then return nil, EOF end
@@ -1319,7 +1298,6 @@ TYPES["str"] = function(program: Table, def: str): error
 		end, "str", size),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1354,14 +1332,12 @@ end
 
 TYPES["union"] = function(program: Table, def: union): error
 	append(program, "PUSHS")
-	local hookaddr = prepareHook(program, def.hook)
 	for i, subtype in ipairs(def.values) do
 		local err = parseDef(subtype, program)
 		if err ~= nil then
 			return string.format("union[%d]: %s", i, tostring(err))
 		end
 	end
-	setJump(program, hookaddr)
 	append(program, "POPS")
 	return nil
 end
@@ -1395,7 +1371,6 @@ TYPES["struct"] = function(program: Table, def: struct): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "PUSH", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			return {}, nil
@@ -1413,14 +1388,12 @@ TYPES["struct"] = function(program: Table, def: struct): error
 				return string.format("field %q: hook must be a function", tostring(key))
 			end
 
-			local hookaddr = prepareHook(program, field.hook)
 			append(program, "FIELD", {decode=key, encode=key})
 			local err = parseDef(field.value, program)
 			if err ~= nil then
 				return string.format("field %q: %s", tostring(key), tostring(err))
 			end
 			appendGlobal(program, field.global)
-			setJump(program, hookaddr)
 		end
 	end
 	append(program, "POP", {
@@ -1430,7 +1403,6 @@ TYPES["struct"] = function(program: Table, def: struct): error
 		end, "struct"),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1470,7 +1442,6 @@ TYPES["array"] = function(program: Table, def: array): error
 			-- Array is constantly empty.
 			return nil
 		end
-		local hookaddr = prepareHook(program, def.hook)
 		append(program, "PUSH", {
 			decode = NAME(function(buf: Buffer): (any, error)
 				return {}, nil
@@ -1496,7 +1467,6 @@ TYPES["array"] = function(program: Table, def: array): error
 			end, "array"),
 		})
 		appendGlobal(program, def.global)
-		setJump(program, hookaddr)
 	elseif type(size) == "table" then
 		append(program, "PUSHN")
 		local err = parseDef(size, program)
@@ -1504,7 +1474,6 @@ TYPES["array"] = function(program: Table, def: array): error
 			return string.format("array[...]: size: %s", tostring(err))
 		end
 		append(program, "POPN")
-		local hookaddr = prepareHook(program, def.hook)
 		append(program, "PUSH", {
 			decode = NAME(function(buf: Buffer): (any, error)
 				return {}, nil
@@ -1530,7 +1499,6 @@ TYPES["array"] = function(program: Table, def: array): error
 			end, "array"),
 		})
 		appendGlobal(program, def.global)
-		setJump(program, hookaddr)
 	else
 		return "size must be a number or TypeDef"
 	end
@@ -1574,7 +1542,6 @@ TYPES["vector"] = function(program: Table, def: vector): error
 		return "vector size cannot be nil"
 	end
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "PUSH", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			return {}, nil
@@ -1610,7 +1577,6 @@ TYPES["vector"] = function(program: Table, def: vector): error
 		end, "vector"),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1644,7 +1610,6 @@ TYPES["instance"] = function(program: Table, def: instance): error
 		return "class must be a string"
 	end
 
-	local hookaddr = prepareHook(program, def.hook)
 	append(program, "PUSH", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			return Instance.new(class::any), nil
@@ -1672,7 +1637,6 @@ TYPES["instance"] = function(program: Table, def: instance): error
 		end, "instance"),
 	})
 	appendGlobal(program, def.global)
-	setJump(program, hookaddr)
 	return nil
 end
 
@@ -1722,7 +1686,13 @@ function parseDef(def: TypeDef, programTable: Table, subr: boolean?): error
 	;(fields::any).decode = normalizeFilter(decode)
 	;(fields::any).encode = normalizeFilter(encode)
 
-	return valueType(programTable, fields)
+	local hookaddr = prepareHook(programTable, fields.hook)
+	local err = valueType(programTable, fields)
+	if err ~= nil then
+		return err
+	end
+	setJump(programTable, hookaddr)
+	return nil
 end
 
 -- Counts the number of times a TypeDef is traversed.
