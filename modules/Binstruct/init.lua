@@ -313,6 +313,10 @@ type Table = {
 	-- - true: Def has subroutine that has been generated. Instead of generating
 	--   instructions, a SUBR instruction is generated.
 	_subr: {[TypeDef]:true?},
+	-- Stack of pointers currently being dereferenced. Used to detect
+	-- self-referencing pointers. An error is returned when trying to deference
+	-- a pointer that is currently being deferenced.
+	_ptrs: {ptr},
 }
 type Subrs = {[TypeDef]: Addr}
 type Addr = number
@@ -347,7 +351,8 @@ type Field = {
 }
 
 type TypeDef
-	= pad
+	= ptr
+	| pad
 	| align
 	| const
 	| bool
@@ -840,6 +845,15 @@ local parseDef
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+
+export type ptr = {
+	type: "ptr",
+	value: TypeDef?,
+}
+
+function export.ptr(value: TypeDef?): ptr
+	return {type="ptr", value=value}
+end
 
 export type pad = {
 	type: "pad",
@@ -1724,6 +1738,23 @@ function parseDef(def: TypeDef, programTable: Table, subr: boolean?): error
 	if type(def) ~= "table" then
 		return "type definition must be a table"
 	end
+	if def.type == "ptr" then
+		for _, ptr in programTable._ptrs do
+			if def == ptr then
+				return "attempt to dereference a dereferenced pointer"
+			end
+		end
+		table.insert(programTable._ptrs, def)
+		if type(def.value) ~= "table" then
+			return "referent must be a TypeDef"
+		end
+		local err = parseDef(def.value, programTable, subr)
+		if err ~= nil then
+			return err
+		end
+		table.remove(programTable._ptrs)
+		return nil
+	end
 
 	if not subr and programTable._subr[def] then
 		-- Definition has an associated subroutine, so call it instead of
@@ -1766,10 +1797,21 @@ end
 type Graph = {
 	index: number,
 	map: {[TypeDef]: {index: number, count: number}},
+	ptrs: {ptr},
 }
 
 -- Traverse type definitions to build graph of definition usage.
 local function buildGraph(graph: Graph, def: TypeDef)
+	if def.type == "ptr" and type(def.value) == "table" then
+		for _, ptr in graph.ptrs do
+			if def == ptr then
+				return
+			end
+		end
+		table.insert(graph.ptrs, def)
+		buildGraph(graph, def.value)
+		table.remove(graph.ptrs)
+	end
 	if graph.map[def] then
 		graph.map[def].count += 1
 		return
@@ -1866,7 +1908,7 @@ export type Codec = typeof(Codec)
 function export.new(def: TypeDef): (error, Codec?)
 	assert(type(def) == "table", "table expected")
 
-	local graph: Graph = {index=0, map={}}
+	local graph: Graph = {index=0, map={}, ptrs={}}
 	buildGraph(graph, def)
 	local subrs, issubr = buildSubroutines(graph)
 
@@ -1874,6 +1916,7 @@ function export.new(def: TypeDef): (error, Codec?)
 		decode = {},
 		encode = {},
 		_subr = issubr,
+		_ptrs = {},
 	}
 
 	local subrs, err = generateSubroutines(programTable, subrs)
@@ -1886,6 +1929,7 @@ function export.new(def: TypeDef): (error, Codec?)
 		return err, nil
 	end
 	programTable._subr = nil::any
+	programTable._ptrs = nil::any
 
 	resolveSubroutineAddresses(programTable, subrs)
 
