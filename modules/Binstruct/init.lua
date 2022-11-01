@@ -1333,8 +1333,23 @@ export type union = {
 	global: any?,
 }
 
-function export.union(...: TypeDef): union
-	return {type="union", values={...}}
+function export.union(...: any): union
+	local n = select("#", ...)
+	local values = table.create(n/2)
+	for i = 1, n, 2 do
+		local hook, def = select(i, ...)
+		if type(hook) ~= "function" then
+			continue
+		end
+		if type(def) == "table" then
+			def = table.clone(def)
+			def.hook = hook
+		else
+			def = {type="pad", size=0, hook=hook}
+		end
+		table.insert(values, def)
+	end
+	return {type="union", values=values}
 end
 
 TYPES["union"] = function(program: Table, def: union): error
