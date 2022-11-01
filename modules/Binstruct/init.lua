@@ -643,6 +643,38 @@ INSTRUCTION.HOOK = {
 	end,
 }
 
+-- Jump to exit address if not H, else call expr, jump to addr if false is
+-- returned.
+INSTRUCTION.EXPR = {
+	decode = function(R: Registers, params: {addr:Addr, exitaddr:Addr, expr:Calc}): error
+		if not R.F.H then
+			R.PC = params.exitaddr
+			return nil
+		end
+		local r, err = params.expr(stackFn(R.STACK, R.F.TABLE), R.GLOBAL)
+		if err ~= nil then
+			return err
+		end
+		R.F.H = R.F.H and not r
+		if not r then
+			R.PC = params.addr
+		end
+		return nil
+	end,
+}
+
+-- Unconditional expression. Jump to exit address if not H, else do nothing.
+INSTRUCTION.UXPR = {
+	decode = function(R: Registers, params: {exitaddr:Addr}): error
+		if not R.F.H then
+			R.PC = params.exitaddr
+			return nil
+		end
+		R.F.H = false
+		return nil
+	end,
+}
+
 -- Set global value.
 INSTRUCTION.GLOBAL = {
 	decode = function(R: Registers, key: any): error
@@ -713,6 +745,13 @@ local function setJump(program: Table, addr: Addr?)
 	end
 end
 
+local function setExitJump(program: Table, addr: Addr?)
+	if addr ~= nil then
+		program.decode[addr].param.exitaddr = #program.decode
+		program.encode[addr].param.exitaddr = #program.encode
+	end
+end
+
 local function prepareJump(program: Table): Addr
 	return append(program, "JMP", {
 		decode = {addr=nil},
@@ -728,6 +767,22 @@ local function prepareHook(program: Table, hook: Hook?): Addr?
 		decode = {addr=nil, hook=hook},
 		encode = {addr=nil, hook=hook},
 	})
+end
+
+-- Prepare an expression instruction. Emits EXPR if expr is a Calc, or UXPR if
+-- expr is true.
+local function prepareExpr(program: Table, expr: Calc|true): Addr?
+	if expr == true then
+		return append(program, "UXPR", {
+			decode = {exitaddr=nil},
+			encode = {exitaddr=nil},
+		})
+	else
+		return append(program, "EXPR", {
+			decode = {addr=nil, exitaddr=nil, expr=expr},
+			encode = {addr=nil, exitaddr=nil, expr=expr},
+		})
+	end
 end
 
 local function appendGlobal(program: Table, global: any?)
@@ -1294,9 +1349,15 @@ TYPES["str"] = function(program: Table, def: str): error
 	return nil
 end
 
+export type Clause = {
+	expr: Calc|true,
+	value: TypeDef?,
+	global: any?,
+}
+
 export type union = {
 	type: "union",
-	values: {TypeDef},
+	clauses: {Clause},
 
 	hook: Hook?,
 	decode: Filter?,
@@ -1306,38 +1367,53 @@ export type union = {
 
 function export.union(...: any): union
 	local n = select("#", ...)
-	local values = table.create(n/2)
+	local clauses = table.create(n/2)
 	for i = 1, n, 2 do
-		local hook, def = select(i, ...)
-		if type(hook) ~= "function" then
-			continue
+		local expr, def = select(i, ...)
+		if expr ~= true and type(expr) ~= "function" then
+			error(string.format("bad argument #%d: expected Expr function or true for first in argument pair, got %s", i, typeof(expr)), 2)
 		end
-		if type(def) == "table" then
-			def = table.clone(def)
-			def.hook = hook
-		else
-			def = {type="pad", size=0, hook=hook}
+		if def ~= nil and type(def) ~= "table" then
+			error(string.format("bad argument #%d: expected TypeDef table or nil for second in argument pair, got %s", i+1, typeof(expr)), 2)
 		end
-		table.insert(values, def)
+		table.insert(clauses, {expr=expr, value=def})
 	end
-	return {type="union", values=values}
+	return {type="union", clauses=clauses}
 end
 
 TYPES["union"] = function(program: Table, def: union): error
 	append(program, "PUSHS")
-	for i, subtype in ipairs(def.values) do
-		local err = parseDef(subtype, program)
-		if err ~= nil then
-			return string.format("union[%d]: %s", i, tostring(err))
+	local expraddrs = table.create(#def.clauses)
+	for i, clause in ipairs(def.clauses) do
+		if type(clause) ~= "table" then
+			continue
 		end
+		if clause.expr ~= true and type(clause.expr) ~= "function" then
+			return string.format("union[%d]: expr must be a function or true", i)
+		end
+		local expraddr = prepareExpr(program, clause.expr)
+		table.insert(expraddrs, expraddr)
+		if clause.value then
+			local err = parseDef(clause.value, program)
+			if err ~= nil then
+				return string.format("union[%d]: %s", i, tostring(err))
+			end
+		end
+		appendGlobal(program, clause.global)
+		if clause.expr ~= true then
+			setJump(program, expraddr)
+		end
+	end
+	for _, expraddr in expraddrs do
+		setExitJump(program, expraddr)
 	end
 	append(program, "POPS")
 	return nil
 end
 
 GRAPH["union"] = function(def: union): {TypeDef}
-	local types = table.create(#def.values)
-	for _, t in ipairs(def.values) do
+	local types = table.create(#def.clauses)
+	for _, t in ipairs(def.clauses) do
 		if type(t) ~= "table" then
 			continue
 		end
