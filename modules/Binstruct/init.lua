@@ -809,6 +809,7 @@ TYPES["pad"] = function(program: Table, def: pad): error
 	if not size or size <= 0 then
 		return nil
 	end
+	append(program, "FIELD")
 	append(program, "CALL", {
 		decode = NAME(function(buf: Buffer): error
 			if not buf:Fits(size) then return EOF end
@@ -846,6 +847,7 @@ TYPES["align"] = function(program: Table, def: align): error
 	if not size or size <= 0 then
 		return nil
 	end
+	append(program, "FIELD")
 	append(program, "CALL", {
 		decode = NAME(function(buf: Buffer): error
 			local i = buf:Index()
@@ -893,7 +895,6 @@ TYPES["const"] = function(program: Table, def: const): error
 			return err
 		end, "const", tostring(value)),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -959,7 +960,6 @@ TYPES["bool"] = function(program: Table, def: bool): error
 	end
 
 	append(program, "SET", {decode=decode, encode=encode})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1006,7 +1006,6 @@ TYPES["uint"] = function(program: Table, def: uint): error
 			return nil
 		end, "uint", size),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1053,7 +1052,6 @@ TYPES["int"] = function(program: Table, def: int): error
 			return nil
 		end, "int", size),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1095,7 +1093,6 @@ TYPES["byte"] = function(program: Table, def: byte): error
 			return nil
 		end, "byte"),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1143,7 +1140,6 @@ TYPES["float"] = function(program: Table, def: float): error
 			return nil
 		end, "float", size),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1195,7 +1191,6 @@ TYPES["ufixed"] = function(program: Table, def: ufixed): error
 			return nil
 		end, "ufixed", i, f),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1247,7 +1242,6 @@ TYPES["fixed"] = function(program: Table, def: fixed): error
 			return nil
 		end, "fixed", i, f),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1297,7 +1291,6 @@ TYPES["str"] = function(program: Table, def: str): error
 			return nil
 		end, "str", size),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1402,7 +1395,6 @@ TYPES["struct"] = function(program: Table, def: struct): error
 			return v, err
 		end, "struct"),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1466,7 +1458,6 @@ TYPES["array"] = function(program: Table, def: array): error
 				return v, err
 			end, "array"),
 		})
-		appendGlobal(program, def.global)
 	elseif type(size) == "table" then
 		append(program, "PUSHN")
 		local err = parseDef(size, program)
@@ -1498,7 +1489,6 @@ TYPES["array"] = function(program: Table, def: array): error
 				return v, err
 			end, "array"),
 		})
-		appendGlobal(program, def.global)
 	else
 		return "size must be a number or TypeDef"
 	end
@@ -1576,7 +1566,6 @@ TYPES["vector"] = function(program: Table, def: vector): error
 			return v, err
 		end, "vector"),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1636,7 +1625,6 @@ TYPES["instance"] = function(program: Table, def: instance): error
 			return v, err
 		end, "instance"),
 	})
-	appendGlobal(program, def.global)
 	return nil
 end
 
@@ -1691,6 +1679,7 @@ function parseDef(def: TypeDef, programTable: Table, subr: boolean?): error
 	if err ~= nil then
 		return err
 	end
+	appendGlobal(programTable, def.global)
 	setJump(programTable, hookaddr)
 	return nil
 end
