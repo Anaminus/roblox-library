@@ -296,9 +296,9 @@
 
 local Bitbuf = require(script.Parent.Bitbuf)
 
-type error = any?
+export type error = any?
 
-type Buffer = Bitbuf.Buffer
+export type Buffer = Bitbuf.Buffer
 
 type Table = {
 	decode: Program,
@@ -350,7 +350,7 @@ type Field = {
 	global: any?,
 }
 
-type TypeDef
+export type TypeDef
 	= ptr
 	| pad
 	| align
@@ -369,11 +369,11 @@ type TypeDef
 	| vector
 	| instance
 
-type Hook = (stack: (level: number)->any, global: {[any]:any}, h: boolean) -> (boolean, error)
-type Calc = (stack: (level: number)->any, global: {[any]:any}) -> (number, error)
-type Filter = FilterFunc | FilterTable
-type FilterFunc = (value: any?, ...any) -> (any?, error)
-type FilterTable = {[any]: any}
+export type Hook = (stack: (level: number)->any, global: {[any]:any}, h: boolean) -> (boolean, error)
+export type Calc = (stack: (level: number)->any, global: {[any]:any}) -> (number, error)
+export type Filter = FilterFunc | FilterTable
+export type FilterFunc = (value: any?, ...any) -> (any?, error)
+export type FilterTable = {[any]: any}
 
 local export = {}
 
