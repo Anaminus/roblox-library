@@ -1427,11 +1427,14 @@ end
 
 GRAPH["union"] = function(def: union): {TypeDef}
 	local types = table.create(#def.clauses)
-	for _, t in ipairs(def.clauses) do
-		if type(t) ~= "table" then
+	for _, clause in ipairs(def.clauses) do
+		if type(clause) ~= "table" then
 			continue
 		end
-		table.insert(types, t)
+		if type(clause.value) ~= "table" then
+			continue
+		end
+		table.insert(types, clause.value)
 	end
 	return types
 end
