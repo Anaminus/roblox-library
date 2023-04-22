@@ -77,67 +77,85 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 <tbody><tr><td>
 
 1. [Binstruct][Binstruct]
-	1. [Binstruct.new][Binstruct.new]
-	2. [Binstruct.align][Binstruct.align]
-	3. [Binstruct.array][Binstruct.array]
-	4. [Binstruct.bool][Binstruct.bool]
-	5. [Binstruct.byte][Binstruct.byte]
-	6. [Binstruct.const][Binstruct.const]
-	7. [Binstruct.fixed][Binstruct.fixed]
-	8. [Binstruct.float][Binstruct.float]
-	9. [Binstruct.instance][Binstruct.instance]
-	10. [Binstruct.int][Binstruct.int]
-	11. [Binstruct.pad][Binstruct.pad]
-	12. [Binstruct.ptr][Binstruct.ptr]
-	13. [Binstruct.str][Binstruct.str]
-	14. [Binstruct.struct][Binstruct.struct]
-	15. [Binstruct.ufixed][Binstruct.ufixed]
-	16. [Binstruct.uint][Binstruct.uint]
-	17. [Binstruct.union][Binstruct.union]
-	18. [Binstruct.vector][Binstruct.vector]
+	1. [Binstruct.compile][Binstruct.compile]
+	2. [Binstruct.new][Binstruct.new]
+	3. [Binstruct.align][Binstruct.align]
+	4. [Binstruct.array][Binstruct.array]
+	5. [Binstruct.bool][Binstruct.bool]
+	6. [Binstruct.byte][Binstruct.byte]
+	7. [Binstruct.const][Binstruct.const]
+	8. [Binstruct.fixed][Binstruct.fixed]
+	9. [Binstruct.float][Binstruct.float]
+	10. [Binstruct.instance][Binstruct.instance]
+	11. [Binstruct.int][Binstruct.int]
+	12. [Binstruct.pad][Binstruct.pad]
+	13. [Binstruct.ptr][Binstruct.ptr]
+	14. [Binstruct.str][Binstruct.str]
+	15. [Binstruct.struct][Binstruct.struct]
+	16. [Binstruct.ufixed][Binstruct.ufixed]
+	17. [Binstruct.uint][Binstruct.uint]
+	18. [Binstruct.union][Binstruct.union]
+	19. [Binstruct.vector][Binstruct.vector]
 2. [Codec][Codec]
 	1. [Codec.Decode][Codec.Decode]
 	2. [Codec.DecodeBuffer][Codec.DecodeBuffer]
 	3. [Codec.Encode][Codec.Encode]
 	4. [Codec.EncodeBuffer][Codec.EncodeBuffer]
-3. [Calc][Calc]
-4. [Clause][Clause]
-5. [Expr][Expr]
-6. [Field][Field]
-7. [Filter][Filter]
-8. [FilterFunc][FilterFunc]
-9. [FilterTable][FilterTable]
-10. [Hook][Hook]
-11. [TypeDef][TypeDef]
-12. [TypeDefBase][TypeDefBase]
-13. [align][align]
-14. [array][array]
-15. [bool][bool]
-16. [byte][byte]
-17. [const][const]
-18. [fixed][fixed]
-19. [float][float]
-20. [instance][instance]
-21. [int][int]
-22. [pad][pad]
-23. [ptr][ptr]
-24. [str][str]
-25. [struct][struct]
-26. [ufixed][ufixed]
-27. [uint][uint]
-28. [union][union]
-29. [vector][vector]
+3. [Builder][Builder]
+	1. [Builder.Clause][Builder.Clause]
+	2. [Builder.Decode][Builder.Decode]
+	3. [Builder.Done][Builder.Done]
+	4. [Builder.Encode][Builder.Encode]
+	5. [Builder.Field][Builder.Field]
+	6. [Builder.Global][Builder.Global]
+	7. [Builder.Hook][Builder.Hook]
+	8. [Builder.Property][Builder.Property]
+4. [Calc][Calc]
+5. [Clause][Clause]
+6. [Expr][Expr]
+7. [Field][Field]
+8. [Filter][Filter]
+9. [FilterFunc][FilterFunc]
+10. [FilterTable][FilterTable]
+11. [Hook][Hook]
+12. [TypeDef][TypeDef]
+13. [TypeDefBase][TypeDefBase]
+14. [align][align]
+15. [array][array]
+16. [bool][bool]
+17. [byte][byte]
+18. [const][const]
+19. [fixed][fixed]
+20. [float][float]
+21. [instance][instance]
+22. [int][int]
+23. [pad][pad]
+24. [ptr][ptr]
+25. [str][str]
+26. [struct][struct]
+27. [ufixed][ufixed]
+28. [uint][uint]
+29. [union][union]
+30. [vector][vector]
 
 </td></tr></tbody>
 </table>
 
+## Binstruct.compile
+[Binstruct.compile]: #binstructcompile
+```
+Binstruct.compile(def: TypeDef): (err: error, codec: Codec)
+```
+
+Returns a [Codec][Codec] compiled from the given definition.
+
 ## Binstruct.new
 [Binstruct.new]: #binstructnew
 ```
-Binstruct.new(def: TypeDef): (err: error, codec: Codec)
+Binstruct.new(def: TypeDef): Builder
 ```
 
-Returns a [Codec][Codec] from the given definition.
+Returns a [Builder][Builder] that constructs *def*.
 
 ## Binstruct.align
 [Binstruct.align]: #binstructalign
@@ -329,6 +347,83 @@ Codec:EncodeBuffer(data: any, buffer: Buffer?): (error, Buffer)
 EncodeBuffer encodes a value into a binary string according to the
 codec. *buffer* is an optional Buffer to write to. Returns the Buffer with
 the written data.
+
+# Builder
+[Builder]: #builder
+```
+type Builder
+```
+
+Builder enables the ergonomic construction of [TypeDefs][TypeDef]. Each
+constructing method returns the builder itself, allowing methods to be
+chained.
+
+## Builder.Clause
+[Builder.Clause]: #builderclause
+```
+Builder:Clause(expr: Expr|true, value: TypeDef?, global: any?): Builder
+```
+
+Appends a [Clause][Clause] to the "clauses" field of what is assumed
+to be a [union][union].
+
+## Builder.Decode
+[Builder.Decode]: #builderdecode
+```
+Builder:Decode(decode: Filter): Builder
+```
+
+Sets the "decode" field of the TypeDef.
+
+## Builder.Done
+[Builder.Done]: #builderdone
+```
+Builder:Done(): TypeDef
+```
+
+Finishes building the definition by returning it.
+
+## Builder.Encode
+[Builder.Encode]: #builderencode
+```
+Builder:Encode(encode: Filter): Builder
+```
+
+Sets the "encode" field of the TypeDef.
+
+## Builder.Field
+[Builder.Field]: #builderfield
+```
+Builder:Field(key: any?, value: TypeDef, global: any?, hook: Hook?): Builder
+```
+
+Appends a [Field][Field] to the "fields" field of what is assumed to
+be a [struct][struct].
+
+## Builder.Global
+[Builder.Global]: #builderglobal
+```
+Builder:Global(global: any): Builder
+```
+
+Sets the "global" field of the TypeDef.
+
+## Builder.Hook
+[Builder.Hook]: #builderhook
+```
+Builder:Hook(hook: Hook): Builder
+```
+
+Sets the "hook" field of the TypeDef.
+
+## Builder.Property
+[Builder.Property]: #builderproperty
+```
+Builder:Property(key: any?, value: TypeDef, global: any?, hook: Hook?): Builder
+```
+
+Appends a [Field][Field] to the "properties" field of what is
+assumed to be an [instance][instance].
 
 # Calc
 [Calc]: #calc
