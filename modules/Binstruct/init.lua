@@ -2063,6 +2063,20 @@ function export.compile(def: TypeDef): (error, Codec?)
 	return nil, setmetatable(self, Codec)::any
 end
 
+--@sec: Binstruct.mustCompile
+--@ord: -1
+--@def: Binstruct.mustCompile(def: TypeDef): Codec
+--@doc: Returns a [Codec][Codec] compiled from the given definition. If an error
+-- occurs, it is thrown.
+function export.mustCompile(def: TypeDef): Codec
+	local err, codec = export.compile(def)
+	if err ~= nil then
+		error(err, 2)
+	end
+	assert(codec, "missing codec")
+	return codec
+end
+
 -- Transposes instruction definitions into opcodes per column.
 local InstructionSets = {
 	decode = {},

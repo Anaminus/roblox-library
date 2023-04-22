@@ -78,23 +78,24 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 
 1. [Binstruct][Binstruct]
 	1. [Binstruct.compile][Binstruct.compile]
-	2. [Binstruct.align][Binstruct.align]
-	3. [Binstruct.array][Binstruct.array]
-	4. [Binstruct.bool][Binstruct.bool]
-	5. [Binstruct.byte][Binstruct.byte]
-	6. [Binstruct.const][Binstruct.const]
-	7. [Binstruct.fixed][Binstruct.fixed]
-	8. [Binstruct.float][Binstruct.float]
-	9. [Binstruct.instance][Binstruct.instance]
-	10. [Binstruct.int][Binstruct.int]
-	11. [Binstruct.pad][Binstruct.pad]
-	12. [Binstruct.ptr][Binstruct.ptr]
-	13. [Binstruct.str][Binstruct.str]
-	14. [Binstruct.struct][Binstruct.struct]
-	15. [Binstruct.ufixed][Binstruct.ufixed]
-	16. [Binstruct.uint][Binstruct.uint]
-	17. [Binstruct.union][Binstruct.union]
-	18. [Binstruct.vector][Binstruct.vector]
+	2. [Binstruct.mustCompile][Binstruct.mustCompile]
+	3. [Binstruct.align][Binstruct.align]
+	4. [Binstruct.array][Binstruct.array]
+	5. [Binstruct.bool][Binstruct.bool]
+	6. [Binstruct.byte][Binstruct.byte]
+	7. [Binstruct.const][Binstruct.const]
+	8. [Binstruct.fixed][Binstruct.fixed]
+	9. [Binstruct.float][Binstruct.float]
+	10. [Binstruct.instance][Binstruct.instance]
+	11. [Binstruct.int][Binstruct.int]
+	12. [Binstruct.pad][Binstruct.pad]
+	13. [Binstruct.ptr][Binstruct.ptr]
+	14. [Binstruct.str][Binstruct.str]
+	15. [Binstruct.struct][Binstruct.struct]
+	16. [Binstruct.ufixed][Binstruct.ufixed]
+	17. [Binstruct.uint][Binstruct.uint]
+	18. [Binstruct.union][Binstruct.union]
+	19. [Binstruct.vector][Binstruct.vector]
 2. [Codec][Codec]
 	1. [Codec.Decode][Codec.Decode]
 	2. [Codec.DecodeBuffer][Codec.DecodeBuffer]
@@ -138,6 +139,15 @@ Binstruct.compile(def: TypeDef): (err: error, codec: Codec)
 ```
 
 Returns a [Codec][Codec] compiled from the given definition.
+
+## Binstruct.mustCompile
+[Binstruct.mustCompile]: #binstructmustcompile
+```
+Binstruct.mustCompile(def: TypeDef): Codec
+```
+
+Returns a [Codec][Codec] compiled from the given definition. If an error
+occurs, it is thrown.
 
 ## Binstruct.align
 [Binstruct.align]: #binstructalign
