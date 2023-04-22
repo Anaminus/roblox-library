@@ -1,39 +1,42 @@
 --!strict
 
 --@sec: Binstruct
---@ord: -1
+--@ord: -2
 --@doc: Binstruct encodes and decodes binary structures.
 --
 -- Example:
 -- ```lua
--- local Float = {"float", 32}
--- local String = {"string", 8}
--- local Vector3 = {"struct",
--- 	{"X" , Float},
--- 	{"Y" , Float},
--- 	{"Z" , Float},
--- }
--- local CFrame = {"struct",
--- 	{"Position" , Vector3},
--- 	{"Rotation" , {"array", 9, Float}},
--- }
--- local brick = {"struct",
--- 	{"Name"         , String},
--- 	{"CFrame"       , CFrame},
--- 	{"Size"         , Vector3},
--- 	{"Color"        , {"byte"}},
--- 	{"Reflectance"  , {"uint", 4}},
--- 	{"Transparency" , {"uint", 4}},
--- 	{"CanCollide"   , {"bool"}},
--- 	{"Shape"        , {"uint", 3}},
--- 	{"_"            , {"pad", 4}},
--- 	{"Material"     , {"uint", 6}},
--- 	{"_"            , {"pad", 2}},
--- }
+-- local Binstruct = require(script.Parent.Binstruct)
+-- local z = Binstruct
+--
+-- local Float = z.float(32)
+-- local String = z.str(8)
+-- local Vector3 = z.struct(
+--     "X" , Float,
+--     "Y" , Float,
+--     "Z" , Float
+-- )
+-- local CFrame = z.struct(
+--     "Position" , Vector3,
+--     "Rotation" , z.array(9, Float)
+-- )
+-- local brick = z.struct(
+--     "Name"         , String,
+--     "CFrame"       , CFrame,
+--     "Size"         , Vector3,
+--     "Color"        , z.byte(),
+--     "Reflectance"  , z.uint(4),
+--     "Transparency" , z.uint(4),
+--     "CanCollide"   , z.bool(),
+--     "Shape"        , z.uint(3),
+--     "_"            , z.pad(4),
+--     "Material"     , z.uint(6),
+--     "_"            , z.pad(2)
+-- )
 --
 -- local err, codec = Binstruct.new(brick)
 -- if err ~= nil then
--- 	t:Fatalf(err)
+--     error(err)
 -- end
 -- print(codec:Decode("\8"..string.rep("A", 73)))
 -- -- {
@@ -70,241 +73,21 @@
 -- -- }
 -- ```
 
---@sec: TypeDef
---@def: type TypeDef = {
--- 	encode = Filter?,
--- 	decode = Filter?,
--- 	hook   = Hook?,
--- 	[1]: string,
--- 	...,
--- }
---@doc: TypeDef is a table where the first element indicates a type that
--- determines the remaining structure of the table.
---
--- Additionally, the following optional named fields can be specified:
--- - `encode`: A filter that transforms a structural value before encoding.
--- - `decode`: A filter that transforms a structural value after decoding.
--- - `hook`: A function that determines whether the type should be used.
--- - `global`: A key that adds the type's value to a globally accessible table.
---
--- Within a decode filter, only the top-level value is structural; components of
--- the value will have already been transformed (if defined to do so). Likewise,
--- an encode filter should return a value that itself is structural, but
--- contains transformed components as expected by the component's type
--- definition. Each component's definition will eventually transform the
--- component itself, so the outer definition must avoid making transformations
--- on the component.
---
--- A hook indicates whether the type will be handled. If it returns true, then
--- the type is handled normally. If false is returned, then the type is skipped.
---
--- Specifying a global key causes the value of a non-skipped type to be assigned
--- to the global table, which may then be accessed by the remainder of the
--- codec. Values are assigned in the order they are traversed.
---
--- When a type encodes the value `nil`, the zero-value for the type is used.
---
--- The following types are defined:
---
---     {"pad", number}
---         Padding. Does not read or write any value (filters are ignored). The
---         parameter is the number of bits to pad with.
---
---     {"align", number}
---         Pad until the buffer is aligned to the number of bits indicated by
---         the parameter. Does not read or write any value (filters are
---         ignored).
---
---     {"const", any?}
---         A constant value. The parameter is the value. This type is neither
---         encoded nor decoded.
---
---     {"bool", number?}
---         A boolean. The parameter is *size*, or the number of bits used to
---         represent the value, defaulting to 1.
---
---         *size* is passed to filters as additional arguments.
---
---         The zero for this type is `false`.
---
---     {"int", number}
---         A signed integer. The parameter is *size*, or the number of bits used
---         to represent the value.
---
---         *size* is passed to filters as additional arguments.
---
---         The zero for this type is `0`.
---
---     {"uint", number}
---         An unsigned integer. The parameter is *size*, or the number of bits
---         used to represent the value.
---
---         *size* is passed to filters as additional arguments.
---
---         The zero for this type is `0`.
---
---     {"byte"}
---         Shorthand for `{"uint", 8}`.
---
---     {"float", number?}
---         A floating-point number. The parameter is *size*, or the number of
---         bits used to represent the value, and must be 32 or 64. Defaults to
---         64.
---
---         *size* is passed to filters as additional arguments.
---
---         The zero for this type is `0`.
---
---     {"fixed", number, number}
---         A signed fixed-point number. The first parameter is *i*, or the
---         number of bits used to represent the integer part. The second
---         parameter is *f*, or the number of bits used to represent the
---         fractional part.
---
---         *i* and *f* are passed to filters as additional arguments.
---
---         The zero for this type is `0`.
---
---     {"ufixed", number, number}
---         An unsigned fixed-point number. The first parameter is *i*, or the
---         number of bits used to represent the integer part. The second
---         parameter is *f*, or the number of bits used to represent the
---         fractional part.
---
---         *i* and *f* are passed to filters as additional arguments.
---
---         The zero for this type is `0`.
---
---     {"string", number}
---         A sequence of characters. Encoded as an unsigned integer indicating
---         the length of the string, followed by the raw bytes of the string.
---         The parameter is *size*, or the number of bits used to represent the
---         length.
---
---         *size* is passed to filters as additional arguments.
---
---         The zero for this type is the empty string.
---
---     {"union", ...TypeDef}
---
---         One of several types. Hooks can be used to select a single type.
---
---     {"struct", ...{any?, TypeDef}}
---         A set of named fields. Each parameter is a table defining a field of
---         the struct.
---
---         The first element of a field definition is the key used to index the
---         field. If nil, the value will be processed, but the field will not be
---         assigned to when decoding. When encoding, a `nil` value will be
---         received, so the zero-value of the field's type will be used.
---
---         The second element of a field definition is the type of the field.
---
---         A field definition may also specify a "hook" field, which is
---         described above. If the hook returns false, then the field is
---         skipped.
---
---         A field definition may also specify a "global" field, which is
---         described above. A non-nil global field assigns the field's value to
---         the specified global key.
---
---         The zero for this type is an empty struct.
---
---     {"array", number, TypeDef}
---         A constant-size list of unnamed fields.
---
---         The first parameter is the *size* of the array, indicating a constant
---         size.
---
---         The second parameter is the type of each element in the array.
---
---         *size* is passed to filters as additional arguments.
---
---         The zero for this type is an empty array.
---
---     {"vector", any, TypeDef, level: number?}
---         A dynamically sized list of unnamed fields.
---
---         The first parameter is the *size* of the vector, which indicates the
---         key of a field in the parent struct from which the size is
---         determined. Evaluates to 0 if this field cannot be determined or is a
---         non-number.
---
---         The second parameter is the type of each element in the vector.
---
---         If the *level* field is specified, then it indicates the ancestor
---         structure where *size* will be searched. If *level* is less than 1 or
---         greater than the number of ancestors, then *size* evaluates to 0.
---         Defaults to 1, indicating the parent structure.
---
---         *size* is passed to filters as additional arguments.
---
---         The zero for this type is an empty vector.
---
---     {"instance", string, ...{any?, TypeDef}}
---         A Roblox instance. The first parameter is *class*, or the name of a
---         Roblox class. Each remaining parameter is a table defining a property
---         of the instance.
---
---         The first element of a property definition is the name used to index
---         the property. If nil, the value will be processed, but the field will
---         not be assigned to when decoding. When encoding, a `nil` value will
---         be received, so the zero-value of the field's type will be used.
---
---         The second element of a property definition is the type of the
---         property.
---
---         *class* is passed to filters as additional arguments.
---
---         The zero for this type is a new instance of the class.
-
---@sec: Filter
---@def: type Filter = FilterFunc | FilterTable
---@doc: Filter applies to a TypeDef by transforming a value before encoding, or
--- after decoding.
-
---@sec: FilterFunc
---@def: type FilterFunc = (value: any?, params: ...any) -> (any?, error?)
---@doc: FilterFunc transforms *value* by using a function. The function should
--- return the transformed *value*.
---
--- The *params* received depend on the type, but are usually the elements of the
--- TypeDef.
---
--- A non-nil error causes the program to halt, returning the given value.
-
---@sec: FilterTable
---@def: type FilterTable = {[any] = any}
---@doc: FilterTable transforms a value by mapping the original value to the
--- transformed value.
-
---@sec: Hook
---@def: type Hook = (stack: (level: number)->any, global: table, h: boolean) -> (boolean, error?)
---@doc: Hook indicates whether a type is traversed. If it returns true, then the
--- type is traversed normally. If false is returned, then the type is skipped.
--- If an error is returned, the program halts, returning the error.
---
--- *stack* is used to index structures in the stack. *level* determines how far
--- down to index the stack. level 0 returns the current structure. Returns nil
--- if *level* is out of bounds.
---
--- *global* is the global table. This can be used to compare against globally
--- assigned values.
---
--- *h* is the accumulated result of each hook in the same scope. It will be true
--- only if no other hooks returned true.
-
 local Bitbuf = require(script.Parent.Bitbuf)
 
+local export = {}
+
+-- Any value representing an error, where nil indicates the absence of an error.
 export type error = any?
 
 export type Buffer = Bitbuf.Buffer
 
-type Table = {
-	decode: Program,
-	encode: Program,
+-- The state of the compiler.
+type CompileState = {
+	decode: Program, -- List of decoding instructions.
+	encode: Program, -- List of encoding instructions.
 
-	-- Track status of subroutines.
+	-- Tracks status of subroutines.
 	-- - nil: Def does not have a subroutine. Instructions are generated
 	--   unconditionally.
 	-- - false: Def has subroutine that has not yet been generated. This will be
@@ -312,21 +95,46 @@ type Table = {
 	--   generated. Afterward, the state is set to true.
 	-- - true: Def has subroutine that has been generated. Instead of generating
 	--   instructions, a SUBR instruction is generated.
-	_subr: {[TypeDef]:true?},
+	subr: {[TypeDef]:true?},
 	-- Stack of pointers currently being dereferenced. Used to detect
 	-- self-referencing pointers. An error is returned when trying to deference
-	-- a pointer that is currently being deferenced.
-	_ptrs: {ptr},
+	-- a pointer that is currently being dereferenced.
+	ptrs: {ptr},
 }
-type Subrs = {[TypeDef]: Addr}
-type Addr = number
-type Program = {[Addr]: Instruction}
 
+-- An integer indicating the address of an instruction within a program.
+type Addr = number
+
+-- A sequential list of instructions.
+type Program = {Instruction}
+
+-- Maps the definition of a subroutine to the address of the subroutine. Within
+-- a call instruction, the subroutine's TypeDef is used as a stub for its
+-- address. Subrs is used to resolve the TypeDef into the actual address once
+-- all subroutines have been generated.
+type Subrs = {[TypeDef]: Addr}
+
+-- Reference to a specific instruction.
+type Opcode = string
+
+-- A single operation. *param* is passed to the InstructionFunc corresponding to
+-- *opcode*.
 type Instruction = {
-	opcode: string,
+	opcode: Opcode,
 	param: any,
 }
 
+-- The implementation of an instruction. Receives the registers of the executing
+-- program, and the parameter of the instruction.
+type InstructionFunc = (r: Registers, param: any) -> error
+
+-- Definition of an instruction for each column.
+type InstructionDef = {
+	decode: InstructionFunc,
+	encode: InstructionFunc?, -- If a non-function, it is copied from decode.
+}
+
+-- The state of an executing program.
 type Registers = {
 	PC     : number,       -- Program counter.
 	BUFFER : Buffer,       -- Bit buffer.
@@ -336,6 +144,7 @@ type Registers = {
 	F      : Frame,        -- Current frame.
 }
 
+-- A stack frame.
 type Frame = {
 	TABLE : {[any]: any}, -- The working table.
 	KEY   : any,          -- A key pointing to a field in TABLE.
@@ -343,13 +152,28 @@ type Frame = {
 	H     : boolean,      -- Accumulated result of each hook.
 }
 
-type Field = {
-	key: any?,
-	value: TypeDef,
-	hook: Hook?,
-	global: any?,
+--@sec: Field
+--@def: {key: any?, value: TypeDef, hook: Hook?, global: any?}
+--@doc: Defines the field of a struct or property of an instance.
+--
+-- *key* is the key used to index the field. If nil, the value will be
+-- processed, but the field will not be assigned to when decoding. When
+-- encoding, a `nil` value will be received, causing the zero value for the
+-- field's type to be used.
+--
+-- *value* is the type of the field.
+--
+-- *hook* and *global* behave the same as in [TypeDefBase][TypeDefBase].
+export type Field = {
+	key: any?,      -- The name of the field.
+	value: TypeDef, -- The type of the field.
+	hook: Hook?,    -- A hook that applies to the field. The entire field is skipped if false is returned.
+	global: any?,   -- If specified, the field's value is assigned to this key.
 }
 
+--@sec: TypeDef
+--@def: type TypeDef = ptr | pad | align | const | bool | int | uint | byte | float | fixed | ufixed | str | union | struct | array | vector | instance
+--@doc: TypeDef indicates the definition of one of a number of types.
 export type TypeDef
 	= ptr
 	| pad
@@ -369,18 +193,70 @@ export type TypeDef
 	| vector
 	| instance
 
+--@sec: Hook
+--@def: type Hook = (stack: (level: number)->any, global: table, h: boolean) -> (boolean, error?)
+--@doc: Hook indicates whether a type is traversed. If it returns true, then the
+-- type is traversed normally. If false is returned, then the type is skipped.
+-- If an error is returned, the program halts, returning the error.
+--
+-- *stack* is used to index structures in the stack. *level* determines how far
+-- down to index the stack. level 0 returns the current structure. Returns nil
+-- if *level* is out of bounds.
+--
+-- *global* is the global table. This can be used to compare against globally
+-- assigned values.
+--
+-- *h* is the accumulated result of each hook in the same scope. It will be true
+-- only if no other hooks returned true.
 export type Hook = (stack: (level: number)->any, global: {[any]:any}, h: boolean) -> (boolean, error)
+
+--@sec: Calc
+--@def: type Calc = (stack: (level: number)->any, global: table) -> (number, error?)
+--@doc: Calc is used to calculate the length of a value dynamically.
+--
+-- *stack* is used to index structures in the stack. *level* determines how far
+-- down to index the stack. level 0 returns the current structure. Returns nil
+-- if *level* is out of bounds.
+--
+-- *global* is the global table. This can be used to compare against globally
+-- assigned values.
 export type Calc = (stack: (level: number)->any, global: {[any]:any}) -> (number, error)
+
+--@sec: Expr
+--@def: type Expr = (stack: (level: number)->any, global: table) -> (boolean, error?)
+--@doc: Expr is used to evaluate the clause of a union. It is similar to
+-- [Hook][Hook].
+--
+-- *stack* is used to index structures in the stack. *level* determines how far
+-- down to index the stack. level 0 returns the current structure. Returns nil
+-- if *level* is out of bounds.
+--
+-- *global* is the global table. This can be used to compare against globally
+-- assigned values.
+export type Expr = (stack: (level: number)->any, global: {[any]:any}) -> (boolean, error)
+
+--@sec: Filter
+--@def: type Filter = FilterFunc | FilterTable
+--@doc: Filter applies to a [TypeDef][TypeDef] by transforming a value before
+-- encoding, or after decoding.
 export type Filter = FilterFunc | FilterTable
+
+--@sec: FilterFunc
+--@def: type FilterFunc = (value: any?, params: ...any) -> (any?, error?)
+--@doc: FilterFunc transforms *value* by using a function. The function should
+-- return the transformed *value*.
+--
+-- The *params* received depend on the type, but are usually the elements of the
+-- [TypeDef][TypeDef].
+--
+-- A non-nil error causes the program to halt, returning the given value.
 export type FilterFunc = (value: any?, ...any) -> (any?, error)
+
+--@sec: FilterTable
+--@def: type FilterTable = {[any] = any}
+--@doc: FilterTable transforms a value by mapping the original value to the
+-- transformed value.
 export type FilterTable = {[any]: any}
-
-local export = {}
-
-type insts = {
-	decode: (Registers, ...any) -> error,
-	encode: ((Registers, ...any)-> error)?,
-}
 
 -- Prepare a function that indexes stack. If level is 0, then tab is indexed.
 local function stackFn(stack: {Frame}, tab: {[any]:any}): (number) -> any
@@ -407,12 +283,8 @@ end
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- Set of instructions. Each key is an opcode. Each value is a table, where the
--- "op" field indicates the value of the instruction op. The "decode" and
--- "encode" fields specify the columns of the instruction. Each column is a
--- function of the form `(registers, parameter): error`. If "encode" is a
--- non-function, then it is copied from "decode".
-local INSTRUCTION: {[string]: insts} = {}
+-- Set of instructions definitions.
+local INSTRUCTION: {[string]: InstructionDef} = {}
 
 -- NOTE: When we want to jump to an instruction to execute, we want to jump to
 -- the address *before* that instruction. This is because the program counter is
@@ -651,7 +523,7 @@ INSTRUCTION.HOOK = {
 -- Jump to exit address if not H, else call expr, jump to addr if false is
 -- returned.
 INSTRUCTION.EXPR = {
-	decode = function(R: Registers, params: {addr:Addr, exitaddr:Addr, expr:Calc}): error
+	decode = function(R: Registers, params: {addr:Addr, exitaddr:Addr, expr:Expr}): error
 		if not R.F.H then
 			R.PC = params.exitaddr
 			return nil
@@ -720,90 +592,98 @@ INSTRUCTION.RET = {
 -- Set of value types. Each key is a type name. Each value is a function that
 -- receives an instruction list, followed by TypeDef parameters. The `append`
 -- function should be used to append instructions to the list.
-local TYPES: {[string]: (Table, any)->error} = {}
+local TYPES: {[string]: (CompileState, any)->error} = {}
 
--- Maps a type to a function that recieves a TypeDef and returns a list of the
+-- Maps a type to a function that receives a TypeDef and returns a list of the
 -- definition's inner types.
 local GRAPH: {[string]: (any)->{TypeDef}} = {}
 
 -- Appends to *list* the instruction corresponding to *opcode*. Each remaining
 -- argument corresponds to an argument to be passed to the corresponding
 -- instruction column. Returns the address of the appended instruction.
-local function append(program: Table, opcode: string, columns: {decode:any, encode:any}?)
+local function append(state: CompileState, opcode: string, columns: {decode:any, encode:any}?)
 	if columns then
-		table.insert(program.decode, {opcode=opcode, param=columns.decode})
-		table.insert(program.encode, {opcode=opcode, param=columns.encode})
+		table.insert(state.decode, {opcode=opcode, param=columns.decode})
+		table.insert(state.encode, {opcode=opcode, param=columns.encode})
 	else
-		table.insert(program.decode, {opcode=opcode})
-		table.insert(program.encode, {opcode=opcode})
+		table.insert(state.decode, {opcode=opcode})
+		table.insert(state.encode, {opcode=opcode})
 	end
-	return #program.decode
+	return #state.decode
 end
 
--- Sets the first element of each column of the instruction at *addr* to the
--- address of the the last instruction. Expects each column argument to be a
--- table.
-local function setJump(program: Table, addr: Addr?)
+-- Sets the "addr" field of the parameter of each column of the instruction at
+-- *addr* to the address of the the last instruction. Expects each column
+-- parameter to be a table. Does nothing if *addr* is nil.
+local function setJump(state: CompileState, addr: Addr?)
 	if addr ~= nil then
-		program.decode[addr].param.addr = #program.decode
-		program.encode[addr].param.addr = #program.encode
+		state.decode[addr].param.addr = #state.decode
+		state.encode[addr].param.addr = #state.encode
 	end
 end
 
-local function setExitJump(program: Table, addr: Addr?)
+-- Sets the "exitaddr" field of the parameter of each column of the instruction
+-- at *addr* to the address of the the last instruction. Expects each column
+-- parameter to be a table. Does nothing if *addr* is nil.
+local function setExitJump(state: CompileState, addr: Addr?)
 	if addr ~= nil then
-		program.decode[addr].param.exitaddr = #program.decode
-		program.encode[addr].param.exitaddr = #program.encode
+		state.decode[addr].param.exitaddr = #state.decode
+		state.encode[addr].param.exitaddr = #state.encode
 	end
 end
 
-local function prepareJump(program: Table): Addr
-	return append(program, "JMP", {
+-- Appends a JMP instruction with no target set.
+local function prepareJump(state: CompileState): Addr
+	return append(state, "JMP", {
 		decode = {addr=nil},
 		encode = {addr=nil},
 	})
 end
 
-local function prepareHook(program: Table, hook: Hook?): Addr?
+-- If hook is not nil, appends a HOOK instruction with no target set.
+local function prepareHook(state: CompileState, hook: Hook?): Addr?
 	if hook == nil then
 		return nil
 	end
-	return append(program, "HOOK", {
+	return append(state, "HOOK", {
 		decode = {addr=nil, hook=hook},
 		encode = {addr=nil, hook=hook},
 	})
 end
 
--- Prepare an expression instruction. Emits EXPR if expr is a Calc, or UXPR if
--- expr is true.
-local function prepareExpr(program: Table, expr: Calc|true): Addr?
+-- Appends an expression instruction with no target set by emitting EXPR if expr
+-- is a Expr, or UXPR if expr is true.
+local function prepareExpr(state: CompileState, expr: Expr|true): Addr?
 	if expr == true then
-		return append(program, "UXPR", {
+		return append(state, "UXPR", {
 			decode = {exitaddr=nil},
 			encode = {exitaddr=nil},
 		})
 	else
-		return append(program, "EXPR", {
+		return append(state, "EXPR", {
 			decode = {addr=nil, exitaddr=nil, expr=expr},
 			encode = {addr=nil, exitaddr=nil, expr=expr},
 		})
 	end
 end
 
-local function appendGlobal(program: Table, global: any?)
+-- If *global* is not nil, appends a GLOBAL instruction.
+local function appendGlobal(state: CompileState, global: any?)
 	if global == nil then
 		return
 	end
-	append(program, "GLOBAL", {
+	append(state, "GLOBAL", {
 		decode = global,
 		encode = global,
 	})
 end
 
+-- Used in place of no filter.
 local function nop(v: any, ...): (any, error)
 	return v, nil
 end
 
+-- Normalizes a Filter into a FilterFunc.
 local function normalizeFilter(filter: Filter?): FilterFunc
 	if filter == nil then
 		return nop
@@ -818,7 +698,7 @@ end
 
 local EOF: error = "end of buffer"
 
--- Register a function with a name, for debugging.
+-- Registers a function with a name, for debugging.
 local debugNameRegistry: {[any]: string} = setmetatable({}, {__mode="k"})::any
 local function NAME<T>(func: T, name: string, ...: any): T
 	local args = table.pack(...)
@@ -832,6 +712,7 @@ local function NAMEOF<T>(func: T): string
 	return debugNameRegistry[func] or "<function>"
 end
 
+-- Transposes each pair of arguments into a table with a key and a value.
 local function fieldPairs(...: any): {Field}
 	local args = table.pack(...)
 	local fields = table.create(args.n/2)
@@ -846,15 +727,49 @@ local parseDef
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+--@sec: TypeDefBase
+--@def: type TypeDefBase = {hook: Hook?, decode: Filter?, encode: Filter?, global: any?}
+--@doc: TypeDefBase defines fields common to most [TypeDef][TypeDef] types.
+--
+-- *hook* determines whether the type should be used.
+--
+-- *decode* transforms the value after decoding, while *encode* transforms the
+-- value before encoding.
+--
+-- If *global* is not nil, then the type's value is added to a globally
+-- accessible table under the given key.
+
+--BUG: Instead of type `X & TypeDefBase`, fields are included literally due to
+--problems with type checking.
+export type TypeDefBase = {
+	hook: Hook?,
+	decode: Filter?,
+	encode: Filter?,
+	global: any?,
+}
+
+--@sec: ptr
+--@def: type ptr = {type: "ptr", value: TypeDef?}
+--@doc: A ptr is a TypeDef that resolve to another type definition. The purpose
+-- is to allow definitions to use a type before it is defined. When compiling,
+-- an error is thrown if the the ptr points to nothing, or if it is
+-- self-referring.
 export type ptr = {
 	type: "ptr",
 	value: TypeDef?,
 }
 
+--@sec: Binstruct.ptr
+--@def: Binstruct.ptr(value: TypeDef?): ptr
+--@doc: Constructs a [ptr][ptr] that points to *value*.
 function export.ptr(value: TypeDef?): ptr
 	return {type="ptr", value=value}
 end
 
+--@sec: pad
+--@def: type pad = {type: "pad", size: number} & TypeDefBase
+--@doc: Specifies only bit padding, and does not read or write any value
+-- (filters are ignored). *size* is the number of bits to pad with.
 export type pad = {
 	type: "pad",
 	size: number,
@@ -865,11 +780,14 @@ export type pad = {
 	global: any?,
 }
 
+--@sec: Binstruct.pad
+--@def: Binstruct.pad(size: number): pad
+--@doc: Constructs a [pad][pad] of *size* bits.
 function export.pad(size: number): pad
 	return {type="pad", size=size}
 end
 
-TYPES["pad"] = function(program: Table, def: pad): error
+TYPES["pad"] = function(state: CompileState, def: pad): error
 	local size = def.size
 	if size ~= nil and type(size) ~= "number" then
 		return "size must be a number or nil"
@@ -878,8 +796,8 @@ TYPES["pad"] = function(program: Table, def: pad): error
 	if not size or size <= 0 then
 		return nil
 	end
-	append(program, "FIELD")
-	append(program, "CALL", {
+	append(state, "FIELD")
+	append(state, "CALL", {
 		decode = NAME(function(buf: Buffer): error
 			if not buf:Fits(size) then return EOF end
 			buf:ReadPad(size)
@@ -893,6 +811,10 @@ TYPES["pad"] = function(program: Table, def: pad): error
 	return nil
 end
 
+--@sec: align
+--@def: type align = {type: "align", size: number} & TypeDefBase
+--@doc: Pads with bits until the buffer is aligned to the number of bits
+-- indicated by *size*. Does not read or write any value (filters are ignored).
 export type align = {
 	type: "align",
 	size: number,
@@ -903,11 +825,14 @@ export type align = {
 	global: any?,
 }
 
+--@sec: Binstruct.align
+--@def: Binstruct.align(size: number): align
+--@doc: Constructs an [align][align] that aligns to *size* bits.
 function export.align(size: number): align
 	return {type="align", size=size}
 end
 
-TYPES["align"] = function(program: Table, def: align): error
+TYPES["align"] = function(state: CompileState, def: align): error
 	local size = def.size
 	if size ~= nil and type(size) ~= "number" then
 		return "size must be a number or nil"
@@ -916,8 +841,8 @@ TYPES["align"] = function(program: Table, def: align): error
 	if not size or size <= 0 then
 		return nil
 	end
-	append(program, "FIELD")
-	append(program, "CALL", {
+	append(state, "FIELD")
+	append(state, "CALL", {
 		decode = NAME(function(buf: Buffer): error
 			local i = buf:Index()
 			if math.floor(math.ceil(i/size)*size - i) > buf:Len() - i then
@@ -934,6 +859,10 @@ TYPES["align"] = function(program: Table, def: align): error
 	return nil
 end
 
+--@sec: const
+--@def: type const = {type: "const", value: any?} & TypeDefBase
+--@doc: A constant value. *value* is the value, which is neither encoded nor
+-- decoded.
 export type const = {
 	type: "const",
 	value: any?,
@@ -944,16 +873,19 @@ export type const = {
 	global: any?,
 }
 
+--@sec: Binstruct.const
+--@def: Binstruct.const(value: any?): const
+--@doc: Constructs a [const][const] with *value*.
 function export.const(value: any?): const
 	return {type="const", value=value}
 end
 
-TYPES["const"] = function(program: Table, def: const): error
+TYPES["const"] = function(state: CompileState, def: const): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local value = def.value
 
-	append(program, "SET", {
+	append(state, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			local v = value
 			local v, err = dfilter(v, value)
@@ -967,6 +899,14 @@ TYPES["const"] = function(program: Table, def: const): error
 	return nil
 end
 
+--@sec: bool
+--@def: type bool = {type: "bool", size: number?} & TypeDefBase
+--@doc: A boolean value. *size* is the number of bits used to represent the
+-- value, defaulting to 1.
+--
+-- *size* is passed to filters as additional arguments.
+--
+-- The zero for this type is `false`.
 export type bool = {
 	type: "bool",
 	size: number?,
@@ -977,11 +917,14 @@ export type bool = {
 	global: any?,
 }
 
+--@sec: Binstruct.bool
+--@def: Binstruct.bool(size: number?): bool
+--@doc: Constructs a [bool][bool] of *size* bits, defaulting to 1.
 function export.bool(size: number?): bool
 	return {type="bool", size=size}
 end
 
-TYPES["bool"] = function(program: Table, def: bool): error
+TYPES["bool"] = function(state: CompileState, def: bool): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1028,10 +971,18 @@ TYPES["bool"] = function(program: Table, def: bool): error
 		end, "bool_wide", size)
 	end
 
-	append(program, "SET", {decode=decode, encode=encode})
+	append(state, "SET", {decode=decode, encode=encode})
 	return nil
 end
 
+--@sec: uint
+--@def: type uint = {type: "uint", size: number} & TypeDefBase
+--@doc: An unsigned integer. *size* is the number of bits used to represent the
+-- value.
+--
+-- *size* is passed to filters as additional arguments.
+--
+-- The zero for this type is `0`.
 export type uint = {
 	type: "uint",
 	size: number,
@@ -1042,11 +993,14 @@ export type uint = {
 	global: any?,
 }
 
+--@sec: Binstruct.uint
+--@def: Binstruct.uint(size: number): uint
+--@doc: Constructs a [uint][uint] of *size* bits.
 function export.uint(size: number): uint
 	return {type="uint", size=size}
 end
 
-TYPES["uint"] = function(program: Table, def: uint): error
+TYPES["uint"] = function(state: CompileState, def: uint): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1054,7 +1008,7 @@ TYPES["uint"] = function(program: Table, def: uint): error
 		return "size must be a number"
 	end
 
-	append(program, "SET", {
+	append(state, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadUint(size)
@@ -1078,6 +1032,14 @@ TYPES["uint"] = function(program: Table, def: uint): error
 	return nil
 end
 
+--@sec: int
+--@def: type int = {type: "int", size: number} & TypeDefBase
+--@doc: A signed integer. *size* is the number of bits used to represent the
+-- value.
+--
+-- *size* is passed to filters as additional arguments.
+--
+-- The zero for this type is `0`.
 export type int = {
 	type: "int",
 	size: number,
@@ -1088,11 +1050,14 @@ export type int = {
 	global: any?,
 }
 
+--@sec: Binstruct.int
+--@def: Binstruct.int(size: number): int
+--@doc: Constructs an [int][int] of *size* bits.
 function export.int(size: number): int
 	return {type="int", size=size}
 end
 
-TYPES["int"] = function(program: Table, def: int): error
+TYPES["int"] = function(state: CompileState, def: int): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1100,7 +1065,7 @@ TYPES["int"] = function(program: Table, def: int): error
 		return "size must be a number"
 	end
 
-	append(program, "SET", {
+	append(state, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadInt(size)
@@ -1124,6 +1089,9 @@ TYPES["int"] = function(program: Table, def: int): error
 	return nil
 end
 
+--@sec: byte
+--@def: type byte = {type: "byte"} & TypeDefBase
+--@doc: Shorthand for a [uint][uint] of size 8.
 export type byte = {
 	type: "byte",
 
@@ -1133,15 +1101,18 @@ export type byte = {
 	global: any?,
 }
 
+--@sec: Binstruct.byte
+--@def: Binstruct.byte(): byte
+--@doc: Constructs a [byte][byte].
 function export.byte(): byte
 	return {type="byte"}
 end
 
-TYPES["byte"] = function(program: Table, def: byte): error
+TYPES["byte"] = function(state: CompileState, def: byte): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 
-	append(program, "SET", {
+	append(state, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(8) then return nil, EOF end
 			local v = buf:ReadByte()
@@ -1165,9 +1136,17 @@ TYPES["byte"] = function(program: Table, def: byte): error
 	return nil
 end
 
+--@sec: float
+--@def: type float = {type: "float", size: number?} & TypeDefBase
+--@doc: A floating-point number. *size is the number of bits used to represent
+-- the value, and must be 32 or 64. Defaults to 64.
+--
+-- *size* is passed to filters as additional arguments.
+--
+-- The zero for this type is `0`.
 export type float = {
 	type: "float",
-	size: number,
+	size: number?,
 
 	hook: Hook?,
 	decode: Filter?,
@@ -1175,20 +1154,23 @@ export type float = {
 	global: any?,
 }
 
+--@sec: Binstruct.float
+--@def: Binstruct.float(size: number): float
+--@doc: Constructs a [float][float] of *size* bits.
 function export.float(size: number): float
 	return {type="float", size=size}
 end
 
-TYPES["float"] = function(program: Table, def: float): error
+TYPES["float"] = function(state: CompileState, def: float): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
 	if size ~= nil and type(size) ~= "number" then
 		return "size must be a number or nil"
 	end
-	size = size or 64
+	local size = size or 64
 
-	append(program, "SET", {
+	append(state, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(size) then return nil, EOF end
 			local v = buf:ReadFloat(size)
@@ -1212,6 +1194,15 @@ TYPES["float"] = function(program: Table, def: float): error
 	return nil
 end
 
+--@sec: ufixed
+--@def: type ufixed = {type: "ufixed", i: number, f: number} & TypeDefBase
+--@doc: An unsigned fixed-point number. *i* is the number of bits used to
+-- represent the integer part, and *f* is the number of bits used to represent
+-- the fractional part.
+--
+-- *i* and *f* are passed to filters as additional arguments.
+--
+-- The zero for this type is `0`.
 export type ufixed = {
 	type: "ufixed",
 	i: number,
@@ -1223,11 +1214,15 @@ export type ufixed = {
 	global: any?,
 }
 
+--@sec: Binstruct.ufixed
+--@def: Binstruct.ufixed(i: number, f: number): ufixed
+--@doc: Constructs a [ufixed][ufixed] with *i* bits for the integer part, and
+-- *f* bits for the fractional part.
 function export.ufixed(i: number, f: number): ufixed
 	return {type="ufixed", i=i, f=f}
 end
 
-TYPES["ufixed"] = function(program: Table, def: ufixed): error
+TYPES["ufixed"] = function(state: CompileState, def: ufixed): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local i = def.i
@@ -1239,7 +1234,7 @@ TYPES["ufixed"] = function(program: Table, def: ufixed): error
 		return "fractional part must be a number"
 	end
 
-	append(program, "SET", {
+	append(state, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(i+f) then return nil, EOF end
 			local v = buf:ReadUfixed(i, f)
@@ -1263,6 +1258,15 @@ TYPES["ufixed"] = function(program: Table, def: ufixed): error
 	return nil
 end
 
+--@sec: fixed
+--@def: type fixed = {type: "fixed", i: number, f: number} & TypeDefBase
+--@doc: A signed fixed-point number. *i* is the number of bits used to represent
+-- the integer part. *f* is the number of bits used to represent the fractional
+-- part.
+--
+-- *i* and *f* are passed to filters as additional arguments.
+--
+-- The zero for this type is `0`.
 export type fixed = {
 	type: "fixed",
 	i: number,
@@ -1274,11 +1278,15 @@ export type fixed = {
 	global: any?,
 }
 
+--@sec: Binstruct.fixed
+--@def: Binstruct.fixed(i: number, f: number): fixed
+--@doc: Constructs a [fixed][fixed] of *i* bits for the integer part, and *f*
+-- bits for the fractional part.
 function export.fixed(i: number, f: number): fixed
 	return {type="fixed", i=i, f=f}
 end
 
-TYPES["fixed"] = function(program: Table, def: fixed): error
+TYPES["fixed"] = function(state: CompileState, def: fixed): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local i = def.i
@@ -1290,7 +1298,7 @@ TYPES["fixed"] = function(program: Table, def: fixed): error
 		return "fractional part must be a number"
 	end
 
-	append(program, "SET", {
+	append(state, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(i+f) then return nil, EOF end
 			local v = buf:ReadFixed(i, f)
@@ -1314,6 +1322,15 @@ TYPES["fixed"] = function(program: Table, def: fixed): error
 	return nil
 end
 
+--@sec: str
+--@def: type str = {type: "str", size: number} & TypeDefBase
+--@doc: A sequence of characters. Encoded as an unsigned integer indicating the
+-- length of the string, followed by the raw bytes of the string. *size* is the
+-- number of bits used to represent the length.
+--
+-- *size* is passed to filters as additional arguments.
+--
+-- The zero for this type is the empty string.
 export type str = {
 	type: "str",
 	size: number,
@@ -1324,11 +1341,14 @@ export type str = {
 	global: any?,
 }
 
+--@sec: Binstruct.str
+--@def: Binstruct.str(size: number): str
+--@doc: Constructs a [str][str] with a length occupying *size* bits.
 function export.str(size: number): str
 	return {type="str", size=size}
 end
 
-TYPES["str"] = function(program: Table, def: str): error
+TYPES["str"] = function(state: CompileState, def: str): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1336,7 +1356,7 @@ TYPES["str"] = function(program: Table, def: str): error
 		return "size must be a number"
 	end
 
-	append(program, "SET", {
+	append(state, "SET", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			if not buf:Fits(size) then return nil, EOF end
 			local len = buf:ReadUint(size)
@@ -1363,12 +1383,26 @@ TYPES["str"] = function(program: Table, def: str): error
 	return nil
 end
 
+--@sec: Clause
+--@def: type Clause = {expr: Expr|true, value: TypeDef?, global: any?}
+--@doc: One element of a [union][union].
+--
+-- When traversing a union, each *expr* is evaluated in the same way as an
+-- if-statement: the first clause that evaluates to true is selected. Specifying
+-- `true` as *expr* is similar to an "else" clause.
+--
+-- If the clause is selected, then *value* is used as the value. *global*
+-- behaves the same as in [TypeDefBase][TypeDefBase].
 export type Clause = {
-	expr: Calc|true,
+	expr: Expr|true,
 	value: TypeDef?,
 	global: any?,
 }
 
+--@sec: union
+--@def: type union = {type: "union", clauses: {Clause}} & TypeDefBase
+--@doc: One of several types, where each [Clause][Clause] is evaluated to select
+-- a single type.
 export type union = {
 	type: "union",
 	clauses: {Clause},
@@ -1379,6 +1413,11 @@ export type union = {
 	global: any?,
 }
 
+--@sec: Binstruct.union
+--@def: Binstruct.union(...any): union
+--@doc: Constructs a [union][union] where each pair of arguments forms a
+-- [Clause][Clause]. The first in a pair sets the "expr" field, while the second
+-- sets the "value" field.
 function export.union(...: any): union
 	local n = select("#", ...)
 	local clauses = table.create(n/2)
@@ -1395,8 +1434,8 @@ function export.union(...: any): union
 	return {type="union", clauses=clauses}
 end
 
-TYPES["union"] = function(program: Table, def: union): error
-	append(program, "PUSHS")
+TYPES["union"] = function(state: CompileState, def: union): error
+	append(state, "PUSHS")
 	local expraddrs = table.create(#def.clauses)
 	for i, clause in ipairs(def.clauses) do
 		if type(clause) ~= "table" then
@@ -1405,23 +1444,23 @@ TYPES["union"] = function(program: Table, def: union): error
 		if clause.expr ~= true and type(clause.expr) ~= "function" then
 			return string.format("union[%d]: expr must be a function or true", i)
 		end
-		local expraddr = prepareExpr(program, clause.expr)
+		local expraddr = prepareExpr(state, clause.expr)
 		table.insert(expraddrs, expraddr)
 		if clause.value then
-			local err = parseDef(clause.value, program)
+			local err = parseDef(clause.value, state)
 			if err ~= nil then
 				return string.format("union[%d]: %s", i, tostring(err))
 			end
 		end
-		appendGlobal(program, clause.global)
+		appendGlobal(state, clause.global)
 		if clause.expr ~= true then
-			setJump(program, expraddr)
+			setJump(state, expraddr)
 		end
 	end
 	for _, expraddr in expraddrs do
-		setExitJump(program, expraddr)
+		setExitJump(state, expraddr)
 	end
-	append(program, "POPS")
+	append(state, "POPS")
 	return nil
 end
 
@@ -1439,6 +1478,12 @@ GRAPH["union"] = function(def: union): {TypeDef}
 	return types
 end
 
+--@sec: struct
+--@def: type struct = {type: "struct", fields: {Field}} & TypeDefBase
+--@doc: A set of named fields. *fields* defines an ordered list of
+-- [Fields][Field] of the struct.
+--
+-- The zero for this type is an empty struct.
 export type struct = {
 	type: "struct",
 	fields: {Field},
@@ -1449,15 +1494,20 @@ export type struct = {
 	global: any?,
 }
 
+--@sec: Binstruct.struct
+--@def: Binstruct.struct(...: any): struct
+--@doc: Constructs a [struct][struct] out of the arguments. Arguments form
+-- key-value pairs to set the "fields" of the struct, where the key sets the
+-- "key" of a [Field][Field], and the value sets the "value" of the field.
 function export.struct(...: any): struct
 	return {type="struct", fields=fieldPairs(...)}
 end
 
-TYPES["struct"] = function(program: Table, def: struct): error
+TYPES["struct"] = function(state: CompileState, def: struct): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 
-	append(program, "PUSH", {
+	append(state, "PUSH", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			return {}, nil
 		end, "struct"),
@@ -1474,17 +1524,17 @@ TYPES["struct"] = function(program: Table, def: struct): error
 				return string.format("field %q: hook must be a function", tostring(key))
 			end
 
-			local hookaddr = prepareHook(program, field.hook)
-			append(program, "FIELD", {decode=key, encode=key})
-			local err = parseDef(field.value, program)
+			local hookaddr = prepareHook(state, field.hook)
+			append(state, "FIELD", {decode=key, encode=key})
+			local err = parseDef(field.value, state)
 			if err ~= nil then
 				return string.format("field %q: %s", tostring(key), tostring(err))
 			end
-			appendGlobal(program, field.global)
-			setJump(program, hookaddr)
+			appendGlobal(state, field.global)
+			setJump(state, hookaddr)
 		end
 	end
-	append(program, "POP", {
+	append(state, "POP", {
 		decode = NAME(function(v: any): (any, error)
 			local v, err = dfilter(v)
 			return v, err
@@ -1504,6 +1554,20 @@ GRAPH["struct"] = function(def: struct): {TypeDef}
 	return types
 end
 
+--@sec: array
+--@def: type array = {type: "array", size: number|TypeDef, value: TypeDef} & TypeDefBase
+--@doc: A constant-size list of unnamed elements.
+--
+-- *size* specifies the number of elements, which can be an constant integer. If
+-- a [TypeDef][TypeDef] is specified instead, then a value of that type will be
+-- encoded or decoded, and used as the length. The value must evaluate to a
+-- numeric type.
+--
+-- *value* is the type of each element in the array.
+--
+-- *size* is passed to filters as additional arguments.
+--
+-- The zero for this type is an empty array.
 export type array = {
 	type: "array",
 	size: number|TypeDef,
@@ -1515,11 +1579,14 @@ export type array = {
 	global: any?,
 }
 
+--@sec: Binstruct.array
+--@def: Binstruct.array(size: number|TypeDef, value: TypeDef): array
+--@doc: Constructs an [array][array] of *size* elements of type *value*.
 function export.array(size: number|TypeDef, value: TypeDef): array
 	return {type="array", size=size, value=value}
 end
 
-TYPES["array"] = function(program: Table, def: array): error
+TYPES["array"] = function(state: CompileState, def: array): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1529,7 +1596,7 @@ TYPES["array"] = function(program: Table, def: array): error
 			-- Array is constantly empty.
 			return nil
 		end
-		append(program, "PUSH", {
+		append(state, "PUSH", {
 			decode = NAME(function(buf: Buffer): (any, error)
 				return {}, nil
 			end, "array"),
@@ -1540,27 +1607,27 @@ TYPES["array"] = function(program: Table, def: array): error
 			end, "array"),
 		})
 		local params = {addr=nil, size=size}
-		local jumpaddr = append(program, "FORC", {decode=params, encode=params})
-		local err = parseDef(vtype, program)
+		local jumpaddr = append(state, "FORC", {decode=params, encode=params})
+		local err = parseDef(vtype, state)
 		if err ~= nil then
 			return string.format("array[%d]: %s", size, tostring(err))
 		end
-		append(program, "JMPN", {decode=jumpaddr, encode=jumpaddr})
-		setJump(program, jumpaddr)
-		append(program, "POP", {
+		append(state, "JMPN", {decode=jumpaddr, encode=jumpaddr})
+		setJump(state, jumpaddr)
+		append(state, "POP", {
 			decode = NAME(function(v: any): (any, error)
 				local v, err = dfilter(v, size)
 				return v, err
 			end, "array"),
 		})
 	elseif type(size) == "table" then
-		append(program, "PUSHN")
-		local err = parseDef(size, program)
+		append(state, "PUSHN")
+		local err = parseDef(size, state)
 		if err ~= nil then
 			return string.format("array[...]: size: %s", tostring(err))
 		end
-		append(program, "POPN")
-		append(program, "PUSH", {
+		append(state, "POPN")
+		append(state, "PUSH", {
 			decode = NAME(function(buf: Buffer): (any, error)
 				return {}, nil
 			end, "array"),
@@ -1571,14 +1638,14 @@ TYPES["array"] = function(program: Table, def: array): error
 			end, "array"),
 		})
 		local params = {addr=nil}
-		local jumpaddr = append(program, "FOR", {decode=params, encode=params})
-		local err = parseDef(vtype, program)
+		local jumpaddr = append(state, "FOR", {decode=params, encode=params})
+		local err = parseDef(vtype, state)
 		if err ~= nil then
 			return string.format("array[...]: value: %s", tostring(err))
 		end
-		append(program, "JMPN", {decode=jumpaddr, encode=jumpaddr})
-		setJump(program, jumpaddr)
-		append(program, "POP", {
+		append(state, "JMPN", {decode=jumpaddr, encode=jumpaddr})
+		setJump(state, jumpaddr)
+		append(state, "POP", {
 			decode = NAME(function(v: any): (any, error)
 				local v, err = dfilter(v, size)
 				return v, err
@@ -1602,6 +1669,24 @@ GRAPH["array"] = function(def: array): {TypeDef}
 	return types
 end
 
+--@sec: vector
+--@def: type vector = {type: "vector", size: any, value: TypeDef, level: number?} & TypeDefBase
+--@doc: A dynamically sized list of unnamed elements.
+--
+-- *size* indicates the key of a field in the parent struct from which the size
+-- is determined. Evaluates to 0 if this field cannot be determined or is a
+-- non-number.
+--
+-- *value* is the type of each element in the vector.
+--
+-- If *level* is specified, then it indicates the ancestor structure that is
+-- index by *size*. If *level* is less than 1 or greater than the number of
+-- ancestors, then *size* evaluates to 0. Defaults to 1, indicating the parent
+-- structure.
+--
+-- *size* is passed to filters as additional arguments.
+--
+-- The zero for this type is an empty vector.
 export type vector = {
 	type: "vector",
 	size: any,
@@ -1614,11 +1699,15 @@ export type vector = {
 	global: any?,
 }
 
+--@sec: Binstruct.vector
+--@def: Binstruct.vector(size: any, value: TypeDef, level: number?): vector
+--@doc: Constructs a [vector][vector] that uses *size* as the "size", *value* as
+-- the "value", and *level* as the "level".
 function export.vector(size: any, value: TypeDef, level: number?): vector
 	return {type="vector", size=size, value=value, level=level}
 end
 
-TYPES["vector"] = function(program: Table, def: vector): error
+TYPES["vector"] = function(state: CompileState, def: vector): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local size = def.size
@@ -1627,7 +1716,7 @@ TYPES["vector"] = function(program: Table, def: vector): error
 		return "vector size cannot be nil"
 	end
 
-	append(program, "PUSH", {
+	append(state, "PUSH", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			return {}, nil
 		end, "vector"),
@@ -1644,18 +1733,18 @@ TYPES["vector"] = function(program: Table, def: vector): error
 	local jumpaddr
 	if type(size) == "function" then
 		local params = {addr=nil, calc=size}
-		jumpaddr = append(program, "FORX", {decode=params, encode=params})
+		jumpaddr = append(state, "FORX", {decode=params, encode=params})
 	else
 		local params = {addr=nil, size=size, level=level}
-		jumpaddr = append(program, "FORF", {decode=params, encode=params})
+		jumpaddr = append(state, "FORF", {decode=params, encode=params})
 	end
-	local err = parseDef(vtype, program)
+	local err = parseDef(vtype, state)
 	if err ~= nil then
 		return string.format("vector[%s]: %s", tostring(size), tostring(err))
 	end
-	append(program, "JMPN", {decode=jumpaddr, encode=jumpaddr})
-	setJump(program, jumpaddr)
-	append(program, "POP", {
+	append(state, "JMPN", {decode=jumpaddr, encode=jumpaddr})
+	setJump(state, jumpaddr)
+	append(state, "POP", {
 		decode = NAME(function(v: any): (any, error)
 			local v, err = dfilter(v, size)
 			return v, err
@@ -1671,6 +1760,14 @@ GRAPH["vector"] = function(def: vector): {TypeDef}
 	return {def.value}
 end
 
+--@sec: instance
+--@def: type instance = {type: "instance", class: string, properties: {Field}} & TypeDefBase
+--@doc: A Roblox instance. *class* is the name of a Roblox class. Each
+-- [Field][Field] of *properties* defines the properties of the instance.
+--
+-- *class* is passed to filters as additional arguments.
+--
+-- The zero for this type is a new instance of the class.
 export type instance = {
 	type: "instance",
 	class: string,
@@ -1682,11 +1779,17 @@ export type instance = {
 	global: any?,
 }
 
+--@sec: Binstruct.instance
+--@def: Binstruct.instance(class: string, ...: any): instance
+--@doc: Constructs an [instance][instance] of the given class with properties
+-- defined by the remaining arguments. Arguments form key-value pairs to set the
+-- "properties" of the instance, where the key sets the "key" of a
+-- [Field][Field], and the value sets the "value" of the field.
 function export.instance(class: string, ...: any): instance
 	return {type="instance", class=class, properties=fieldPairs(...)}
 end
 
-TYPES["instance"] = function(program: Table, def: instance): error
+TYPES["instance"] = function(state: CompileState, def: instance): error
 	local dfilter = normalizeFilter(def.decode)
 	local efilter = normalizeFilter(def.encode)
 	local class = def.class
@@ -1694,7 +1797,7 @@ TYPES["instance"] = function(program: Table, def: instance): error
 		return "class must be a string"
 	end
 
-	append(program, "PUSH", {
+	append(state, "PUSH", {
 		decode = NAME(function(buf: Buffer): (any, error)
 			return Instance.new(class::any), nil
 		end, "instance"),
@@ -1707,14 +1810,14 @@ TYPES["instance"] = function(program: Table, def: instance): error
 	for i, property in ipairs(def.properties) do
 		if type(property) == "table" then
 			local name = property.key
-			append(program, "FIELD", {decode=name, encode=name})
-			local err = parseDef(property.value, program)
+			append(state, "FIELD", {decode=name, encode=name})
+			local err = parseDef(property.value, state)
 			if err ~= nil then
 				return string.format("property %q: %s", tostring(name), tostring(err))
 			end
 		end
 	end
-	append(program, "POP", {
+	append(state, "POP", {
 		decode = NAME(function(v: any): (any, error)
 			local v, err = dfilter(v, class)
 			return v, err
@@ -1737,33 +1840,37 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
-function parseDef(def: TypeDef, programTable: Table, subr: boolean?): error
+-- Parses *def*, generating instructions to be added to *state*. If *subr* is
+-- true, then it indicates that a subroutine is being generated, and forces
+-- instructions to be generated rather than calling the subroutine associated
+-- with the definition.
+function parseDef(def: TypeDef, state: CompileState, subr: boolean?): error
 	if type(def) ~= "table" then
 		return "type definition must be a table"
 	end
 	if def.type == "ptr" then
-		for _, ptr in programTable._ptrs do
+		for _, ptr in state.ptrs do
 			if def == ptr then
 				return "attempt to dereference a dereferenced pointer"
 			end
 		end
-		table.insert(programTable._ptrs, def)
+		table.insert(state.ptrs, def)
 		if type(def.value) ~= "table" then
 			return "referent must be a TypeDef"
 		end
-		local err = parseDef(def.value, programTable, subr)
+		local err = parseDef(def.value, state, subr)
 		if err ~= nil then
 			return err
 		end
-		table.remove(programTable._ptrs)
+		table.remove(state.ptrs)
 		return nil
 	end
 
-	if not subr and programTable._subr[def] then
+	if not subr and state.subr[def] then
 		-- Definition has an associated subroutine, so call it instead of
 		-- generating instructions directly. Parameters are resolved into actual
 		-- addresses later.
-		append(programTable, "SUBR", {decode=def, encode=def})
+		append(state, "SUBR", {decode=def, encode=def})
 		return
 	end
 
@@ -1786,21 +1893,24 @@ function parseDef(def: TypeDef, programTable: Table, subr: boolean?): error
 	;(fields::any).decode = normalizeFilter(decode)
 	;(fields::any).encode = normalizeFilter(encode)
 
-	local hookaddr = prepareHook(programTable, fields.hook)
-	local err = valueType(programTable, fields)
+	local hookaddr = prepareHook(state, fields.hook)
+	local err = valueType(state, fields)
 	if err ~= nil then
 		return err
 	end
-	appendGlobal(programTable, def.global)
-	setJump(programTable, hookaddr)
+	appendGlobal(state, def.global)
+	setJump(state, hookaddr)
 	return nil
 end
 
--- Counts the number of times a TypeDef is traversed.
+-- Counts the number of times TypeDefs are traversed.
 type Graph = {
-	index: number,
-	map: {[TypeDef]: {index: number, count: number}},
-	ptrs: {ptr},
+	index: number, -- Used to determine the next index.
+	map: {[TypeDef]: {
+		index: number, -- Tracks traversal order so that subroutines are always generated in the same order.
+		count: number, -- The number of times the mapped TypeDef is traversed.
+	}},
+	ptrs: {ptr}, -- Tracks dereferenced pointers so that self-references aren't counted more than once.
 }
 
 -- Traverse type definitions to build graph of definition usage.
@@ -1831,7 +1941,10 @@ local function buildGraph(graph: Graph, def: TypeDef)
 	end
 end
 
--- Build list of definitions for which subroutines will be generated.
+-- Build list of TypeDefs for which subroutines will be generated. Only TypeDefs
+-- that are used more than once are written as subroutines. Returns an ordered
+-- list of TypeDefs that should be used as subroutines, followed by an unordered
+-- set of TypeDefs that are subroutines.
 local function buildSubroutines(graph: Graph): ({TypeDef}, {[TypeDef]:true})
 	local subr: {TypeDef} = {}
 	local is: {[TypeDef]:true} = {}
@@ -1860,33 +1973,35 @@ local function buildSubroutines(graph: Graph): ({TypeDef}, {[TypeDef]:true})
 	return subr, is
 end
 
-local function generateSubroutines(programTable: Table, defs: {TypeDef}): (Subrs, error)
+-- Generates section of instructions containing a subroutine for each given
+-- definition.
+local function generateSubroutines(state: CompileState, defs: {TypeDef}): (Subrs, error)
 	if #defs == 0 then
 		return {}, nil
 	end
 	-- Insert JMP instruction at start of program to jump over subroutines.
-	local jumpaddr = prepareJump(programTable)
+	local jumpaddr = prepareJump(state)
 	local subrs = {}
 	for _, def in defs do
 		-- Remember addresses of subroutines.
-		subrs[def] = #programTable.decode
+		subrs[def] = #state.decode
 		-- Generate subroutine body.
-		local err = parseDef(def, programTable, true)
+		local err = parseDef(def, state, true)
 		if err then
 			return subrs, err
 		end
-		append(programTable, "RET")
+		append(state, "RET")
 	end
-	setJump(programTable, jumpaddr)
+	setJump(state, jumpaddr)
 	return subrs, nil
 end
 
--- SUBR parameters are stubbed with the TypeDef. Use *subrs* to resolve into
+-- SUBR parameters are stubbed with the TypeDef. Uses *subrs* to resolve into
 -- actual addresses.
-local function resolveSubroutineAddresses(programTable: Table, subrs: Subrs)
-	for i = 1, #programTable.decode do
-		local dinstr = programTable.decode[i]
-		local einstr = programTable.encode[i]
+local function resolveSubroutineAddresses(state: CompileState, subrs: Subrs)
+	for i = 1, #state.decode do
+		local dinstr = state.decode[i]
+		local einstr = state.encode[i]
 		if dinstr.opcode == "SUBR" then
 			local addr = assert(subrs[dinstr.param], "invalid decoder SUBR parameter")
 			dinstr.param = addr
@@ -1899,15 +2014,22 @@ local function resolveSubroutineAddresses(programTable: Table, subrs: Subrs)
 end
 
 --@sec: Codec
+--@ord: -1
 --@def: type Codec
 --@doc: Codec contains instructions for encoding and decoding binary data.
 local Codec = {__index={}}
 
-export type Codec = typeof(Codec)
+export type Codec = {
+	Decode: (self: Codec, buffer: string) -> (error, any),
+	Encode: (self: Codec, data: any) -> (error, string),
+	DecodeBuffer: (self: Codec, buffer: Buffer) -> (error, any),
+	EncodeBuffer: (self: Codec, data: any, buffer: Buffer) -> (error, Buffer?),
+}
 
 --@sec: Binstruct.new
+--@ord: -1
 --@def: Binstruct.new(def: TypeDef): (err: error, codec: Codec)
---@doc: new constructs a Codec from the given definition.
+--@doc: Returns a [Codec][Codec] from the given definition.
 function export.new(def: TypeDef): (error, Codec?)
 	assert(type(def) == "table", "table expected")
 
@@ -1915,54 +2037,50 @@ function export.new(def: TypeDef): (error, Codec?)
 	buildGraph(graph, def)
 	local subrs, issubr = buildSubroutines(graph)
 
-	local programTable: Table = {
+	local state: CompileState = {
 		decode = {},
 		encode = {},
-		_subr = issubr,
-		_ptrs = {},
+		subr = issubr,
+		ptrs = {},
 	}
 
-	local subrs, err = generateSubroutines(programTable, subrs)
+	local subrs, err = generateSubroutines(state, subrs)
 	if err ~= nil then
 		return err, nil
 	end
 
-	local err = parseDef(def, programTable)
+	local err = parseDef(def, state)
 	if err ~= nil then
 		return err, nil
 	end
-	programTable._subr = nil::any
-	programTable._ptrs = nil::any
 
-	resolveSubroutineAddresses(programTable, subrs)
+	resolveSubroutineAddresses(state, subrs)
 
-	local self = {programTable = programTable}
+	local self = {
+		decode = state.decode,
+		encode = state.encode,
+	}
 	return nil, setmetatable(self, Codec)::any
 end
 
-local instructionSets = {
+-- Transposes instruction definitions into opcodes per column.
+local InstructionSets = {
 	decode = {},
 	encode = {},
 }
 for opcode, data in INSTRUCTION do
+	InstructionSets.decode[opcode] = data.decode
 	if type(data.encode) ~= "function" then
-		data.encode = data.decode
+		InstructionSets.encode[opcode] = data.decode
+	else
+		InstructionSets.encode[opcode] = data.encode
 	end
-	local decode = data.decode
-	local encode = data.encode
-	if type(encode) ~= "function" then
-		encode = decode
-	end
-	instructionSets.decode[opcode] = decode
-	instructionSets.encode[opcode] = encode
 end
 
--- Executes the instructions in *program*. *k* selects the instruction argument
--- column. *buffer* is the bit buffer to use. *data* is the data on which to
--- operate.
-local function execute(pt: Table, k: "decode"|"encode", buffer: Buffer, data: any): (error, any)
-
-	-- Registers.
+-- Executes the instructions of *program* using *instructions*. *buffer* is the
+-- bit buffer to use. *data* is the data on which to operate.
+local function execute(program: Program, instructions: {[Opcode]: InstructionFunc}, buffer: Buffer, data: any): (error, any)
+	-- Initialize registers.
 	local R = {
 		PC = 1,
 		BUFFER = buffer,
@@ -1970,6 +2088,8 @@ local function execute(pt: Table, k: "decode"|"encode", buffer: Buffer, data: an
 		STACK = {},
 		SUBR = {},
 		F = {
+			-- A table and key is required, so initialize as an array with one
+			-- element.
 			TABLE = {data},
 			KEY = 1,
 			N = 0,
@@ -1977,10 +2097,8 @@ local function execute(pt: Table, k: "decode"|"encode", buffer: Buffer, data: an
 		},
 	}
 
-	local program = pt[k]
-	local instructions = instructionSets[k]
+	-- Execute the program.
 	local err = nil
-
 	local PN = #program
 	while R.PC <= PN and err == nil do
 		local instr = program[R.PC]
@@ -1992,6 +2110,7 @@ local function execute(pt: Table, k: "decode"|"encode", buffer: Buffer, data: an
 	end
 
 	if err then
+		-- Unwind stack to display index where the error occurred.
 		local stack = table.create(#R.STACK-1)
 		for i = 2, #R.STACK do
 			stack[i-1] = "["..tostring(R.STACK[i].KEY).."]"
@@ -1999,6 +2118,7 @@ local function execute(pt: Table, k: "decode"|"encode", buffer: Buffer, data: an
 		err = string.format("root%s: %s", table.concat(stack), err)
 		return err, nil
 	end
+
 	return nil, R.F.TABLE[R.F.KEY]
 end
 
@@ -2009,7 +2129,7 @@ end
 function Codec.__index:Decode(buffer: string): (error, any)
 	assert(type(buffer) == "string", "string expected")
 	local buf = Bitbuf.fromString(buffer)
-	return execute(self.programTable, "decode", buf, nil)
+	return execute(self.decode, InstructionSets.decode, buf, nil)
 end
 
 --@sec: Codec.Encode
@@ -2018,7 +2138,7 @@ end
 -- Returns the encoded string.
 function Codec.__index:Encode(data: any): (error, string)
 	local buf = Bitbuf.new()
-	local err = execute(self.programTable, "encode", buf, data)
+	local err = execute(self.encode, InstructionSets.encode, buf, data)
 	if err then
 		return err, ""
 	end
@@ -2031,7 +2151,7 @@ end
 -- codec. *buffer* is the buffer to read from. Returns the decoded value.
 function Codec.__index:DecodeBuffer(buffer: Buffer): (error, any)
 	assert(Bitbuf.isBuffer(buffer), "buffer expected")
-	return execute(self.programTable, "decode", buffer, nil)
+	return execute(self.decode, InstructionSets.decode, buffer, nil)
 end
 
 --@sec: Codec.EncodeBuffer
@@ -2048,13 +2168,14 @@ function Codec.__index:EncodeBuffer(data: any, buffer: Buffer): (error, Buffer?)
 	else
 		error(string.format("Buffer expected, got %s", typeof(buffer)), 3)
 	end
-	local err, _ = execute(self.programTable, "encode", buf, data)
+	local err, _ = execute(self.encode, InstructionSets.encode, buf, data)
 	if err then
 		return err, nil
 	end
 	return nil, buf
 end
 
+-- Human-readable representation of an instruction parameter.
 local function formatArg(arg: any): string
 	if type(arg) == "function" then
 		return NAMEOF(arg)
@@ -2079,15 +2200,15 @@ local function formatArg(arg: any): string
 	return tostring(arg)
 end
 
--- Prints a human-readable representation of the instructions of the codec.
+-- Returns a human-readable representation of the instructions of the codec.
 function Codec.__index:Dump(): string
-	local pn = #self.programTable.decode
+	local pn = #self.decode
 	local rows = table.create(pn)
 	local width = table.create(3, 0)
 	for addr = 1, pn do
-		local opcode = self.programTable.decode[addr].opcode
-		local decode = self.programTable.decode[addr].param
-		local encode = self.programTable.encode[addr].param
+		local opcode = self.decode[addr].opcode
+		local decode = self.decode[addr].param
+		local encode = self.encode[addr].param
 		local cols: {any} = {addr, opcode, decode, encode}
 		if #cols[2] > width[1] then
 			width[1] = #cols[2]

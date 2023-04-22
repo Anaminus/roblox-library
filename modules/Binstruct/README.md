@@ -5,34 +5,37 @@ Binstruct encodes and decodes binary structures.
 
 Example:
 ```lua
-local Float = {"float", 32}
-local String = {"string", 8}
-local Vector3 = {"struct",
-	{"X" , Float},
-	{"Y" , Float},
-	{"Z" , Float},
-}
-local CFrame = {"struct",
-	{"Position" , Vector3},
-	{"Rotation" , {"array", 9, Float}},
-}
-local brick = {"struct",
-	{"Name"         , String},
-	{"CFrame"       , CFrame},
-	{"Size"         , Vector3},
-	{"Color"        , {"byte"}},
-	{"Reflectance"  , {"uint", 4}},
-	{"Transparency" , {"uint", 4}},
-	{"CanCollide"   , {"bool"}},
-	{"Shape"        , {"uint", 3}},
-	{"_"            , {"pad", 4}},
-	{"Material"     , {"uint", 6}},
-	{"_"            , {"pad", 2}},
-}
+local Binstruct = require(script.Parent.Binstruct)
+local z = Binstruct
+
+local Float = z.float(32)
+local String = z.str(8)
+local Vector3 = z.struct(
+    "X" , Float,
+    "Y" , Float,
+    "Z" , Float
+)
+local CFrame = z.struct(
+    "Position" , Vector3,
+    "Rotation" , z.array(9, Float)
+)
+local brick = z.struct(
+    "Name"         , String,
+    "CFrame"       , CFrame,
+    "Size"         , Vector3,
+    "Color"        , z.byte(),
+    "Reflectance"  , z.uint(4),
+    "Transparency" , z.uint(4),
+    "CanCollide"   , z.bool(),
+    "Shape"        , z.uint(3),
+    "_"            , z.pad(4),
+    "Material"     , z.uint(6),
+    "_"            , z.pad(2)
+)
 
 local err, codec = Binstruct.new(brick)
 if err ~= nil then
-	t:Fatalf(err)
+    error(err)
 end
 print(codec:Decode("\8"..string.rep("A", 73)))
 -- {
@@ -75,16 +78,55 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 
 1. [Binstruct][Binstruct]
 	1. [Binstruct.new][Binstruct.new]
+	2. [Binstruct.align][Binstruct.align]
+	3. [Binstruct.array][Binstruct.array]
+	4. [Binstruct.bool][Binstruct.bool]
+	5. [Binstruct.byte][Binstruct.byte]
+	6. [Binstruct.const][Binstruct.const]
+	7. [Binstruct.fixed][Binstruct.fixed]
+	8. [Binstruct.float][Binstruct.float]
+	9. [Binstruct.instance][Binstruct.instance]
+	10. [Binstruct.int][Binstruct.int]
+	11. [Binstruct.pad][Binstruct.pad]
+	12. [Binstruct.ptr][Binstruct.ptr]
+	13. [Binstruct.str][Binstruct.str]
+	14. [Binstruct.struct][Binstruct.struct]
+	15. [Binstruct.ufixed][Binstruct.ufixed]
+	16. [Binstruct.uint][Binstruct.uint]
+	17. [Binstruct.union][Binstruct.union]
+	18. [Binstruct.vector][Binstruct.vector]
 2. [Codec][Codec]
 	1. [Codec.Decode][Codec.Decode]
 	2. [Codec.DecodeBuffer][Codec.DecodeBuffer]
 	3. [Codec.Encode][Codec.Encode]
 	4. [Codec.EncodeBuffer][Codec.EncodeBuffer]
-3. [Filter][Filter]
-4. [FilterFunc][FilterFunc]
-5. [FilterTable][FilterTable]
-6. [Hook][Hook]
-7. [TypeDef][TypeDef]
+3. [Calc][Calc]
+4. [Clause][Clause]
+5. [Expr][Expr]
+6. [Field][Field]
+7. [Filter][Filter]
+8. [FilterFunc][FilterFunc]
+9. [FilterTable][FilterTable]
+10. [Hook][Hook]
+11. [TypeDef][TypeDef]
+12. [TypeDefBase][TypeDefBase]
+13. [align][align]
+14. [array][array]
+15. [bool][bool]
+16. [byte][byte]
+17. [const][const]
+18. [fixed][fixed]
+19. [float][float]
+20. [instance][instance]
+21. [int][int]
+22. [pad][pad]
+23. [ptr][ptr]
+24. [str][str]
+25. [struct][struct]
+26. [ufixed][ufixed]
+27. [uint][uint]
+28. [union][union]
+29. [vector][vector]
 
 </td></tr></tbody>
 </table>
@@ -95,7 +137,153 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 Binstruct.new(def: TypeDef): (err: error, codec: Codec)
 ```
 
-new constructs a Codec from the given definition.
+Returns a [Codec][Codec] from the given definition.
+
+## Binstruct.align
+[Binstruct.align]: #binstructalign
+```
+Binstruct.align(size: number): align
+```
+
+Constructs an [align][align] that aligns to *size* bits.
+
+## Binstruct.array
+[Binstruct.array]: #binstructarray
+```
+Binstruct.array(size: number|TypeDef, value: TypeDef): array
+```
+
+Constructs an [array][array] of *size* elements of type *value*.
+
+## Binstruct.bool
+[Binstruct.bool]: #binstructbool
+```
+Binstruct.bool(size: number?): bool
+```
+
+Constructs a [bool][bool] of *size* bits, defaulting to 1.
+
+## Binstruct.byte
+[Binstruct.byte]: #binstructbyte
+```
+Binstruct.byte(): byte
+```
+
+Constructs a [byte][byte].
+
+## Binstruct.const
+[Binstruct.const]: #binstructconst
+```
+Binstruct.const(value: any?): const
+```
+
+Constructs a [const][const] with *value*.
+
+## Binstruct.fixed
+[Binstruct.fixed]: #binstructfixed
+```
+Binstruct.fixed(i: number, f: number): fixed
+```
+
+Constructs a [fixed][fixed] of *i* bits for the integer part, and *f*
+bits for the fractional part.
+
+## Binstruct.float
+[Binstruct.float]: #binstructfloat
+```
+Binstruct.float(size: number): float
+```
+
+Constructs a [float][float] of *size* bits.
+
+## Binstruct.instance
+[Binstruct.instance]: #binstructinstance
+```
+Binstruct.instance(class: string, ...: any): instance
+```
+
+Constructs an [instance][instance] of the given class with properties
+defined by the remaining arguments. Arguments form key-value pairs to set the
+"properties" of the instance, where the key sets the "key" of a
+[Field][Field], and the value sets the "value" of the field.
+
+## Binstruct.int
+[Binstruct.int]: #binstructint
+```
+Binstruct.int(size: number): int
+```
+
+Constructs an [int][int] of *size* bits.
+
+## Binstruct.pad
+[Binstruct.pad]: #binstructpad
+```
+Binstruct.pad(size: number): pad
+```
+
+Constructs a [pad][pad] of *size* bits.
+
+## Binstruct.ptr
+[Binstruct.ptr]: #binstructptr
+```
+Binstruct.ptr(value: TypeDef?): ptr
+```
+
+Constructs a [ptr][ptr] that points to *value*.
+
+## Binstruct.str
+[Binstruct.str]: #binstructstr
+```
+Binstruct.str(size: number): str
+```
+
+Constructs a [str][str] with a length occupying *size* bits.
+
+## Binstruct.struct
+[Binstruct.struct]: #binstructstruct
+```
+Binstruct.struct(...: any): struct
+```
+
+Constructs a [struct][struct] out of the arguments. Arguments form
+key-value pairs to set the "fields" of the struct, where the key sets the
+"key" of a [Field][Field], and the value sets the "value" of the field.
+
+## Binstruct.ufixed
+[Binstruct.ufixed]: #binstructufixed
+```
+Binstruct.ufixed(i: number, f: number): ufixed
+```
+
+Constructs a [ufixed][ufixed] with *i* bits for the integer part, and
+*f* bits for the fractional part.
+
+## Binstruct.uint
+[Binstruct.uint]: #binstructuint
+```
+Binstruct.uint(size: number): uint
+```
+
+Constructs a [uint][uint] of *size* bits.
+
+## Binstruct.union
+[Binstruct.union]: #binstructunion
+```
+Binstruct.union(...any): union
+```
+
+Constructs a [union][union] where each pair of arguments forms a
+[Clause][Clause]. The first in a pair sets the "expr" field, while the second
+sets the "value" field.
+
+## Binstruct.vector
+[Binstruct.vector]: #binstructvector
+```
+Binstruct.vector(size: any, value: TypeDef, level: number?): vector
+```
+
+Constructs a [vector][vector] that uses *size* as the "size", *value* as
+the "value", and *level* as the "level".
 
 # Codec
 [Codec]: #codec
@@ -142,14 +330,77 @@ EncodeBuffer encodes a value into a binary string according to the
 codec. *buffer* is an optional Buffer to write to. Returns the Buffer with
 the written data.
 
+# Calc
+[Calc]: #calc
+```
+type Calc = (stack: (level: number)->any, global: table) -> (number, error?)
+```
+
+Calc is used to calculate the length of a value dynamically.
+
+*stack* is used to index structures in the stack. *level* determines how far
+down to index the stack. level 0 returns the current structure. Returns nil
+if *level* is out of bounds.
+
+*global* is the global table. This can be used to compare against globally
+assigned values.
+
+# Clause
+[Clause]: #clause
+```
+type Clause = {expr: Expr|true, value: TypeDef?, global: any?}
+```
+
+One element of a [union][union].
+
+When traversing a union, each *expr* is evaluated in the same way as an
+if-statement: the first clause that evaluates to true is selected. Specifying
+`true` as *expr* is similar to an "else" clause.
+
+If the clause is selected, then *value* is used as the value. *global*
+behaves the same as in [TypeDefBase][TypeDefBase].
+
+# Expr
+[Expr]: #expr
+```
+type Expr = (stack: (level: number)->any, global: table) -> (boolean, error?)
+```
+
+Expr is used to evaluate the clause of a union. It is similar to
+[Hook][Hook].
+
+*stack* is used to index structures in the stack. *level* determines how far
+down to index the stack. level 0 returns the current structure. Returns nil
+if *level* is out of bounds.
+
+*global* is the global table. This can be used to compare against globally
+assigned values.
+
+# Field
+[Field]: #field
+```
+{key: any?, value: TypeDef, hook: Hook?, global: any?}
+```
+
+Defines the field of a struct or property of an instance.
+
+*key* is the key used to index the field. If nil, the value will be
+processed, but the field will not be assigned to when decoding. When
+encoding, a `nil` value will be received, causing the zero value for the
+field's type to be used.
+
+*value* is the type of the field.
+
+*hook* and *global* behave the same as in [TypeDefBase][TypeDefBase].
+
 # Filter
 [Filter]: #filter
 ```
 type Filter = FilterFunc | FilterTable
 ```
 
-Filter applies to a TypeDef by transforming a value before encoding, or
-after decoding.
+Filter applies to a [TypeDef][TypeDef] by transforming a value before
+encoding, or after decoding.
 
 # FilterFunc
 [FilterFunc]: #filterfunc
@@ -161,7 +412,7 @@ FilterFunc transforms *value* by using a function. The function should
 return the transformed *value*.
 
 The *params* received depend on the type, but are usually the elements of the
-TypeDef.
+[TypeDef][TypeDef].
 
 A non-nil error causes the program to halt, returning the given value.
 
@@ -197,192 +448,239 @@ only if no other hooks returned true.
 # TypeDef
 [TypeDef]: #typedef
 ```
-type TypeDef = {
-	encode = Filter?,
-	decode = Filter?,
-	hook   = Hook?,
-	[1]: string,
-	...,
-}
+type TypeDef = ptr | pad | align | const | bool | int | uint | byte | float | fixed | ufixed | str | union | struct | array | vector | instance
 ```
 
-TypeDef is a table where the first element indicates a type that
-determines the remaining structure of the table.
+TypeDef indicates the definition of one of a number of types.
 
-Additionally, the following optional named fields can be specified:
-- `encode`: A filter that transforms a structural value before encoding.
-- `decode`: A filter that transforms a structural value after decoding.
-- `hook`: A function that determines whether the type should be used.
-- `global`: A key that adds the type's value to a globally accessible table.
+# TypeDefBase
+[TypeDefBase]: #typedefbase
+```
+type TypeDefBase = {hook: Hook?, decode: Filter?, encode: Filter?, global: any?}
+```
 
-Within a decode filter, only the top-level value is structural; components of
-the value will have already been transformed (if defined to do so). Likewise,
-an encode filter should return a value that itself is structural, but
-contains transformed components as expected by the component's type
-definition. Each component's definition will eventually transform the
-component itself, so the outer definition must avoid making transformations
-on the component.
+TypeDefBase defines fields common to most [TypeDef][TypeDef] types.
 
-A hook indicates whether the type will be handled. If it returns true, then
-the type is handled normally. If false is returned, then the type is skipped.
+*hook* determines whether the type should be used.
 
-Specifying a global key causes the value of a non-skipped type to be assigned
-to the global table, which may then be accessed by the remainder of the
-codec. Values are assigned in the order they are traversed.
+*decode* transforms the value after decoding, while *encode* transforms the
+value before encoding.
 
-When a type encodes the value `nil`, the zero-value for the type is used.
+If *global* is not nil, then the type's value is added to a globally
+accessible table under the given key.
 
-The following types are defined:
+# align
+[align]: #align
+```
+type align = {type: "align", size: number} & TypeDefBase
+```
 
-    {"pad", number}
-        Padding. Does not read or write any value (filters are ignored). The
-        parameter is the number of bits to pad with.
+Pads with bits until the buffer is aligned to the number of bits
+indicated by *size*. Does not read or write any value (filters are ignored).
 
-    {"align", number}
-        Pad until the buffer is aligned to the number of bits indicated by
-        the parameter. Does not read or write any value (filters are
-        ignored).
+# array
+[array]: #array
+```
+type array = {type: "array", size: number|TypeDef, value: TypeDef} & TypeDefBase
+```
 
-    {"const", any?}
-        A constant value. The parameter is the value. This type is neither
-        encoded nor decoded.
+A constant-size list of unnamed elements.
 
-    {"bool", number?}
-        A boolean. The parameter is *size*, or the number of bits used to
-        represent the value, defaulting to 1.
+*size* specifies the number of elements, which can be an constant integer. If
+a [TypeDef][TypeDef] is specified instead, then a value of that type will be
+encoded or decoded, and used as the length. The value must evaluate to a
+numeric type.
 
-        *size* is passed to filters as additional arguments.
+*value* is the type of each element in the array.
 
-        The zero for this type is `false`.
+*size* is passed to filters as additional arguments.
 
-    {"int", number}
-        A signed integer. The parameter is *size*, or the number of bits used
-        to represent the value.
+The zero for this type is an empty array.
 
-        *size* is passed to filters as additional arguments.
+# bool
+[bool]: #bool
+```
+type bool = {type: "bool", size: number?} & TypeDefBase
+```
 
-        The zero for this type is `0`.
+A boolean value. *size* is the number of bits used to represent the
+value, defaulting to 1.
 
-    {"uint", number}
-        An unsigned integer. The parameter is *size*, or the number of bits
-        used to represent the value.
+*size* is passed to filters as additional arguments.
 
-        *size* is passed to filters as additional arguments.
+The zero for this type is `false`.
 
-        The zero for this type is `0`.
+# byte
+[byte]: #byte
+```
+type byte = {type: "byte"} & TypeDefBase
+```
 
-    {"byte"}
-        Shorthand for `{"uint", 8}`.
+Shorthand for a [uint][uint] of size 8.
 
-    {"float", number?}
-        A floating-point number. The parameter is *size*, or the number of
-        bits used to represent the value, and must be 32 or 64. Defaults to
-        64.
+# const
+[const]: #const
+```
+type const = {type: "const", value: any?} & TypeDefBase
+```
 
-        *size* is passed to filters as additional arguments.
+A constant value. *value* is the value, which is neither encoded nor
+decoded.
 
-        The zero for this type is `0`.
+# fixed
+[fixed]: #fixed
+```
+type fixed = {type: "fixed", i: number, f: number} & TypeDefBase
+```
 
-    {"fixed", number, number}
-        A signed fixed-point number. The first parameter is *i*, or the
-        number of bits used to represent the integer part. The second
-        parameter is *f*, or the number of bits used to represent the
-        fractional part.
+A signed fixed-point number. *i* is the number of bits used to represent
+the integer part. *f* is the number of bits used to represent the fractional
+part.
 
-        *i* and *f* are passed to filters as additional arguments.
+*i* and *f* are passed to filters as additional arguments.
 
-        The zero for this type is `0`.
+The zero for this type is `0`.
 
-    {"ufixed", number, number}
-        An unsigned fixed-point number. The first parameter is *i*, or the
-        number of bits used to represent the integer part. The second
-        parameter is *f*, or the number of bits used to represent the
-        fractional part.
+# float
+[float]: #float
+```
+type float = {type: "float", size: number?} & TypeDefBase
+```
 
-        *i* and *f* are passed to filters as additional arguments.
+A floating-point number. *size is the number of bits used to represent
+the value, and must be 32 or 64. Defaults to 64.
 
-        The zero for this type is `0`.
+*size* is passed to filters as additional arguments.
 
-    {"string", number}
-        A sequence of characters. Encoded as an unsigned integer indicating
-        the length of the string, followed by the raw bytes of the string.
-        The parameter is *size*, or the number of bits used to represent the
-        length.
+The zero for this type is `0`.
 
-        *size* is passed to filters as additional arguments.
+# instance
+[instance]: #instance
+```
+type instance = {type: "instance", class: string, properties: {Field}} & TypeDefBase
+```
 
-        The zero for this type is the empty string.
+A Roblox instance. *class* is the name of a Roblox class. Each
+[Field][Field] of *properties* defines the properties of the instance.
 
-    {"union", ...TypeDef}
+*class* is passed to filters as additional arguments.
 
-        One of several types. Hooks can be used to select a single type.
+The zero for this type is a new instance of the class.
 
-    {"struct", ...{any?, TypeDef}}
-        A set of named fields. Each parameter is a table defining a field of
-        the struct.
+# int
+[int]: #int
+```
+type int = {type: "int", size: number} & TypeDefBase
+```
 
-        The first element of a field definition is the key used to index the
-        field. If nil, the value will be processed, but the field will not be
-        assigned to when decoding. When encoding, a `nil` value will be
-        received, so the zero-value of the field's type will be used.
+A signed integer. *size* is the number of bits used to represent the
+value.
 
-        The second element of a field definition is the type of the field.
+*size* is passed to filters as additional arguments.
 
-        A field definition may also specify a "hook" field, which is
-        described above. If the hook returns false, then the field is
-        skipped.
+The zero for this type is `0`.
 
-        A field definition may also specify a "global" field, which is
-        described above. A non-nil global field assigns the field's value to
-        the specified global key.
+# pad
+[pad]: #pad
+```
+type pad = {type: "pad", size: number} & TypeDefBase
+```
 
-        The zero for this type is an empty struct.
+Specifies only bit padding, and does not read or write any value
+(filters are ignored). *size* is the number of bits to pad with.
 
-    {"array", number, TypeDef}
-        A constant-size list of unnamed fields.
+# ptr
+[ptr]: #ptr
+```
+type ptr = {type: "ptr", value: TypeDef?}
+```
 
-        The first parameter is the *size* of the array, indicating a constant
-        size.
+A ptr is a TypeDef that resolve to another type definition. The purpose
+is to allow definitions to use a type before it is defined. When compiling,
+an error is thrown if the the ptr points to nothing, or if it is
+self-referring.
 
-        The second parameter is the type of each element in the array.
+# str
+[str]: #str
+```
+type str = {type: "str", size: number} & TypeDefBase
+```
 
-        *size* is passed to filters as additional arguments.
+A sequence of characters. Encoded as an unsigned integer indicating the
+length of the string, followed by the raw bytes of the string. *size* is the
+number of bits used to represent the length.
 
-        The zero for this type is an empty array.
+*size* is passed to filters as additional arguments.
 
-    {"vector", any, TypeDef, level: number?}
-        A dynamically sized list of unnamed fields.
+The zero for this type is the empty string.
 
-        The first parameter is the *size* of the vector, which indicates the
-        key of a field in the parent struct from which the size is
-        determined. Evaluates to 0 if this field cannot be determined or is a
-        non-number.
+# struct
+[struct]: #struct
+```
+type struct = {type: "struct", fields: {Field}} & TypeDefBase
+```
 
-        The second parameter is the type of each element in the vector.
+A set of named fields. *fields* defines an ordered list of
+[Fields][Field] of the struct.
 
-        If the *level* field is specified, then it indicates the ancestor
-        structure where *size* will be searched. If *level* is less than 1 or
-        greater than the number of ancestors, then *size* evaluates to 0.
-        Defaults to 1, indicating the parent structure.
+The zero for this type is an empty struct.
 
-        *size* is passed to filters as additional arguments.
+# ufixed
+[ufixed]: #ufixed
+```
+type ufixed = {type: "ufixed", i: number, f: number} & TypeDefBase
+```
 
-        The zero for this type is an empty vector.
+An unsigned fixed-point number. *i* is the number of bits used to
+represent the integer part, and *f* is the number of bits used to represent
+the fractional part.
 
-    {"instance", string, ...{any?, TypeDef}}
-        A Roblox instance. The first parameter is *class*, or the name of a
-        Roblox class. Each remaining parameter is a table defining a property
-        of the instance.
+*i* and *f* are passed to filters as additional arguments.
 
-        The first element of a property definition is the name used to index
-        the property. If nil, the value will be processed, but the field will
-        not be assigned to when decoding. When encoding, a `nil` value will
-        be received, so the zero-value of the field's type will be used.
+The zero for this type is `0`.
 
-        The second element of a property definition is the type of the
-        property.
+# uint
+[uint]: #uint
+```
+type uint = {type: "uint", size: number} & TypeDefBase
+```
 
-        *class* is passed to filters as additional arguments.
+An unsigned integer. *size* is the number of bits used to represent the
+value.
 
-        The zero for this type is a new instance of the class.
+*size* is passed to filters as additional arguments.
+
+The zero for this type is `0`.
+
+# union
+[union]: #union
+```
+type union = {type: "union", clauses: {Clause}} & TypeDefBase
+```
+
+One of several types, where each [Clause][Clause] is evaluated to select
+a single type.
+
+# vector
+[vector]: #vector
+```
+type vector = {type: "vector", size: any, value: TypeDef, level: number?} & TypeDefBase
+```
+
+A dynamically sized list of unnamed elements.
+
+*size* indicates the key of a field in the parent struct from which the size
+is determined. Evaluates to 0 if this field cannot be determined or is a
+non-number.
+
+*value* is the type of each element in the vector.
+
+If *level* is specified, then it indicates the ancestor structure that is
+index by *size*. If *level* is less than 1 or greater than the number of
+ancestors, then *size* evaluates to 0. Defaults to 1, indicating the parent
+structure.
+
+*size* is passed to filters as additional arguments.
+
+The zero for this type is an empty vector.
 
