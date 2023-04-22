@@ -2026,11 +2026,11 @@ export type Codec = {
 	EncodeBuffer: (self: Codec, data: any, buffer: Buffer) -> (error, Buffer?),
 }
 
---@sec: Binstruct.new
+--@sec: Binstruct.compile
 --@ord: -1
---@def: Binstruct.new(def: TypeDef): (err: error, codec: Codec)
---@doc: Returns a [Codec][Codec] from the given definition.
-function export.new(def: TypeDef): (error, Codec?)
+--@def: Binstruct.compile(def: TypeDef): (err: error, codec: Codec)
+--@doc: Returns a [Codec][Codec] compiled from the given definition.
+function export.compile(def: TypeDef): (error, Codec?)
 	assert(type(def) == "table", "table expected")
 
 	local graph: Graph = {index=0, map={}, ptrs={}}

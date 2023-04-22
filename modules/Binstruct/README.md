@@ -77,7 +77,7 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 <tbody><tr><td>
 
 1. [Binstruct][Binstruct]
-	1. [Binstruct.new][Binstruct.new]
+	1. [Binstruct.compile][Binstruct.compile]
 	2. [Binstruct.align][Binstruct.align]
 	3. [Binstruct.array][Binstruct.array]
 	4. [Binstruct.bool][Binstruct.bool]
@@ -131,13 +131,13 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 </td></tr></tbody>
 </table>
 
-## Binstruct.new
-[Binstruct.new]: #binstructnew
+## Binstruct.compile
+[Binstruct.compile]: #binstructcompile
 ```
-Binstruct.new(def: TypeDef): (err: error, codec: Codec)
+Binstruct.compile(def: TypeDef): (err: error, codec: Codec)
 ```
 
-Returns a [Codec][Codec] from the given definition.
+Returns a [Codec][Codec] compiled from the given definition.
 
 ## Binstruct.align
 [Binstruct.align]: #binstructalign
