@@ -2026,11 +2026,11 @@ export type Codec = {
 	EncodeBuffer: (self: Codec, data: any, buffer: Buffer) -> (error, Buffer?),
 }
 
---@sec: Binstruct.compile
+--@sec: Binstruct.new
 --@ord: -1
---@def: Binstruct.compile(def: TypeDef): (err: error, codec: Codec)
---@doc: Returns a [Codec][Codec] compiled from the given definition.
-function export.compile(def: TypeDef): (error, Codec?)
+--@def: Binstruct.new(def: TypeDef): (err: error, codec: Codec)
+--@doc: Returns a [Codec][Codec] from the given definition.
+function export.new(def: TypeDef): (error, Codec?)
 	assert(type(def) == "table", "table expected")
 
 	local graph: Graph = {index=0, map={}, ptrs={}}
@@ -2233,122 +2233,6 @@ function Codec.__index:Dump(): string
 		out[i] = string.format(fmt, table.unpack(cols))
 	end
 	return table.concat(out, "\n")
-end
-
---@sec: Builder
---@def: type Builder
---@doc: Builder enables the ergonomic construction of [TypeDefs][TypeDef]. Each
--- constructing method returns the builder itself, allowing methods to be
--- chained.
-export type Builder = {
-	Encode: (self: Builder, encode: Filter) -> Builder,
-	Decode: (self: Builder, decode: Filter) -> Builder,
-	Hook: (self: Builder, hook: Hook) -> Builder,
-	Global: (self: Builder, global: any) -> Builder,
-	Clause: (self: Builder, expr: Expr|true, value: TypeDef?, global: any?) -> Builder,
-	Field: (self: Builder, key: any?, value: TypeDef, global: any?, hook: Hook?) -> Builder,
-	Property: (self: Builder, key: any?, value: TypeDef, global: any?, hook: Hook?) -> Builder,
-	Done: (self: Builder) -> TypeDef,
-}
-
---@sec: Binstruct.new
---@ord: -1
---@def: Binstruct.new(def: TypeDef): Builder
---@doc: Returns a [Builder][Builder] that constructs *def*.
-function export.new(def: TypeDef): Builder
-	local def: any = table.clone(def)
-
-	local self: any = {}
-
-	--@sec: Builder.Encode
-	--@def: Builder:Encode(encode: Filter): Builder
-	--@doc: Sets the "encode" field of the TypeDef.
-	function self:Encode(encode: Filter): Builder
-		def.encode = encode
-		return self
-	end
-
-	--@sec: Builder.Decode
-	--@def: Builder:Decode(decode: Filter): Builder
-	--@doc: Sets the "decode" field of the TypeDef.
-	function self:Decode(decode: Filter): Builder
-		def.decode = decode
-		return self
-	end
-
-	--@sec: Builder.Hook
-	--@def: Builder:Hook(hook: Hook): Builder
-	--@doc: Sets the "hook" field of the TypeDef.
-	function self:Hook(hook: Hook): Builder
-		def.hook = hook
-		return self
-	end
-
-	--@sec: Builder.Global
-	--@def: Builder:Global(global: any): Builder
-	--@doc: Sets the "global" field of the TypeDef.
-	function self:Global(global: any): Builder
-		def.global = global
-		return self
-	end
-
-	--@sec: Builder.Clause
-	--@def: Builder:Clause(expr: Expr|true, value: TypeDef?, global: any?): Builder
-	--@doc: Appends a [Clause][Clause] to the "clauses" field of what is assumed
-	-- to be a [union][union].
-	function self:Clause(expr: Expr|true, value: TypeDef?, global: any?): Builder
-		if not def.clauses then
-			def.clauses = {}
-		end
-		table.insert(def.clauses, {
-			expr = expr,
-			value = value,
-			global = global,
-		})
-		return self
-	end
-
-	--@sec: Builder.Field
-	--@def: Builder:Field(key: any?, value: TypeDef, global: any?, hook: Hook?): Builder
-	--@doc: Appends a [Field][Field] to the "fields" field of what is assumed to
-	-- be a [struct][struct].
-	function self:Field(key: any?, value: TypeDef, global: any?, hook: Hook?): Builder
-		if not def.fields then
-			def.fields = {}
-		end
-		table.insert(def.fields, {
-			key = key,
-			value = value,
-			global = global,
-			hook = hook,
-		})
-		return self
-	end
-
-	--@sec: Builder.Property
-	--@def: Builder:Property(key: any?, value: TypeDef, global: any?, hook: Hook?): Builder
-	--@doc: Appends a [Field][Field] to the "properties" field of what is
-	-- assumed to be an [instance][instance].
-	function self:Property(key: any?, value: TypeDef, global: any?, hook: Hook?): Builder
-		if not def.properties then
-			def.properties = {}
-		end
-		table.insert(def.properties, {
-			key = key,
-			value = value,
-			global = global,
-			hook = hook,
-		})
-		return self
-	end
-
-	--@sec: Builder.Done
-	--@def: Builder:Done(): TypeDef
-	--@doc: Finishes building the definition by returning it.
-	function self:Done(): TypeDef
-		return def
-	end
-	return table.freeze(self)
 end
 
 return table.freeze(export)
