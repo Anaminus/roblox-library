@@ -101,33 +101,34 @@ print(codec:Decode("\8"..string.rep("A", 73)))
 	2. [Codec.DecodeBuffer][Codec.DecodeBuffer]
 	3. [Codec.Encode][Codec.Encode]
 	4. [Codec.EncodeBuffer][Codec.EncodeBuffer]
-3. [Calc][Calc]
-4. [Clause][Clause]
-5. [Expr][Expr]
-6. [Field][Field]
-7. [Filter][Filter]
-8. [FilterFunc][FilterFunc]
-9. [FilterTable][FilterTable]
-10. [Hook][Hook]
-11. [TypeDef][TypeDef]
-12. [TypeDefBase][TypeDefBase]
-13. [align][align]
-14. [array][array]
-15. [bool][bool]
-16. [byte][byte]
-17. [const][const]
-18. [fixed][fixed]
-19. [float][float]
-20. [instance][instance]
-21. [int][int]
-22. [pad][pad]
-23. [ptr][ptr]
-24. [str][str]
-25. [struct][struct]
-26. [ufixed][ufixed]
-27. [uint][uint]
-28. [union][union]
-29. [vector][vector]
+3. [Buffer][Buffer]
+4. [Calc][Calc]
+5. [Clause][Clause]
+6. [Expr][Expr]
+7. [Field][Field]
+8. [Filter][Filter]
+9. [FilterFunc][FilterFunc]
+10. [FilterTable][FilterTable]
+11. [Hook][Hook]
+12. [TypeDef][TypeDef]
+13. [TypeDefBase][TypeDefBase]
+14. [align][align]
+15. [array][array]
+16. [bool][bool]
+17. [byte][byte]
+18. [const][const]
+19. [fixed][fixed]
+20. [float][float]
+21. [instance][instance]
+22. [int][int]
+23. [pad][pad]
+24. [ptr][ptr]
+25. [str][str]
+26. [struct][struct]
+27. [ufixed][ufixed]
+28. [uint][uint]
+29. [union][union]
+30. [vector][vector]
 
 </td></tr></tbody>
 </table>
@@ -339,6 +340,40 @@ Codec:EncodeBuffer(data: any, buffer: Buffer?): (error, Buffer)
 EncodeBuffer encodes a value into a binary string according to the
 codec. *buffer* is an optional Buffer to write to. Returns the Buffer with
 the written data.
+
+# Buffer
+[Buffer]: #buffer
+```
+type Buffer = {
+    Fits: (self: Buffer, size: number) -> boolean,                      -- Used by all primitive types.
+    Index: (self: Buffer) -> number,                                    -- Used by align.
+    Len: (self: Buffer) -> number,                                      -- Used by align.
+    ReadAlign: (self: Buffer, size: number) -> (),                      -- Used by align.
+    ReadBool: (self: Buffer) -> boolean,                                -- Used by bool.
+    ReadByte: (self: Buffer) -> number,                                 -- Used by byte.
+    ReadBytes: (self: Buffer, size: number) -> string,                  -- Used by str.
+    ReadFixed: (self: Buffer, i: number, f: number) -> number,          -- Used by fixed.
+    ReadFloat: (self: Buffer, size: number) -> number,                  -- Used by float.
+    ReadInt: (self: Buffer, size: number) -> number,                    -- Used by int.
+    ReadPad: (self: Buffer, size: number) -> (),                        -- Used by pad and bool.
+    ReadUfixed: (self: Buffer, i: number, f: number) -> number,         -- Used by ufixed.
+    ReadUint: (self: Buffer, size: number) -> number,                   -- Used by uint and str.
+    WriteAlign: (self: Buffer, size: number) -> (),                     -- Used by align.
+    WriteBool: (self: Buffer, v: any?) -> (),                           -- Used by bool.
+    WriteByte: (self: Buffer, v: number) -> (),                         -- Used by byte.
+    WriteBytes: (self: Buffer, v: string) -> (),                        -- Used by str.
+    WriteFixed: (self: Buffer, i: number, f: number, v: number) -> (),  -- Used by fixed.
+    WriteFloat: (self: Buffer, size: number, v: number) -> (),          -- Used by float.
+    WriteInt: (self: Buffer, size: number, v: number) -> (),            -- Used by int.
+    WritePad: (self: Buffer, size: number) -> (),                       -- Used by pad and bool.
+    WriteUfixed: (self: Buffer, i: number, f: number, v: number) -> (), -- Used by ufixed.
+    WriteUint: (self: Buffer, size: number, v: number) -> (),           -- Used by uint and str.
+}
+```
+
+An interface representing a buffer of bits. This module uses Bitbuf by
+default, but any bit buffer can be used by writing an intermediate interface
+that translates between APIs.
 
 # Calc
 [Calc]: #calc

@@ -80,7 +80,60 @@ local export = {}
 -- Any value representing an error, where nil indicates the absence of an error.
 export type error = any?
 
-export type Buffer = Bitbuf.Buffer
+--@sec: Buffer
+--@def: type Buffer = {
+--     Fits: (self: Buffer, size: number) -> boolean,                      -- Used by all primitive types.
+--     Index: (self: Buffer) -> number,                                    -- Used by align.
+--     Len: (self: Buffer) -> number,                                      -- Used by align.
+--     ReadAlign: (self: Buffer, size: number) -> (),                      -- Used by align.
+--     ReadBool: (self: Buffer) -> boolean,                                -- Used by bool.
+--     ReadByte: (self: Buffer) -> number,                                 -- Used by byte.
+--     ReadBytes: (self: Buffer, size: number) -> string,                  -- Used by str.
+--     ReadFixed: (self: Buffer, i: number, f: number) -> number,          -- Used by fixed.
+--     ReadFloat: (self: Buffer, size: number) -> number,                  -- Used by float.
+--     ReadInt: (self: Buffer, size: number) -> number,                    -- Used by int.
+--     ReadPad: (self: Buffer, size: number) -> (),                        -- Used by pad and bool.
+--     ReadUfixed: (self: Buffer, i: number, f: number) -> number,         -- Used by ufixed.
+--     ReadUint: (self: Buffer, size: number) -> number,                   -- Used by uint and str.
+--     WriteAlign: (self: Buffer, size: number) -> (),                     -- Used by align.
+--     WriteBool: (self: Buffer, v: any?) -> (),                           -- Used by bool.
+--     WriteByte: (self: Buffer, v: number) -> (),                         -- Used by byte.
+--     WriteBytes: (self: Buffer, v: string) -> (),                        -- Used by str.
+--     WriteFixed: (self: Buffer, i: number, f: number, v: number) -> (),  -- Used by fixed.
+--     WriteFloat: (self: Buffer, size: number, v: number) -> (),          -- Used by float.
+--     WriteInt: (self: Buffer, size: number, v: number) -> (),            -- Used by int.
+--     WritePad: (self: Buffer, size: number) -> (),                       -- Used by pad and bool.
+--     WriteUfixed: (self: Buffer, i: number, f: number, v: number) -> (), -- Used by ufixed.
+--     WriteUint: (self: Buffer, size: number, v: number) -> (),           -- Used by uint and str.
+-- }
+--@doc: An interface representing a buffer of bits. This module uses Bitbuf by
+-- default, but any bit buffer can be used by writing an intermediate interface
+-- that translates between APIs.
+export type Buffer = {
+	Fits: (self: Buffer, size: number) -> boolean,                      -- Used by all primitive types.
+	Index: (self: Buffer) -> number,                                    -- Used by align.
+	Len: (self: Buffer) -> number,                                      -- Used by align.
+	ReadAlign: (self: Buffer, size: number) -> (),                      -- Used by align.
+	ReadBool: (self: Buffer) -> boolean,                                -- Used by bool.
+	ReadByte: (self: Buffer) -> number,                                 -- Used by byte.
+	ReadBytes: (self: Buffer, size: number) -> string,                  -- Used by str.
+	ReadFixed: (self: Buffer, i: number, f: number) -> number,          -- Used by fixed.
+	ReadFloat: (self: Buffer, size: number) -> number,                  -- Used by float.
+	ReadInt: (self: Buffer, size: number) -> number,                    -- Used by int.
+	ReadPad: (self: Buffer, size: number) -> (),                        -- Used by pad and bool.
+	ReadUfixed: (self: Buffer, i: number, f: number) -> number,         -- Used by ufixed.
+	ReadUint: (self: Buffer, size: number) -> number,                   -- Used by uint and str.
+	WriteAlign: (self: Buffer, size: number) -> (),                     -- Used by align.
+	WriteBool: (self: Buffer, v: any?) -> (),                           -- Used by bool.
+	WriteByte: (self: Buffer, v: number) -> (),                         -- Used by byte.
+	WriteBytes: (self: Buffer, v: string) -> (),                        -- Used by str.
+	WriteFixed: (self: Buffer, i: number, f: number, v: number) -> (),  -- Used by fixed.
+	WriteFloat: (self: Buffer, size: number, v: number) -> (),          -- Used by float.
+	WriteInt: (self: Buffer, size: number, v: number) -> (),            -- Used by int.
+	WritePad: (self: Buffer, size: number) -> (),                       -- Used by pad and bool.
+	WriteUfixed: (self: Buffer, i: number, f: number, v: number) -> (), -- Used by ufixed.
+	WriteUint: (self: Buffer, size: number, v: number) -> (),           -- Used by uint and str.
+}
 
 -- The state of the compiler.
 type CompileState = {
@@ -2164,7 +2217,6 @@ end
 --@doc: DecodeBuffer decodes a binary string into a value according to the
 -- codec. *buffer* is the buffer to read from. Returns the decoded value.
 function Codec.__index:DecodeBuffer(buffer: Buffer): (error, any)
-	assert(Bitbuf.isBuffer(buffer), "buffer expected")
 	return execute(self.decode, InstructionSets.decode, buffer, nil)
 end
 
@@ -2174,13 +2226,11 @@ end
 -- codec. *buffer* is an optional Buffer to write to. Returns the Buffer with
 -- the written data.
 function Codec.__index:EncodeBuffer(data: any, buffer: Buffer): (error, Buffer?)
-	local buf
+	local buf: Buffer
 	if buffer == nil then
 		buf = Bitbuf.new()
-	elseif Bitbuf.isBuffer(buffer) then
-		buf = buffer
 	else
-		error(string.format("Buffer expected, got %s", typeof(buffer)), 3)
+		buf = buffer
 	end
 	local err, _ = execute(self.encode, InstructionSets.encode, buf, data)
 	if err then
