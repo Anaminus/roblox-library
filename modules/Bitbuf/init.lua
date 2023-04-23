@@ -105,7 +105,7 @@ export type Buffer = {
 	Len: (self: Buffer) -> number,
 	ReadAlign: (self: Buffer, size: number) -> (),
 	ReadBool: (self: Buffer) -> boolean,
-	ReadByte: (self: Buffer) -> (v: number) -> (),
+	ReadByte: (self: Buffer) -> number,
 	ReadBytes: (self: Buffer, size: number) -> string,
 	ReadFixed: (self: Buffer, i: number, f: number) -> number,
 	ReadFloat: (self: Buffer, size: number) -> number,
