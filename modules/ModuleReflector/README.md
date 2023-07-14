@@ -10,6 +10,9 @@ These reflections can be required without caching, allowing the modules to be
 accomplished by creating virtual copies of modules and requiring them
 instead.
 
+An option to reflect breakpoints is also available, allowing reflections to
+be debugged as though they were the originals.
+
 To enable reloading, a [callback][Config.Changed] can be configured to inform
 the user when the Source of the module changes, or that of any of its
 dependencies. Changes can be [accumulated][Config.ChangeWindow] over time to
@@ -29,8 +32,9 @@ avoid invoking the callback too often.
 3. [Reflector][Reflector]
 	1. [Reflector.Module][Reflector.Module]
 	2. [Reflector.Require][Reflector.Require]
-	3. [Reflector.Release][Reflector.Release]
-	4. [Reflector.Destroy][Reflector.Destroy]
+	3. [Reflector.Debug][Reflector.Debug]
+	4. [Reflector.Release][Reflector.Release]
+	5. [Reflector.Destroy][Reflector.Destroy]
 
 </td></tr></tbody>
 </table>
@@ -118,6 +122,19 @@ any previously active run.
 On failure, the run is canceled, and Require returns nil and an error
 indicating why the run failed. Any previously active run continues as
 normal.
+
+## Reflector.Debug
+[Reflector.Debug]: #reflectordebug
+```
+Reflector:Debug(): (result: any, err: error)
+```
+
+Behaves the same as [Require][Reflector.Require], but enables
+debugging by synchronizing breakpoints from modules to their reflections.
+
+Due to security limitations, this method cannot be called by plugins.
+However, it can be called by Studio's command bar. Recommended use of
+this method is to expose it to the command bar through the _G table.
 
 ## Reflector.Release
 [Reflector.Release]: #reflectorrelease

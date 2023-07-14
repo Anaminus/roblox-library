@@ -9,6 +9,9 @@
 -- accomplished by creating virtual copies of modules and requiring them
 -- instead.
 --
+-- An option to reflect breakpoints is also available, allowing reflections to
+-- be debugged as though they were the originals.
+--
 -- To enable reloading, a [callback][Config.Changed] can be configured to inform
 -- the user when the Source of the module changes, or that of any of its
 -- dependencies. Changes can be [accumulated][Config.ChangeWindow] over time to
@@ -16,6 +19,7 @@
 
 local Maid = require(script.Parent.Maid)
 local Accumulate = require(script.Accumulate)
+local BreakpointSyncer =require(script.BreakpointSyncer)
 
 local export = {}
 
@@ -78,14 +82,25 @@ export type Reflector = {
 	-- normal.
 	Require: (self: Reflector) -> (any, error),
 
-	--@sec: Reflector.Release
+	--@sec: Reflector.Debug
 	--@ord: 3
+	--@def: Reflector:Debug(): (result: any, err: error)
+	--@doc: Behaves the same as [Require][Reflector.Require], but enables
+	-- debugging by synchronizing breakpoints from modules to their reflections.
+	--
+	-- Due to security limitations, this method cannot be called by plugins.
+	-- However, it can be called by Studio's command bar. Recommended use of
+	-- this method is to expose it to the command bar through the _G table.
+	Debug: (self: Reflector) -> (any, error),
+
+	--@sec: Reflector.Release
+	--@ord: 4
 	--@def: Reflector:Release()
 	--@doc: Stops any active run, if present.
 	Release: () -> (),
 
 	--@sec: Reflector.Destroy
-	--@ord: 4
+	--@ord: 5
 	--@def: Reflector:Destroy()
 	--@doc: Destroys the Reflector, stopping any active runs and decoupling from
 	-- the module.
@@ -117,7 +132,7 @@ function export.new(config: Config): Reflector
 		Module = rootModule,
 	}
 
-	function self:Require(): (any, error)
+	local function doRequire(debuggingEnabled: boolean): (any, error)
 		if not rootMaid:Alive() then
 			return nil, "reflector is destroyed"
 		end
@@ -184,7 +199,7 @@ function export.new(config: Config): Reflector
 			copy = Instance.new("ModuleScript")
 			copy.Name = module.Name
 			copy.Archivable = false
-			copy.Source = `return function(s,r)script,require=s,r;s,r=nil,nil;{module.Source}\nend`
+			copy.Source = `--[[BookshelfPreamble]]return function(s,r)script,require=s,r;s,r=nil,nil;--[[/BookshelfPreamble]]{module.Source}\n--[[BookshelfPostamble]]end--[[/BookshelfPostamble]]`
 			maid._ = {
 				copy,
 				module:GetPropertyChangedSignal("Name"):Connect(function()
@@ -193,6 +208,7 @@ function export.new(config: Config): Reflector
 				module:GetPropertyChangedSignal("Source"):Connect(function()
 					changeAccumulator(self)
 				end),
+				if debuggingEnabled then BreakpointSyncer.new(module, copy) else nil,
 			}
 			copy.Parent = findVirtualInstance(module.Parent)
 			return copy
@@ -256,6 +272,14 @@ function export.new(config: Config): Reflector
 		rootMaid.active = maid
 
 		return result, nil
+	end
+
+	function self:Require()
+		return doRequire(false)
+	end
+
+	function self:Debug()
+		return doRequire(true)
 	end
 
 	function self:Release()
