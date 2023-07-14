@@ -1,6 +1,6 @@
 -- Returns a function that calls *func* after *window* seconds. This window
 -- resets while the function is called during the window.
-local function Accumulate(window, func)
+local function Accumulate<T...>(window: number, func: (T...) -> ()): (T...) -> ()
 	if window <= 0 then
 		return func
 	end
