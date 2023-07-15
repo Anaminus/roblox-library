@@ -240,14 +240,14 @@ function export.new(config: Config): Reflector
 			local ok, init = pcall(require, copy)
 			if not ok then
 				-- Must be a syntax error.
-				error("Requested module experienced an error while loading", 2)
+				error(init, 2)
 			end
 
 			-- Call wrapper to pass in proxy environment.
 			ok, result = pcall(init, module, requireProxy)
 			if not ok then
 				-- Must be a runtime error.
-				error("Requested module experienced an error while loading", 2)
+				error(result, 2)
 			end
 
 			-- Check result.
