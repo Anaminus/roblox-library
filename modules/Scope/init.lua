@@ -74,8 +74,8 @@ export type Unsubscriber = () -> ()
 --
 -- - A task must not produce an error.
 -- - A task must not yield.
--- - A task must finalize only once; cleaning an already cleaned task should be
---   a no-op.
+-- - A task must be idempotent. That is, it must finalize only once; cleaning an
+--   already cleaned task should be a no-op.
 -- - A task must not cause the production of more tasks.
 --
 -- When cleaning, certain known types are handled in specific ways. The
@@ -593,6 +593,9 @@ function Context.__index:Subscribe(key: any, sub: Subscription): Unsubscriber
 		scope._states[key] = state
 	end
 	local function unsub()
+		if not state._subscriptions[unsub] then
+			return
+		end
 		state._subscriptions[unsub] = nil
 		if state._value == nil and next(state._subscriptions) == nil then
 			-- Clean up empty value state.
