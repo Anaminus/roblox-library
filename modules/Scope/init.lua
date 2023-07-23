@@ -102,22 +102,44 @@ export type Unsubscriber = () -> ()
 -- ```
 export type Task = any
 
+-- Tracks a scoped value and its subscriptions.
 type _State = {
+	-- The current value.
 	_value: any,
-	_subscriptions: {[()->()]: Subscription},
+	-- Subscriptions observing the value. Using Unsubscriber as the key ensures
+	-- that it is unique while also being a key that the Unsubscriber can refer
+	-- to in order to unsubscribe. Noe that, because a map is used,
+	-- subscriptions are unordered.
+	_subscriptions: {[Unsubscriber]: Subscription},
 }
 
+-- Implementation of Scope.
 type _Scope = Scope & {
-	_states: {_State},
+	-- Map of keys to values.
+	_states: {[any]: _State},
+	-- List of contexts attached to the scope. Used by Destroy to destroy
+	-- contexts.
 	_contexts: {Context},
+	-- Set of child scopes. Used by Destroy to destroy all child scopes. Also
+	-- used by Subscribe to find subscriptions inheriting a value. A map is used
+	-- so that a child destroying itself can easily detach itself from the
+	-- parent.
 	_children: {[Scope]: true},
+	-- The parent scope. Used by Get to look for inherited values, and to detach
+	-- from the parent when destroying.
 	_parent: _Scope?,
+	-- Scope's own personal context. Used by Subscribe to automatically assign
+	-- the resulting Unsubscriber. Created lazily.
 	_context: Context?,
 }
 
+-- Implementation of Context.
 type _Context = Context & {
+	-- The associated scope.
 	_scope: Scope?,
+	-- Map of named tasks.
 	_namedTasks: {[any]: Task},
+	-- List of unnamed tasks.
 	_unnamedTasks: {Task},
 }
 
@@ -294,6 +316,7 @@ function Scope.__index:Set(key: any, value: any)
 		task.defer(sub, value)
 	end
 	if value == nil and next(state._subscriptions) == nil then
+		-- Clean up empty value state.
 		self._states[key] = nil
 	end
 	for child in self._children do
@@ -412,7 +435,7 @@ end
 -- **Examples:**
 --
 -- ```lua
--- -- Subscriber is called immediately.
+-- -- Subscription is called immediately.
 -- scope:Subscribe("theme", function(theme)
 --	print("updated theme to", theme)
 -- end)
@@ -528,7 +551,7 @@ end
 -- **Examples:**
 --
 -- ```lua
--- -- Subscriber is called immediately.
+-- -- Subscription is called immediately.
 -- context:Subscribe("theme", function(theme)
 -- 	print("updated theme to", theme)
 -- end)
@@ -572,6 +595,7 @@ function Context.__index:Subscribe(key: any, sub: Subscription): Unsubscriber
 	local function unsub()
 		state._subscriptions[unsub] = nil
 		if state._value == nil and next(state._subscriptions) == nil then
+			-- Clean up empty value state.
 			scope._states[key] = nil
 		end
 	end

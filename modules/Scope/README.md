@@ -230,7 +230,7 @@ Subscribes to a value. See [Context.Subscribe][Context.Subscribe].
 **Examples:**
 
 ```lua
--- Subscriber is called immediately.
+-- Subscription is called immediately.
 scope:Subscribe("theme", function(theme)
 	print("updated theme to", theme)
 end)
@@ -466,7 +466,7 @@ Does nothing and returns an inert function if the context is dead.
 **Examples:**
 
 ```lua
--- Subscriber is called immediately.
+-- Subscription is called immediately.
 context:Subscribe("theme", function(theme)
 	print("updated theme to", theme)
 end)
