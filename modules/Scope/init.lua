@@ -112,6 +112,7 @@ type _Scope = Scope & {
 	_contexts: {Context},
 	_children: {[Scope]: true},
 	_parent: _Scope?,
+	_context: Context?,
 }
 
 type _Context = Context & {
@@ -179,6 +180,7 @@ local function newScope(alive: boolean, parent: _Scope?)
 		_contexts = {},
 		_children = {},
 		_parent = nil,
+		_context = nil,
 	}, Scope)
 
 	if alive and parent then
@@ -428,22 +430,11 @@ function Scope.__index:Subscribe(key: any, sub: Subscription): Unsubscriber
 	if not self._alive.alive then
 		return function()end
 	end
-	local state = self._states[key]
-	if not state then
-		state = {
-			_value = nil,
-			_subscriptions = {},
-		}
-		self._states[key] = state
+	local context = self._context
+	if not context then
+		self._context = newContext(self)
 	end
-	local function unsub()
-		state._subscriptions[unsub] = nil
-		if state._value == nil and next(state._subscriptions) == nil then
-			self._states[key] = nil
-		end
-	end
-	state._subscriptions[unsub] = sub
-	return unsub
+	return self:Subscribe(key, sub)
 end
 
 --@sec: Scope.Alive
@@ -519,10 +510,15 @@ function Context.__index:Get(key: any): any
 end
 
 --@sec: Context.Subscribe
---@def: function Context:Subscribe(key: any, sub: Subscription): ()->()
+--@def: function Context:Subscribe(key: any, sub: Subscription): Unsubscriber
 --@doc: Subscribes to *key* from the associated scope, calling *sub* initially
 -- and when the value assigned to *key* changes. Returns a function that
 -- unsubscribes when called.
+--
+-- The returned [Unsubscriber][Unsubscriber] is automatically assigned to the
+-- context, so it does not need to be handled manually. It is assigned using
+-- itself as the name, so it can be unassigned by passing it to
+-- [Unassign][Context.Unassign].
 --
 -- While the value of *key* is nil, the subscription will observe changes to the
 -- nearest existing *key* from ancestor scopes.
@@ -534,7 +530,7 @@ end
 -- ```lua
 -- -- Subscriber is called immediately.
 -- context:Subscribe("theme", function(theme)
---	print("updated theme to", theme)
+-- 	print("updated theme to", theme)
 -- end)
 -- --> updated theme to nil
 --
@@ -546,11 +542,48 @@ end
 -- context:Set("theme", nil)
 -- --> updated theme to nil
 -- ```
-function Context.__index:Subscribe(key: any, sub: Subscription): ()->()
-	if not self._scope then
+--
+-- The unsubscriber is automatically assigned to the context under itself.
+--
+-- ```lua
+-- local unsub = context:Subscribe("theme", function(value)
+-- 	print("updated theme to", theme)
+-- end)
+--
+-- -- Unassign from the context so that we can handle it ourselves.
+-- context:Unassign(unsub)
+--
+-- -- Assignment to itself looks like this.
+-- context:Assign(unsub, unsub)
+-- ```
+function Context.__index:Subscribe(key: any, sub: Subscription): Unsubscriber
+	local scope = self._scope
+	if not scope then
 		return function()end
 	end
-	return self._scope:Subscribe(key, sub)
+	local state = scope._states[key]
+	if not state then
+		state = {
+			_value = nil,
+			_subscriptions = {},
+		}
+		scope._states[key] = state
+	end
+	local function unsub()
+		state._subscriptions[unsub] = nil
+		if state._value == nil and next(state._subscriptions) == nil then
+			scope._states[key] = nil
+		end
+	end
+	state._subscriptions[unsub] = sub
+	-- Ensure the task is managed by assigning it to the context. Using unsub as
+	-- the name ensures that the name is unique while also giving the user the
+	-- option to unassign it.
+	if self._namedTasks[unsub] then
+		error("panic: unsubscriber is not unique")
+	end
+	self._namedTasks[unsub] = unsub
+	return unsub
 end
 
 --@sec: Context.Alive

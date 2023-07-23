@@ -446,12 +446,17 @@ print(context:Get("theme")) --> Dark
 ## Context.Subscribe
 [Context.Subscribe]: #contextsubscribe
 ```
-function Context:Subscribe(key: any, sub: Subscription): ()->()
+function Context:Subscribe(key: any, sub: Subscription): Unsubscriber
 ```
 
 Subscribes to *key* from the associated scope, calling *sub* initially
 and when the value assigned to *key* changes. Returns a function that
 unsubscribes when called.
+
+The returned [Unsubscriber][Unsubscriber] is automatically assigned to the
+context, so it does not need to be handled manually. It is assigned using
+itself as the name, so it can be unassigned by passing it to
+[Unassign][Context.Unassign].
 
 While the value of *key* is nil, the subscription will observe changes to the
 nearest existing *key* from ancestor scopes.
@@ -474,6 +479,20 @@ context:Set("theme", Theme.new("Light"))
 -- Unsetting value still observes the change.
 context:Set("theme", nil)
 --> updated theme to nil
+```
+
+The unsubscriber is automatically assigned to the context under itself.
+
+```lua
+local unsub = context:Subscribe("theme", function(value)
+	print("updated theme to", theme)
+end)
+
+-- Unassign from the context so that we can handle it ourselves.
+context:Unassign(unsub)
+
+-- Assignment to itself looks like this.
+context:Assign(unsub, unsub)
 ```
 
 ## Context.Unassign
