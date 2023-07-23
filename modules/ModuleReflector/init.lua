@@ -143,7 +143,7 @@ function export.new(config: Config): Reflector
 		-- Virtual representation of the DataModel.
 		local root = Instance.new("Folder")
 		maid._ = root
-		root.Name = prefix or "[Reflected]"
+		root.Name = prefix or "[Reflection]"
 		root.Archivable = false
 		-- Adding the virtual tree to the DataModel allows ScriptDebuggers to be
 		-- created for virtual ModuleScripts.
@@ -199,7 +199,14 @@ function export.new(config: Config): Reflector
 			copy = Instance.new("ModuleScript")
 			copy.Name = module.Name
 			copy.Archivable = false
-			copy.Source = `--[[BookshelfPreamble]]return function(s,r)script,require=s,r;s,r=nil,nil;--[[/BookshelfPreamble]]{module.Source}\n--[[BookshelfPostamble]]end--[[/BookshelfPostamble]]`
+			copy.Source =
+				"--[[ReflectionPreamble]]" ..
+				"return function(s,r)script,require=s,r;s,r=nil,nil;" ..
+				"--[[/ReflectionPreamble]]" ..
+				`{module.Source}\n` ..
+				"--[[ReflectionPostamble]]" ..
+				"end" ..
+				"--[[/ReflectionPostamble]]"
 			maid._ = {
 				copy,
 				module:GetPropertyChangedSignal("Name"):Connect(function()
