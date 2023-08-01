@@ -185,19 +185,22 @@ end
 type ThreadContext<X> = {
 	-- Sets the context for the running thread. *location* is a description
 	-- indicating when or where a function is running (e.g. "within X", "during
-	-- X", "while Xing"). *factory* is called to populate the context with
+	-- X", "while Xing"). *context* is called to populate the context with
 	-- implementations for each predefined function.
 	--
-	-- *factory* does not need to implement all functions. If an unimplemented
+	-- *context* does not need to implement all functions. If an unimplemented
 	-- function is called, an error will be thrown indicating that the function
 	-- cannot be called in that context.
 	--
 	-- The user of a context is not expected to call these functions from
 	-- different threads. An error will be thrown if a function is called from a
 	-- thread not known by the ThreadContext.
-	With: (self: ThreadContext<X>, location: string, factory: (ThreadObject)->()) -> (),
-	-- Clears the context associated with the running thread.
-	Clear: (self: ThreadContext<X>) -> (),
+	With: (
+		self: ThreadContext<X>,
+		location: string,
+		context: (ThreadObject)->(),
+		body: () -> ()
+	) -> (),
 	-- Returns the object containing the public-facing context functions.
 	Object: X,
 }
@@ -236,17 +239,22 @@ local function newThreadContext<X>(...: string): ThreadContext<X>
 	end
 	self.Object = object :: any
 
-	function self.With(self: ThreadContext<X>, location: string, factory: (ThreadObject)->())
+	function self.With(
+		self: ThreadContext<X>,
+		location: string,
+		context: (ThreadObject) -> (),
+		body: () -> ()
+	)
 		local t: ThreadObject = {}
-		factory(t)
+		context(t)
 		local state = {Location = location, Object = t}
 		local thread = coroutine.running()
 		threadStates[thread] = state
-	end
-
-	function self.Clear(self: ThreadContext<X>)
-		local thread = coroutine.running()
+		local ok, err = pcall(body::PCALLABLE)
 		threadStates[thread] = nil
+		if not ok then
+			error(string.format("body errored: %s", err))
+		end
 	end
 
 	return table.freeze(self)
@@ -1110,13 +1118,13 @@ export type Spek = Plan | {[any]: Spek}
 export type Plan = (t: T) -> ()
 
 -- Sets a context for running a plan.
-local function setPlanContext(ctx: ThreadContext<T>, tree: Tree, parent: Node): PlanState
+local function planContext(ctx: ThreadContext<T>, tree: Tree, parent: Node): (ThreadObject) -> ()
 	local state = newPlanState(tree)
 
 	-- Use parent node as the root context.
 	table.insert(state.Stack, parent)
 
-	ctx:With("while planning", function(t)
+	return function(t: ThreadObject)
 		t.describe = newClause(function(desc: any?, closure: Closure)
 			-- Run closure using created node as context.
 			state:CreateNode("node", "describe", desc)
@@ -1219,8 +1227,7 @@ local function setPlanContext(ctx: ThreadContext<T>, tree: Tree, parent: Node): 
 				return
 			end
 		end
-	end)
-	return state
+	end
 end
 
 -- Processes the value returned by a module, recursively creating nodes
@@ -1248,10 +1255,12 @@ local function processPlan(tree: Tree, plan: Spek, parent: Node?, key: any)
 			"report"
 		)
 		node.Data.ThreadContext = ctx
-		setPlanContext(ctx, tree, node)
-		-- Generate sub-tree by processing plan provided by plan.
-		local ok, err = pcall(plan::PCALLABLE, ctx.Object)
-		ctx:Clear()
+		local context = planContext(ctx, tree, node)
+		local ok, err
+		ctx:With("while planning", context, function()
+			-- Generate sub-tree by processing plan provided by plan.
+			ok, err = pcall(plan::PCALLABLE, ctx.Object)
+		end)
 		if not ok then
 			node:UpdateResult(newResult(node.Type, false, err))
 			table.freeze(node.Data)
@@ -1404,7 +1413,7 @@ end
 local function runTest(node: Node, ctx: ThreadContext<T>)
 	local state = newUnitState()
 	state.Iterations = 1
-	ctx:With("during test", function(t)
+	local function context(t: ThreadObject)
 		t.expect = newClause(function(description: any?, assertion: Assertion)
 			if state.Result then
 				return
@@ -1465,15 +1474,16 @@ local function runTest(node: Node, ctx: ThreadContext<T>)
 				state.Metrics[unit] = value
 			end
 		end
+	end
+	ctx:With("during test", context, function()
+		runUnit(node, state)
 	end)
-	runUnit(node, state)
-	ctx:Clear()
 end
 
 local function runBenchmark(node: Node, config: UnitConfig, ctx: ThreadContext<T>)
 	local state = newUnitState()
 	local operated = false
-	ctx:With("during benchmark", function(t)
+	local function context(t: ThreadObject)
 		function t.operation(closure: Closure)
 			if operated then
 				state.Result = newResult(node.Type, false, "multiple operations per measure")
@@ -1556,9 +1566,10 @@ local function runBenchmark(node: Node, config: UnitConfig, ctx: ThreadContext<T
 				state.Metrics[unit] = value
 			end
 		end
+	end
+	ctx:With("during benchmark", context, function()
+		runUnit(node, state)
 	end)
-	runUnit(node, state)
-	ctx:Clear()
 end
 
 function Runner.__index._start(self: _Runner): WaitGroup
