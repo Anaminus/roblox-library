@@ -196,6 +196,8 @@ type ThreadContext<X> = {
 	-- different threads. An error will be thrown if a function is called from a
 	-- thread not known by the ThreadContext.
 	With: (self: ThreadContext<X>, location: string, factory: (ThreadObject)->()) -> (),
+	-- Clears the context associated with the running thread.
+	Clear: (self: ThreadContext<X>) -> (),
 	-- Returns the object containing the public-facing context functions.
 	Object: X,
 }
@@ -240,6 +242,11 @@ local function newThreadContext<X>(...: string): ThreadContext<X>
 		local state = {Location = location, Object = t}
 		local thread = coroutine.running()
 		threadStates[thread] = state
+	end
+
+	function self.Clear(self: ThreadContext<X>)
+		local thread = coroutine.running()
+		threadStates[thread] = nil
 	end
 
 	return table.freeze(self)
@@ -1244,6 +1251,7 @@ local function processPlan(tree: Tree, plan: Spek, parent: Node?, key: any)
 		setPlanContext(ctx, tree, node)
 		-- Generate sub-tree by processing plan provided by plan.
 		local ok, err = pcall(plan::PCALLABLE, ctx.Object)
+		ctx:Clear()
 		if not ok then
 			node:UpdateResult(newResult(node.Type, false, err))
 			table.freeze(node.Data)
@@ -1459,6 +1467,7 @@ local function runTest(node: Node, ctx: ThreadContext<T>)
 		end
 	end)
 	runUnit(node, state)
+	ctx:Clear()
 end
 
 local function runBenchmark(node: Node, config: UnitConfig, ctx: ThreadContext<T>)
@@ -1549,6 +1558,7 @@ local function runBenchmark(node: Node, config: UnitConfig, ctx: ThreadContext<T
 		end
 	end)
 	runUnit(node, state)
+	ctx:Clear()
 end
 
 function Runner.__index._start(self: _Runner): WaitGroup
