@@ -182,11 +182,12 @@ end
 -- The primary use is to have the object provide a number of upvalue functions
 -- that receive closures. Such a closure is received in one context, then called
 -- in another, while still using the same upvalue functions.
-type ThreadContext<X> = {
-	-- Sets the context for the running thread. *location* is a description
-	-- indicating when or where a function is running (e.g. "within X", "during
-	-- X", "while Xing"). *context* is called to populate the context with
-	-- implementations for each predefined function.
+type ContextManager<X> = {
+	-- Sets the context for the running thread for the duration of the call to
+	-- *body*, then calls *body*. *location* is a description indicating when or
+	-- where a function is running (e.g. "within X", "during X", "while Xing").
+	-- *context* is called to populate the context with implementations for each
+	-- predefined function.
 	--
 	-- *context* does not need to implement all functions. If an unimplemented
 	-- function is called, an error will be thrown indicating that the function
@@ -194,32 +195,32 @@ type ThreadContext<X> = {
 	--
 	-- The user of a context is not expected to call these functions from
 	-- different threads. An error will be thrown if a function is called from a
-	-- thread not known by the ThreadContext.
+	-- thread not known by the ContextManager.
 	With: (
-		self: ThreadContext<X>,
+		self: ContextManager<X>,
 		location: string,
-		context: (ThreadObject)->(),
+		context: (ContextObject)->(),
 		body: () -> ()
 	) -> (),
 	-- Returns the object containing the public-facing context functions.
 	Object: X,
 }
 
-type ThreadObject = {[string]: any}
+type ContextObject = {[string]: any}
 
--- Creates a new ThreadContext. Each argument is the name of a function expected
+-- Creates a new ContextManager. Each argument is the name of a function expected
 -- to be in object X.
-local function newThreadContext<X>(...: string): ThreadContext<X>
+local function newContextManager<X>(...: string): ContextManager<X>
 	local self = {}
 
 	type ThreadState = {
 		Location: string,
-		Object: ThreadObject,
+		Object: ContextObject,
 	}
 
 	local threadStates: {[thread]: ThreadState} = setmetatable({}, {__mode="k"}) :: any
 
-	local object: ThreadObject = {}
+	local object: ContextObject = {}
 	for i = 1, select("#", ...) do
 		local field = select(i, ...)
 		object[field] = function(...)
@@ -240,12 +241,12 @@ local function newThreadContext<X>(...: string): ThreadContext<X>
 	self.Object = object :: any
 
 	function self.With(
-		self: ThreadContext<X>,
+		self: ContextManager<X>,
 		location: string,
-		context: (ThreadObject) -> (),
+		context: (ContextObject) -> (),
 		body: () -> ()
 	)
-		local t: ThreadObject = {}
+		local t: ContextObject = {}
 		context(t)
 		local state = {Location = location, Object = t}
 		local thread = coroutine.running()
@@ -345,7 +346,7 @@ type Node = {
 	-- Mutable data. Immutable if the node was created as an error.
 	Data: {
 		-- Context associated with a plan.
-		ThreadContext: ThreadContext<T>?,
+		ContextManager: ContextManager<T>?,
 		-- Deferred closure associated with the node.
 		Closure: Closure?,
 		--  Closures to run before Closure.
@@ -416,7 +417,7 @@ local function newNode(tree: Tree, type: NodeType, parent: Node?, key: any): Nod
 		Parent = parent,
 		Children = {},
 		Data = {
-			ThreadContext = nil,
+			ContextManager = nil,
 			Closure = nil,
 			Before = {},
 			After = {},
@@ -1118,13 +1119,13 @@ export type Spek = Plan | {[any]: Spek}
 export type Plan = (t: T) -> ()
 
 -- Sets a context for running a plan.
-local function planContext(ctx: ThreadContext<T>, tree: Tree, parent: Node): (ThreadObject) -> ()
+local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (ContextObject) -> ()
 	local state = newPlanState(tree)
 
 	-- Use parent node as the root context.
 	table.insert(state.Stack, parent)
 
-	return function(t: ThreadObject)
+	return function(t: ContextObject)
 		t.describe = newClause(function(desc: any?, closure: Closure)
 			-- Run closure using created node as context.
 			state:CreateNode("node", "describe", desc)
@@ -1236,7 +1237,7 @@ end
 local function processPlan(tree: Tree, plan: Spek, parent: Node?, key: any)
 	if type(plan) == "function" then
 		local node = tree:CreateNode("plan", parent, key)
-		local ctx = newThreadContext(
+		local ctxm = newContextManager(
 			"describe",
 			"before_each",
 			"after_each",
@@ -1254,12 +1255,12 @@ local function processPlan(tree: Tree, plan: Spek, parent: Node?, key: any)
 			"stop_timer",
 			"report"
 		)
-		node.Data.ThreadContext = ctx
-		local context = planContext(ctx, tree, node)
+		node.Data.ContextManager = ctxm
+		local context = planContext(ctxm, tree, node)
 		local ok, err
-		ctx:With("while planning", context, function()
+		ctxm:With("while planning", context, function()
 			-- Generate sub-tree by processing plan provided by plan.
-			ok, err = pcall(plan::PCALLABLE, ctx.Object)
+			ok, err = pcall(plan::PCALLABLE, ctxm.Object)
 		end)
 		if not ok then
 			node:UpdateResult(newResult(node.Type, false, err))
@@ -1410,10 +1411,10 @@ local function newUnitState(): UnitState
 	}
 end
 
-local function runTest(node: Node, ctx: ThreadContext<T>)
+local function runTest(node: Node, ctxm: ContextManager<T>)
 	local state = newUnitState()
 	state.Iterations = 1
-	local function context(t: ThreadObject)
+	local function context(t: ContextObject)
 		t.expect = newClause(function(description: any?, assertion: Assertion)
 			if state.Result then
 				return
@@ -1475,15 +1476,15 @@ local function runTest(node: Node, ctx: ThreadContext<T>)
 			end
 		end
 	end
-	ctx:With("during test", context, function()
+	ctxm:With("during test", context, function()
 		runUnit(node, state)
 	end)
 end
 
-local function runBenchmark(node: Node, config: UnitConfig, ctx: ThreadContext<T>)
+local function runBenchmark(node: Node, config: UnitConfig, ctxm: ContextManager<T>)
 	local state = newUnitState()
 	local operated = false
-	local function context(t: ThreadObject)
+	local function context(t: ContextObject)
 		function t.operation(closure: Closure)
 			if operated then
 				state.Result = newResult(node.Type, false, "multiple operations per measure")
@@ -1567,7 +1568,7 @@ local function runBenchmark(node: Node, config: UnitConfig, ctx: ThreadContext<T
 			end
 		end
 	end
-	ctx:With("during benchmark", context, function()
+	ctxm:With("during benchmark", context, function()
 		runUnit(node, state)
 	end)
 end
@@ -1575,27 +1576,27 @@ end
 function Runner.__index._start(self: _Runner): WaitGroup
 	local wg = newWaitGroup()
 	self._active = wg
-	local function visit(node: Node, ctx: ThreadContext<T>?)
+	local function visit(node: Node, ctxm: ContextManager<T>?)
 		if node.Type == "plan" then
 			for _, child in node.Children do
-				visit(child, node.Data.ThreadContext)
+				visit(child, node.Data.ContextManager)
 			end
 		elseif node.Type == "node" then
 			for _, child in node.Children do
-				visit(child, ctx)
+				visit(child, ctxm)
 			end
 		elseif node.Type == "test" then
 			wg:Add(
 				runTest,
 				node,
-				(assert(ctx, "missing thread context"))
+				(assert(ctxm, "missing thread context"))
 			)
 		elseif node.Type == "benchmark" then
 			wg:Add(
 				runBenchmark,
 				node,
 				self._config,
-				(assert(ctx, "missing thread context"))
+				(assert(ctxm, "missing thread context"))
 			)
 		else
 			error("unreachable")
