@@ -14,7 +14,7 @@ receives a [T][T] object. A table of plans can be returned instead. The full
 definition for the returned value is as follows:
 
 ```lua
-type Spek = Plan | {[any]: Spek}
+type Plans = Plan | {[any]: Plans}
 type Plan = (t: T) -> ()
 ```
 
@@ -70,9 +70,24 @@ end
 	9. [Runner.Stop][Runner.Stop]
 	10. [Runner.Value][Runner.Value]
 	11. [Runner.Wait][Runner.Wait]
-5. [Path][Path]
+5. [Assertion][Assertion]
+6. [Benchmark][Benchmark]
+7. [BenchmarkClause][BenchmarkClause]
+8. [Clause][Clause]
+9. [Closure][Closure]
+10. [MetricObserver][MetricObserver]
+11. [Metrics][Metrics]
+12. [Parameter][Parameter]
+13. [ParameterClause][ParameterClause]
+14. [Path][Path]
 	1. [Path.Base][Path.Base]
 	2. [Path.Elements][Path.Elements]
+15. [Plan][Plan]
+16. [Plans][Plans]
+17. [Result][Result]
+18. [ResultObserver][ResultObserver]
+19. [ResultType][ResultType]
+20. [Unsubscribe][Unsubscribe]
 
 </td></tr></tbody>
 </table>
@@ -88,10 +103,11 @@ Locates speks under a given instance.
 ## Spek.runner
 [Spek.runner]: #spekrunner
 ```
-function Spek.runner(speks: {ModuleScript}): Runner
+function Spek.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
 ```
 
-Creates a new [Runner][Runner].
+Creates a new [Runner][Runner]. An optional [UnitConfig][UnitConfig]
+configures how units are run.
 
 # UnitConfig
 [UnitConfig]: #unitconfig
@@ -286,7 +302,7 @@ Defines a parameter symbol that can be passed to [measure][T.measure].
 ## T.report
 [T.report]: #treport
 ```
-report: Clause<number>
+report: Detailed<number>
 ```
 
 **Within:** anything
@@ -460,6 +476,103 @@ function Runner:Wait()
 Waits for the runner to complete. Does nothing if the runner is not
 active.
 
+# Assertion
+[Assertion]: #assertion
+```
+type Assertion = () -> any
+```
+
+Like a [Closure][Closure], except the caller expects a result.
+
+# Benchmark
+[Benchmark]: #benchmark
+```
+type Benchmark = (...any) -> ()
+```
+
+Like a [Closure][Closure], but receives values corresponding to the
+[Parameters][Parameter] passed to [BenchmarkClause][BenchmarkClause].
+
+# BenchmarkClause
+[BenchmarkClause]: #benchmarkclause
+```
+type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed
+```
+
+Variation of clause and statement for benchmarks, which receives a
+[Benchmark][Benchmark] and a variable number of specific
+[Parameter][Parameter] values.
+
+```lua
+clause(benchmark, ...Parameter)
+clause "description" (benchmark, ...Parameter)
+```
+
+# Clause
+[Clause]: #clause
+```
+type Clause<X> = Statement<X> & Detailed<X>
+```
+
+Receives X or a string. When a string, it returns a function that
+receives X, enabling the following syntax sugar:
+
+```lua
+clause(x)
+clause "description" (x)
+```
+
+# Closure
+[Closure]: #closure
+```
+type Closure = () -> ()
+```
+
+A general function operating on upvalues.
+
+# MetricObserver
+[MetricObserver]: #metricobserver
+```
+type MetricObserver = (path: Path, unit: string, value: number) -> ()
+```
+
+Observes metric *unit* of *path*.
+
+# Metrics
+[Metrics]: #metrics
+```
+type Metrics = {[string]: number}
+```
+
+Metrics contains measurements made during a test or benchmark. It maps
+the unit of a measurement to its value.
+
+For a benchmark result, contains default and custom measurements reported
+during the benchmark.
+
+For a test result, contains basic measurements reported during the test.
+
+For a node or plan result, contains aggregated measurements of all sub-units.
+
+# Parameter
+[Parameter]: #parameter
+```
+type Parameter = unknown
+```
+
+An opaque parameter to be passed to a
+[BenchmarkClause][BenchmarkClause].
+
+# ParameterClause
+[ParameterClause]: #parameterclause
+```
+type ParameterClause = (name: string) -> (...any) -> Parameter
+```
+
+Creates an parameter to be passed to a benchmark statement. *name* is
+the name of the parameter, which is not optional. Each value passed is a
+"variation" of the parameter to be benchmarked individually.
+
 # Path
 [Path]: #path
 ```
@@ -484,4 +597,72 @@ function Path:Elements(): {any}
 ```
 
 Returns the path as a list of elements.
+
+# Plan
+[Plan]: #plan
+```
+type Plan = (t: T) -> ()
+```
+
+Receives a [T][T] to plan a testing suite.
+
+# Plans
+[Plans]: #plans
+```
+type Plans = Plan | {[any]: Plans}
+```
+
+Represents a tree of [Plan][Plan] values, or a single Plan.
+
+# Result
+[Result]: #result
+```
+type Result = {
+	Type: ResultType,
+	Okay: boolean,
+	Reason: string,
+	Trace: string?,
+}
+```
+
+Represents the result of a unit. Converting to a string displays a
+formatted result.
+
+Field  | Type                     | Description
+-------|--------------------------|------------
+Type   | [ResultType][ResultType] | Indicates the type of result.
+Okay   | boolean                  | The status of the unit; whether the unit succeeded or failed. For benchmarks, this will be false if the benchmark errored. For nodes and plans, represents the conjunction of the status of all sub-units.
+Reason | string                   | A message describing the reason for the status. Empty if the unit succeeded.
+Trace  | string?                  | An optional stack trace to supplement the Reason.
+
+# ResultObserver
+[ResultObserver]: #resultobserver
+```
+type ResultObserver = (path: Path, result: Result?) -> ()
+```
+
+Observes the result of *path*.
+
+# ResultType
+[ResultType]: #resulttype
+```
+type ResultType = "test" | "benchmark" | "node" | "plan"
+```
+
+Indicates the type of a result tree node.
+
+Value     | Description
+----------|------------
+test      | A test unit.
+benchmark | A benchmark unit.
+node      | A general node aggregating a number of units.
+plan      | A discrete node representing a plan.
+
+# Unsubscribe
+[Unsubscribe]: #unsubscribe
+```
+type Unsubscribe = () -> ()
+```
+
+Causes the associated observer to stop observing when called.
 

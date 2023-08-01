@@ -1,7 +1,7 @@
 --!strict
 
 --@sec: Spek
---@ord: -1
+--@ord: -10
 --@doc: All-in-one module for testing and benchmarking.
 --
 -- ## Speks
@@ -15,7 +15,7 @@
 -- definition for the returned value is as follows:
 --
 -- ```lua
--- type Spek = Plan | {[any]: Spek}
+-- type Plans = Plan | {[any]: Plans}
 -- type Plan = (t: T) -> ()
 -- ```
 --
@@ -48,7 +48,6 @@ type PCALLABLE = any
 --------------------------------------------------------------------------------
 
 --@sec: Path
---@ord: 30
 --@def: type Path
 --@doc: A unique symbol representing a path referring to a value within a result
 -- tree. Converting to a string displays a formatted path.
@@ -120,6 +119,7 @@ type WaitGroup = {
 	Cancel: (self: WaitGroup) -> (),
 }
 
+-- Creates a new WaitGroup.
 local function newWaitGroup(): WaitGroup
 	local self: WaitGroup = setmetatable({
 		_dependencies = {},
@@ -128,8 +128,7 @@ local function newWaitGroup(): WaitGroup
 	return table.freeze(self)
 end
 
--- Adds a function call that automatically finishes as a dependency thread to
--- wait on.
+-- Adds a function call as a dependency thread to wait on.
 function WaitGroup.__index.Add<X...>(self: WaitGroup, func: (X...)->(), ...: X...)
 	local function doFunc<X...>(func: (X...)->(), ...: X...)
 		local ok, err = pcall(func::PCALLABLE, ...)
@@ -218,6 +217,7 @@ local function newContextManager<X>(...: string): ContextManager<X>
 		Object: ContextObject,
 	}
 
+	-- Must cast as any because type T is not implemented by T+metatable.
 	local threadStates: {[thread]: ThreadState} = setmetatable({}, {__mode="k"}) :: any
 
 	local object: ContextObject = {}
@@ -238,6 +238,7 @@ local function newContextManager<X>(...: string): ContextManager<X>
 			return implementation(...)
 		end
 	end
+	-- Assume that given fields implement X.
 	self.Object = object :: any
 
 	function self.With(
@@ -265,6 +266,7 @@ end
 --------------------------------------------------------------------------------
 
 --@sec: UnitConfig
+--@ord: -3
 --@def: type UnitConfig = {
 -- 	Iterations: number?,
 -- 	Duration: number?,
@@ -292,25 +294,32 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
--- Represents the result of a unit. Converting to a string displays a formatted
--- result.
+--@sec: Result
+--@def: type Result = {
+-- 	Type: ResultType,
+-- 	Okay: boolean,
+-- 	Reason: string,
+-- 	Trace: string?,
+-- }
+--@doc: Represents the result of a unit. Converting to a string displays a
+-- formatted result.
+--
+-- Field  | Type                     | Description
+-- -------|--------------------------|------------
+-- Type   | [ResultType][ResultType] | Indicates the type of result.
+-- Okay   | boolean                  | The status of the unit; whether the unit succeeded or failed. For benchmarks, this will be false if the benchmark errored. For nodes and plans, represents the conjunction of the status of all sub-units.
+-- Reason | string                   | A message describing the reason for the status. Empty if the unit succeeded.
+-- Trace  | string?                  | An optional stack trace to supplement the Reason.
 export type Result = {
-	-- Indicates the type of result.
-	Type: NodeType,
-	-- The status of the unit; whether the unit succeeded or failed. For
-	-- benchmarks, this will be false if the benchmark errored. For nodes and
-	-- plans, represents the conjunction of the status of all sub-units.
+	Type: ResultType,
 	Okay: boolean,
-	-- A message describing the reason for the status. Empty if the unit
-	-- succeeded.
 	Reason: string,
-	-- An optional stack trace to supplement the Reason.
 	Trace: string?,
 }
 
 -- Constructs a new immutable Result.
 local function newResult(
-	type: NodeType,
+	type: ResultType,
 	okay: boolean,
 	reason: string,
 	trace: string?
@@ -334,7 +343,7 @@ local Node = {__index={}}
 
 type Node = {
 	-- Type of the node.
-	Type: NodeType,
+	Type: ResultType,
 	-- The tree the node belongs to.
 	Tree: Tree,
 	-- Path symbol that refers to this node.
@@ -390,15 +399,27 @@ type Node = {
 	) -> (),
 }
 
--- Indicates the type of Node.
-type NodeType
-	= "test"  -- A test unit.
-	| "benchmark" -- A benchmark unit.
-	| "node"  -- A general node aggregating a number of units.
-	| "plan"   -- A discrete node representing a plan.
+--@sec: ResultType
+--@def: type ResultType = "test" | "benchmark" | "node" | "plan"
+--@doc: Indicates the type of a result tree node.
+--
+-- Value     | Description
+-- ----------|------------
+-- test      | A test unit.
+-- benchmark | A benchmark unit.
+-- node      | A general node aggregating a number of units.
+-- plan      | A discrete node representing a plan.
+--
+export type ResultType
+	= "test"
+	| "benchmark"
+	| "node"
+	| "plan"
 
--- Metrics contains measurements made during a test or benchmark. It maps the
--- unit of a measurement to its value.
+--@sec: Metrics
+--@def: type Metrics = {[string]: number}
+--@doc: Metrics contains measurements made during a test or benchmark. It maps
+-- the unit of a measurement to its value.
 --
 -- For a benchmark result, contains default and custom measurements reported
 -- during the benchmark.
@@ -408,7 +429,9 @@ type NodeType
 -- For a node or plan result, contains aggregated measurements of all sub-units.
 export type Metrics = {[string]: number}
 
-local function newNode(tree: Tree, type: NodeType, parent: Node?, key: any): Node
+-- Creates under *tree* a new Node of type *type*, parented to *parent* under
+-- *key*. If *parent* is nil, the node is added to the root of *tree*.
+local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): Node
 	assert(key ~= nil, "key cannot be nil")
 	local node: Node = setmetatable({
 		Type = type,
@@ -643,7 +666,6 @@ local function buildMetrics(node: Node, visit: (unit: string, value: number)->()
 	end
 end
 
-
 -- Calls the given observers with the node's pending data. Unmarks the data as
 -- pending.
 function Node.__index.Inform(self: Node, result: ResultObserver, metric: MetricObserver)
@@ -694,14 +716,14 @@ type Tree = {
 
 	-- Creates a new node.
 	CreateNode: (self: Tree,
-		type: NodeType,
+		type: ResultType,
 		parent: Node?,
 		key: any
 	) -> Node,
 
 	-- Creates a new node frozen with an error result.
 	CreateErrorNode: (self: Tree,
-		type: NodeType,
+		type: ResultType,
 		parent: Node?,
 		key: any,
 		format: string,
@@ -731,7 +753,7 @@ end
 
 -- Creates a new node refered to by *key* under *parent*, or root if *parent* is
 -- nil.
-function Tree.__index.CreateNode(self: Tree, type: NodeType, parent: Node?, key: any): Node
+function Tree.__index.CreateNode(self: Tree, type: ResultType, parent: Node?, key: any): Node
 	return newNode(self, type, parent, key)
 end
 
@@ -739,7 +761,7 @@ end
 -- node's data is frozen.
 function Tree.__index.CreateErrorNode(
 	self: Tree,
-	type: NodeType,
+	type: ResultType,
 	parent: Node?,
 	key: any,
 	format: string,
@@ -788,7 +810,7 @@ end
 --------------------------------------------------------------------------------
 
 --@sec: T
---@ord: 10
+--@ord: -2
 --@def: type T
 --@doc: Contains functions used to define a spek.
 --
@@ -929,7 +951,7 @@ export type T = {
 	--
 	-- Defines the operation of a benchmark unit that is being measured. This
 	-- operation is run repeatedly.
-	operation: Statement<Closure>,
+	operation: Clause<Closure>,
 
 	--@sec: T.reset_timer
 	--@def: reset_timer: () -> ()
@@ -954,7 +976,7 @@ export type T = {
 	stop_timer: () -> (),
 
 	--@sec: T.report
-	--@def: report: Clause<number>
+	--@def: report: Detailed<number>
 	--@doc: **Within:** anything
 	--
 	-- Reports a user-defined metric. Any previously reported value will be
@@ -984,30 +1006,60 @@ export type T = {
 	report: Detailed<number>,
 }
 
--- Receives a statement or string. When a string, it returns a function that
--- receives the statement, enabling the following syntax sugar:
+--@sec: Clause
+--@def: type Clause<X> = Statement<X> & Detailed<X>
+--@doc: Receives X or a string. When a string, it returns a function that
+-- receives X, enabling the following syntax sugar:
 --
 -- ```lua
--- clause(statement)
--- clause "description" (statement)
+-- clause(x)
+-- clause "description" (x)
 -- ```
 export type Clause<X> = Statement<X> & Detailed<X>
 export type Statement<X> = (X) -> ()
-export type Detailed<X> = (desc: any) -> Statement<X>
+export type Detailed<X> = (description: any) -> Statement<X>
 
--- General function operating on upvalues.
+--@sec: Closure
+--@def: type Closure = () -> ()
+--@doc: A general function operating on upvalues.
 export type Closure = () -> ()
--- Caller expects a result.
+
+--@sec: Assertion
+--@def: type Assertion = () -> any
+--@doc: Like a [Closure][Closure], except the caller expects a result.
 export type Assertion = () -> any
 
--- Variation of clause and statement for benchmarks, which receives a variable
--- number of specific parameter values.
+--@sec: BenchmarkClause
+--@def: type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed
+--@doc: Variation of clause and statement for benchmarks, which receives a
+-- [Benchmark][Benchmark] and a variable number of specific
+-- [Parameter][Parameter] values.
+--
+-- ```lua
+-- clause(benchmark, ...Parameter)
+-- clause "description" (benchmark, ...Parameter)
+-- ```
 export type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed
 export type BenchmarkStatement = (Benchmark, ...Parameter) -> ()
-export type BenchmarkDetailed = (desc: any) -> BenchmarkStatement
+export type BenchmarkDetailed = (description: any) -> BenchmarkStatement
+
+--@sec: Benchmark
+--@def: type Benchmark = (...any) -> ()
+--@doc: Like a [Closure][Closure], but receives values corresponding to the
+-- [Parameters][Parameter] passed to [BenchmarkClause][BenchmarkClause].
 export type Benchmark = (...any) -> ()
 
+--@sec: ParameterClause
+--@def: type ParameterClause = (name: string) -> (...any) -> Parameter
+--@doc: Creates an parameter to be passed to a benchmark statement. *name* is
+-- the name of the parameter, which is not optional. Each value passed is a
+-- "variation" of the parameter to be benchmarked individually.
 export type ParameterClause = (name: string) -> (...any) -> Parameter
+
+--@sec: Parameter
+--@def: type Parameter = unknown
+--@doc: An opaque parameter to be passed to a
+-- [BenchmarkClause][BenchmarkClause].
 export type Parameter = unknown
 
 -- Returns a clause function that can be called in one of two ways:
@@ -1035,24 +1087,29 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
--- Represents the state of a plan.
+-- Represents the state of a plan. A plan may contain nested scopes, so the
+-- plan's state is stacked-based.
 type PlanState = {
+	-- Stack of nodes.
 	Stack: {Node},
-	CreateNode: (self: PlanState, node: NodeType, key: any?, closure: Closure?) -> (),
+	-- Creates a new node as a child of the node at the top of the stack,
+	-- referred to using *key*. If *key* is equal to *compare* then the node's
+	-- child location is used instead. A Unit of type *type* is set to the
+	-- node's data.
+	CreateNode: (self: PlanState, node: ResultType, key: any?, closure: Closure?) -> (),
+	-- Returns the node at the top of the stack.
 	PeekNode: (self: PlanState) -> Node,
+	-- Pop the top node from the stack.
 	PopNode: (self: PlanState) -> Node,
 }
 
+-- Creates a new PlanState.
 local function newPlanState(tree: Tree): PlanState
 	local self = {
 		Stack = {},
 	}
 
-	-- Creates a new node as a child of the node at the top of the stack,
-	-- referred to using *key*. If *key* is equal to *compare* then the node's
-	-- child location is used instead. A Unit of type *type* is set to the
-	-- node's data.
-	function self.CreateNode(self: PlanState, node: NodeType, key: any?, closure: Closure?)
+	function self.CreateNode(self: PlanState, node: ResultType, key: any?, closure: Closure?)
 		local parent = self:PeekNode()
 		if key == nil then
 			-- Unlabeled statement. Use node's predicted location in
@@ -1064,12 +1121,10 @@ local function newPlanState(tree: Tree): PlanState
 		table.insert(self.Stack, node)
 	end
 
-	-- Returns the node at the top of the stack.
 	function self.PeekNode(self: PlanState): Node
 		return assert(self.Stack[#self.Stack], "empty stack")
 	end
 
-	-- Pop the top node from the stack.
 	function self.PopNode(self: PlanState): Node
 		return assert(table.remove(self.Stack), "empty stack")
 	end
@@ -1081,7 +1136,7 @@ end
 --------------------------------------------------------------------------------
 
 --@sec: Runner
---@ord: 20
+--@ord: -1
 --@def: type Runner
 --@doc: Used to run speks. The results are represented as a tree. Each node in
 -- the tree has a key, and can be visited using a path.
@@ -1115,7 +1170,14 @@ type _Runner = Runner & {
 	_start: (self: _Runner) -> WaitGroup,
 }
 
-export type Spek = Plan | {[any]: Spek}
+--@sec: Plans
+--@def: type Plans = Plan | {[any]: Plans}
+--@doc: Represents a tree of [Plan][Plan] values, or a single Plan.
+export type Plans = Plan | {[any]: Plans}
+
+--@sec: Plan
+--@def: type Plan = (t: T) -> ()
+--@doc: Receives a [T][T] to plan a testing suite.
 export type Plan = (t: T) -> ()
 
 -- Sets a context for running a plan.
@@ -1234,7 +1296,7 @@ end
 -- Processes the value returned by a module, recursively creating nodes
 -- corresponding to the structure. If a value is of an unexpected type, the
 -- corresponding node is filled with a failing result.
-local function processPlan(tree: Tree, plan: Spek, parent: Node?, key: any)
+local function processPlan(tree: Tree, plan: Plans, parent: Node?, key: any)
 	if type(plan) == "function" then
 		local node = tree:CreateNode("plan", parent, key)
 		local ctxm = newContextManager(
@@ -1289,8 +1351,9 @@ local function processSpek(tree: Tree, spek: ModuleScript)
 end
 
 --@sec: Spek.runner
---@def: function Spek.runner(speks: {ModuleScript}): Runner
---@doc: Creates a new [Runner][Runner].
+--@def: function Spek.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
+--@doc: Creates a new [Runner][Runner]. An optional [UnitConfig][UnitConfig]
+-- configures how units are run.
 function export.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
 	local tree = newTree()
 	-- Build plan nodes by processing spek modules.
@@ -1317,6 +1380,7 @@ function export.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
 	return self
 end
 
+-- A readable representation of the runner's results.
 function Runner.__tostring(self: _Runner): string
 	return "TODO: format Runner"
 end
@@ -1332,6 +1396,8 @@ local function gatherEnvironment(node: Node?, befores: {Closure}, afters: {Closu
 	end
 end
 
+-- Runs the closure of *node*, which is assumed to operate on *state*.
+-- Afterwards, propagates the data in *state* to the node.
 local function runUnit(node: Node, state: UnitState)
 	local closure = assert(node.Data.Closure, "unit node must have closure")
 
@@ -1391,6 +1457,7 @@ local function runUnit(node: Node, state: UnitState)
 	end
 end
 
+-- Contains the state of a running unit.
 type UnitState = {
 	Timing: boolean, -- Whether time measurement is active.
 	Duration: number, -- Accumulated time measurement.
@@ -1400,6 +1467,7 @@ type UnitState = {
 	Metrics: Metrics, -- Reported metrics.
 }
 
+-- Creates a new UnitState.
 local function newUnitState(): UnitState
 	return {
 		Timing = false,
@@ -1411,6 +1479,7 @@ local function newUnitState(): UnitState
 	}
 end
 
+-- Runs the closure of *node* as a test unit using *ctxm* to provide context.
 local function runTest(node: Node, ctxm: ContextManager<T>)
 	local state = newUnitState()
 	state.Iterations = 1
@@ -1481,6 +1550,8 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 	end)
 end
 
+-- Runs the closure of *node* as a benchmark unit using *ctxm* to provide
+-- context.
 local function runBenchmark(node: Node, config: UnitConfig, ctxm: ContextManager<T>)
 	local state = newUnitState()
 	local operated = false
@@ -1573,6 +1644,7 @@ local function runBenchmark(node: Node, config: UnitConfig, ctxm: ContextManager
 	end)
 end
 
+-- Begins a new run, visiting each node and running its unit.
 function Runner.__index._start(self: _Runner): WaitGroup
 	local wg = newWaitGroup()
 	self._active = wg
@@ -1724,8 +1796,19 @@ function Runner.__index.Metrics(self: _Runner, path: Path): Metrics?
 	return metrics
 end
 
+--@sec: ResultObserver
+--@def: type ResultObserver = (path: Path, result: Result?) -> ()
+--@doc: Observes the result of *path*.
 export type ResultObserver = (path: Path, result: Result?) -> ()
+
+--@sec: MetricObserver
+--@def: type MetricObserver = (path: Path, unit: string, value: number) -> ()
+--@doc: Observes metric *unit* of *path*.
 export type MetricObserver = (path: Path, unit: string, value: number) -> ()
+
+--@sec: Unsubscribe
+--@def: type Unsubscribe = () -> ()
+--@doc: Causes the associated observer to stop observing when called.
 export type Unsubscribe = () -> ()
 
 --@sec: Runner.ObserveResult
