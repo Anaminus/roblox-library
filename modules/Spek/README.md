@@ -4,24 +4,24 @@
 All-in-one module for testing and benchmarking.
 
 ## Speks
+
 A specification or **spek** is a module that defines requirements (tests) and
 measurements (benchmarks). As a Roblox instance, a spek is any ModuleScript
 whose Name has the `.spek` suffix.
 
-The principle value returned by a module is a **definition**, or a function
-that receives a [T][T] object. A table of definitions can be returned
-instead. The full definition for the returned value is as follows:
+The principle value returned by a module is a **plan**, or a function that
+receives a [T][T] object. A table of plans can be returned instead. The full
+definition for the returned value is as follows:
 
 ```lua
-type Spek = Definition | {[any]: Spek}
-type Definition = (t: T) -> ()
+type Spek = Plan | {[any]: Spek}
+type Plan = (t: T) -> ()
 ```
 
-Each definition function specifies a discrete set of units that remain
-grouped together and separated from other definitions. For example, when
-specifying benchmarks, measurements that belong to the same definition will
-be tabulated into one table, and wont mix with measurements from other
-definitions.
+Each plan function specifies a discrete set of units that remain grouped
+together and separated from other plans. For example, when specifying
+benchmarks, measurements that belong to the same plan will be tabulated into
+one table, and wont mix with measurements from other plans.
 
 The following can be used as a template for writing a spek:
 
@@ -43,7 +43,8 @@ end
 1. [Spek][Spek]
 	1. [Spek.find][Spek.find]
 	2. [Spek.runner][Spek.runner]
-2. [T][T]
+2. [UnitConfig][UnitConfig]
+3. [T][T]
 	1. [T.after_each][T.after_each]
 	2. [T.before_each][T.before_each]
 	3. [T.describe][T.describe]
@@ -57,7 +58,7 @@ end
 	11. [T.reset_timer][T.reset_timer]
 	12. [T.start_timer][T.start_timer]
 	13. [T.stop_timer][T.stop_timer]
-3. [Runner][Runner]
+4. [Runner][Runner]
 	1. [Runner.Keys][Runner.Keys]
 	2. [Runner.Metrics][Runner.Metrics]
 	3. [Runner.ObserveMetric][Runner.ObserveMetric]
@@ -69,7 +70,7 @@ end
 	9. [Runner.Stop][Runner.Stop]
 	10. [Runner.Value][Runner.Value]
 	11. [Runner.Wait][Runner.Wait]
-4. [Path][Path]
+5. [Path][Path]
 	1. [Path.Base][Path.Base]
 	2. [Path.Elements][Path.Elements]
 
@@ -91,6 +92,22 @@ function Spek.runner(speks: {ModuleScript}): Runner
 ```
 
 Creates a new [Runner][Runner].
+
+# UnitConfig
+[UnitConfig]: #unitconfig
+```
+type UnitConfig = {
+	Iterations: number?,
+	Duration: number?,
+}
+```
+
+Configures options for running a unit.
+
+Field      | Type    | Description
+-----------|---------|------------
+Iterations | number? | Target iterations for each benchmark. If unspecified, Duration is used.
+Duration   | number? | Target duration for each benchmark, in seconds. Defaults to 1.
 
 # T
 [T]: #t
@@ -166,8 +183,8 @@ end
 Certain functions may only be called in certain contexts. For example,
 [expect][T.expect] may only be called within an [it][T.it] closure. Each
 description of a function lists where the function is allowed to be called.
-Some functions are allowed to be called anywhere. The root definition
-function behaves the same as [describe][T.describe].
+Some functions are allowed to be called anywhere. The root plan function
+behaves the same as [describe][T.describe].
 
 ## Benchmark functions
 
@@ -181,7 +198,7 @@ TODO: finish T docs
 after_each: Statement<Closure>
 ```
 
-**Within:** definition, [describe][T.describe]
+**Within:** plan, [describe][T.describe]
 
 Defines a function to call after each unit, scoped to the context.
 
@@ -191,7 +208,7 @@ Defines a function to call after each unit, scoped to the context.
 before_each: Statement<Closure>
 ```
 
-**Within:** definition, [describe][T.describe]
+**Within:** plan, [describe][T.describe]
 
 Defines function to call before each unit, scoped to the context.
 
@@ -201,7 +218,7 @@ Defines function to call before each unit, scoped to the context.
 describe: Clause<Closure>
 ```
 
-**Within:** definition, [describe][T.describe]
+**Within:** plan, [describe][T.describe]
 
 Defines a new context for a test or benchmark.
 
@@ -231,7 +248,7 @@ Expects the closure to throw an error.
 it: Clause<Closure>
 ```
 
-**Within:** definition, [describe][T.describe]
+**Within:** plan, [describe][T.describe]
 
 Defines a new test unit.
 
@@ -241,7 +258,7 @@ Defines a new test unit.
 measure: BenchmarkClause
 ```
 
-**Within:** definition, [describe][T.describe]
+**Within:** plan, [describe][T.describe]
 
 Defines a new benchmark unit.
 
@@ -262,7 +279,7 @@ operation is run repeatedly.
 parameter: ParameterClause
 ```
 
-**Within:** definition, [describe][T.describe]
+**Within:** plan, [describe][T.describe]
 
 Defines a parameter symbol that can be passed to [measure][T.measure].
 
@@ -340,7 +357,7 @@ Used to run speks. The results are represented as a tree. Each node in
 the tree has a key, and can be visited using a path.
 
 Converting to a string displays formatted results of the last run. Metrics
-are tabulated per definition.
+are tabulated per plan.
 
 Note that the runner requires spek modules as-is.
 

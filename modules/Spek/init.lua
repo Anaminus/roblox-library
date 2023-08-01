@@ -5,24 +5,24 @@
 --@doc: All-in-one module for testing and benchmarking.
 --
 -- ## Speks
+--
 -- A specification or **spek** is a module that defines requirements (tests) and
 -- measurements (benchmarks). As a Roblox instance, a spek is any ModuleScript
 -- whose Name has the `.spek` suffix.
 --
--- The principle value returned by a module is a **definition**, or a function
--- that receives a [T][T] object. A table of definitions can be returned
--- instead. The full definition for the returned value is as follows:
+-- The principle value returned by a module is a **plan**, or a function that
+-- receives a [T][T] object. A table of plans can be returned instead. The full
+-- definition for the returned value is as follows:
 --
 -- ```lua
--- type Spek = Definition | {[any]: Spek}
--- type Definition = (t: T) -> ()
+-- type Spek = Plan | {[any]: Spek}
+-- type Plan = (t: T) -> ()
 -- ```
 --
--- Each definition function specifies a discrete set of units that remain
--- grouped together and separated from other definitions. For example, when
--- specifying benchmarks, measurements that belong to the same definition will
--- be tabulated into one table, and wont mix with measurements from other
--- definitions.
+-- Each plan function specifies a discrete set of units that remain grouped
+-- together and separated from other plans. For example, when specifying
+-- benchmarks, measurements that belong to the same plan will be tabulated into
+-- one table, and wont mix with measurements from other plans.
 --
 -- The following can be used as a template for writing a spek:
 --
@@ -132,7 +132,10 @@ end
 -- wait on.
 function WaitGroup.__index.Add<X...>(self: WaitGroup, func: (X...)->(), ...: X...)
 	local function doFunc<X...>(func: (X...)->(), ...: X...)
-		func(...)
+		local ok, err = pcall(func::PCALLABLE, ...)
+		if not ok then
+			error(string.format("waitgroup dependency errored: %s", err))
+		end
 
 		self._dependencies[coroutine.running()] = nil
 		if next(self._dependencies) then
@@ -149,6 +152,9 @@ end
 
 -- Called by a dependent thread to block until the WaitGroup is done.
 function WaitGroup.__index.Wait(self: WaitGroup)
+	if not next(self._dependencies) then
+		return
+	end
 	table.insert(self._dependents, coroutine.running())
 	coroutine.yield()
 end
@@ -169,6 +175,107 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+-- Enables the creation of thread-scoped "contexts". An "object" contains a
+-- number of predefined "context functions", which do different things depending
+-- on the context.
+--
+-- The primary use is to have the object provide a number of upvalue functions
+-- that receive closures. Such a closure is received in one context, then called
+-- in another, while still using the same upvalue functions.
+type ThreadContext<X> = {
+	-- Sets the context for the running thread. *location* is a description
+	-- indicating when or where a function is running (e.g. "within X", "during
+	-- X", "while Xing"). *factory* is called to populate the context with
+	-- implementations for each predefined function.
+	--
+	-- *factory* does not need to implement all functions. If an unimplemented
+	-- function is called, an error will be thrown indicating that the function
+	-- cannot be called in that context.
+	--
+	-- The user of a context is not expected to call these functions from
+	-- different threads. An error will be thrown if a function is called from a
+	-- thread not known by the ThreadContext.
+	With: (self: ThreadContext<X>, location: string, factory: (ThreadObject)->()) -> (),
+	-- Returns the object containing the public-facing context functions.
+	Object: X,
+}
+
+type ThreadObject = {[string]: any}
+
+-- Creates a new ThreadContext. Each argument is the name of a function expected
+-- to be in object X.
+local function newThreadContext<X>(...: string): ThreadContext<X>
+	local self = {}
+
+	type ThreadState = {
+		Location: string,
+		Object: ThreadObject,
+	}
+
+	local threadStates: {[thread]: ThreadState} = setmetatable({}, {__mode="k"}) :: any
+
+	local object: ThreadObject = {}
+	for i = 1, select("#", ...) do
+		local field = select(i, ...)
+		object[field] = function(...)
+			local state = threadStates[coroutine.running()]
+			if not state then
+				-- Running thread is not present in context. The user must have
+				-- called this function from a different thread.
+				error(string.format("cannot call %s in new thread", field), 2)
+			end
+			local implementation = state.Object[field]
+			if not implementation then
+				-- Not implemented by this context.
+				error(string.format("cannot call %q %s", field, state.Location), 2)
+			end
+			return implementation(...)
+		end
+	end
+	self.Object = object :: any
+
+	function self.With(self: ThreadContext<X>, location: string, factory: (ThreadObject)->())
+		local t: ThreadObject = {}
+		factory(t)
+		local state = {Location = location, Object = t}
+		local thread = coroutine.running()
+		threadStates[thread] = state
+	end
+
+	return table.freeze(self)
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
+--@sec: UnitConfig
+--@def: type UnitConfig = {
+-- 	Iterations: number?,
+-- 	Duration: number?,
+-- }
+--@doc: Configures options for running a unit.
+--
+-- Field      | Type    | Description
+-- -----------|---------|------------
+-- Iterations | number? | Target iterations for each benchmark. If unspecified, Duration is used.
+-- Duration   | number? | Target duration for each benchmark, in seconds. Defaults to 1.
+--
+export type UnitConfig = {
+	Iterations: number?,
+	Duration: number?,
+}
+
+-- Constructs an immutable UnitConfig.
+local function newUnitConfig(config: UnitConfig?): UnitConfig
+	local config: UnitConfig = config or {}
+	config.Iterations = config.Iterations or 1
+	config.Duration = config.Duration or 1
+	return table.freeze(config)
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+
 -- Represents the result of a unit. Converting to a string displays a formatted
 -- result.
 export type Result = {
@@ -176,7 +283,7 @@ export type Result = {
 	Type: NodeType,
 	-- The status of the unit; whether the unit succeeded or failed. For
 	-- benchmarks, this will be false if the benchmark errored. For nodes and
-	-- defs, represents the conjunction of the status of all sub-units.
+	-- plans, represents the conjunction of the status of all sub-units.
 	Okay: boolean,
 	-- A message describing the reason for the status. Empty if the unit
 	-- succeeded.
@@ -204,11 +311,14 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
--- The node of a Tree. A Node is immutable, but contains a mutable Data field.
--- However, if the node is created as an error node, the Data will be immutable.
+-- The interface for running a testing unit and handling the result. A Node is
+-- immutable, but contains a mutable Data field. However, if the node is created
+-- as an error node, the Data will be immutable.
 local Node = {__index={}}
 
 type Node = {
+	-- Type of the node.
+	Type: NodeType,
 	-- The tree the node belongs to.
 	Tree: Tree,
 	-- Path symbol that refers to this node.
@@ -217,26 +327,33 @@ type Node = {
 	Parent: Node?,
 	-- List of child nodes.
 	Children: {Node},
-	-- Type of the node.
-	Type: NodeType,
 	-- Mutable data. Immutable if the node was created as an error.
 	Data: {
-		-- TState associated with a definition.
-		TState: TState?,
-		-- Data associated with a context.
-		Context: Context?,
+		-- Context associated with a plan.
+		ThreadContext: ThreadContext<T>?,
+		-- Deferred closure associated with the node.
+		Closure: Closure?,
+		--  Closures to run before Closure.
+		Before: {Closure},
+		--  Closures to run after Closure.
+		After: {Closure},
 		-- Specific or aggregate result of the node. If the node was created as
 		-- an error, this will be filled in with the error.
 		Result: Result?,
 		-- Specific or aggregate measurements about the node.
 		Metrics: Metrics,
+		-- Number of times the unit ran.
 		Iterations: number,
+		-- Total duration of all iterations of the unit.
 		Duration: number,
 	},
 	-- Marks data has having changed.
 	Pending: {
+		-- Corresponds to Data.Result.
 		Result: boolean,
+		-- Corresponds to Data.Metrics.
 		Metrics: {[string]: true},
+		-- Corresponds to Data.Iterations+Duration.
 		Benchmark: boolean,
 	},
 
@@ -260,9 +377,9 @@ type Node = {
 -- Indicates the type of Node.
 type NodeType
 	= "test"  -- A test unit.
-	| "bench" -- A benchmark.
+	| "benchmark" -- A benchmark unit.
 	| "node"  -- A general node aggregating a number of units.
-	| "def"   -- A discrete general node.
+	| "plan"   -- A discrete node representing a plan.
 
 -- Metrics contains measurements made during a test or benchmark. It maps the
 -- unit of a measurement to its value.
@@ -272,8 +389,45 @@ type NodeType
 --
 -- For a test result, contains basic measurements reported during the test.
 --
--- For a node or def result, contains aggregated measurements of all sub-units.
+-- For a node or plan result, contains aggregated measurements of all sub-units.
 export type Metrics = {[string]: number}
+
+local function newNode(tree: Tree, type: NodeType, parent: Node?, key: any): Node
+	assert(key ~= nil, "key cannot be nil")
+	local node: Node = setmetatable({
+		Type = type,
+		Tree = tree,
+		Path = nil,
+		Parent = parent,
+		Children = {},
+		Data = {
+			ThreadContext = nil,
+			Closure = nil,
+			Before = {},
+			After = {},
+			Result = nil,
+			Metrics = {},
+			Iterations = 0,
+			Duration = 0,
+		},
+		Pending = {
+			Result = false,
+			Metrics = {},
+			Benchmark = false,
+		},
+	}, Node) :: any
+	if parent == nil then
+		node.Path = newPath(key)
+		table.insert(tree.Roots, node)
+	else
+		local elements = parent.Path:Elements()
+		table.insert(elements, key)
+		node.Path = newPath(table.unpack(elements))
+		table.insert(parent.Children, node)
+	end
+	tree.Nodes[node.Path] = node
+	return table.freeze(node)
+end
 
 -- Returns true if *old* and *new* are different. If 8struct* is true, then
 -- *old* and *new* are assumed to contain the same fields.
@@ -437,12 +591,6 @@ function Node.__index.ReconcileMetrics(self: Node)
 end
 
 -- Produces the actual value of a metric with a specific prefix.
---
--- - /op: value is divided by the number of benchmark iterations.
--- - /s: value is divided by the duration of the benchmark, in seconds.
--- - /ms: value is divided by the duration of the benchmark, in milliseconds.
--- - /us: value is divided by the duration of the benchmark, in microseconds.
--- - otherwise, the value is returned as-is.
 local function calculateMetric(
 	value: number,
 	unit: string,
@@ -523,8 +671,6 @@ type Tree = {
 	-- Whether the tree contains nodes with pending data.
 	IsDirty: boolean,
 
-	-- Configures tests and benchmarks.
-	Config: UnitConfig,
 	-- Observes the results of nodes in the tree.
 	ResultObserver: ResultObserver?,
 	-- Observes the metrics of nodes in the tree.
@@ -556,47 +702,21 @@ type Tree = {
 }
 
 -- Creates a new Tree witht the given configuration.
-local function newTree(config: UnitConfig): Tree
+local function newTree(): Tree
 	local self: Tree = setmetatable({
 		Nodes = {},
 		Roots = {},
 		IsDirty = false,
-		Config = config,
 		ResultObserver = nil,
 		MetricObserver = nil,
 	}, Tree) :: any
-	return table.freeze(self)
+	return self
 end
 
 -- Creates a new node refered to by *key* under *parent*, or root if *parent* is
 -- nil.
 function Tree.__index.CreateNode(self: Tree, type: NodeType, parent: Node?, key: any): Node
-	assert(key ~= nil, "key cannot be nil")
-	local node: Node = setmetatable({
-		Tree = self,
-		Type = type,
-		Parent = parent,
-		Children = {},
-		Data = {
-			TState = nil,
-			Context = nil,
-			Result = nil,
-			Metrics = {},
-			Iterations = 0,
-			Duration = 0,
-		}
-	}, Node) :: any
-	if parent == nil then
-		node.Path = newPath(key)
-		table.insert(self.Roots, node)
-	else
-		local elements = parent.Path:Elements()
-		table.insert(elements, key)
-		node.Path = newPath(table.unpack(elements))
-		table.insert(parent.Children, node)
-	end
-	self.Nodes[node.Path] = node
-	return table.freeze(node)
+	return newNode(self, type, parent, key)
 end
 
 -- Creates a node as usual, but the result is filled in with an error, and the
@@ -610,7 +730,7 @@ function Tree.__index.CreateErrorNode(
 	...: any
 ): Node
 	local node = self:CreateNode(type, parent, key)
-	node.Data.Result = newResult(type, false, string.format(format, ...))
+	node:UpdateResult(newResult(type, false, string.format(format, ...)))
 	table.freeze(node.Data)
 	return node
 end
@@ -646,38 +766,6 @@ function Tree.__index.InformObservers(self: Tree)
 	for _, node in self.Roots do
 		node:Inform(result, metric)
 	end
-end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
-
--- Represents a context produced during planning.
-type Context = {
-	-- Used to determine whether its correct for a statement to run.
-	Type: ContextType,
-	-- Closures to run before running a test or benchmark.
-	Before: {Closure},
-	-- The test or benchmark itself.
-	Closure: Closure,
-	-- Closures to run after running a test or benchmark.
-	After: {Closure},
-}
-
--- Under which context is a statement running.
-type ContextType
-	= "definition"
-	| "describe"
-	| "it"
-	| "measure"
-
--- Returns a new Context of the given type and inner closure.
-local function newContext(type: ContextType, closure: Closure): Context
-	return table.freeze{
-		Type = type,
-		Before = {},
-		Closure = closure,
-		After = {},
-	}
 end
 
 --------------------------------------------------------------------------------
@@ -754,8 +842,8 @@ end
 -- Certain functions may only be called in certain contexts. For example,
 -- [expect][T.expect] may only be called within an [it][T.it] closure. Each
 -- description of a function lists where the function is allowed to be called.
--- Some functions are allowed to be called anywhere. The root definition
--- function behaves the same as [describe][T.describe].
+-- Some functions are allowed to be called anywhere. The root plan function
+-- behaves the same as [describe][T.describe].
 --
 -- ## Benchmark functions
 --
@@ -763,378 +851,61 @@ end
 --
 --TODO: finish T docs
 export type T = {
-	describe: Clause<Closure>,
-	before_each: Statement<Closure>,
-	after_each: Statement<Closure>,
-
-	it: Clause<Closure>,
-	expect: Clause<Assertion>,
-	expect_error: Clause<Closure>,
-
-	parameter: ParameterClause,
-	measure: BenchmarkClause,
-	operation: Statement<Closure>,
-
-	reset_timer: () -> (),
-	start_timer: () -> (),
-	stop_timer: () -> (),
-	report: Detailed<number>,
-}
-
--- Receives a statement or string. When a string, it returns a function that
--- receives the statement, enabling the following syntax sugar:
---
--- ```lua
--- clause(statement)
--- clause "string" (statement)
--- ```
-export type Clause<X> = Statement<X> | Detailed<X>
-export type Statement<X> = (X) -> ()
-export type Detailed<X> = (desc: string) -> Statement<X>
-
--- General function operating on upvalues.
-export type Closure = () -> ()
--- Caller expects a result.
-export type Assertion = () -> any
-
--- Variation of clause and statement for benchmarks, which receives a variable
--- number of specific parameter values.
-export type BenchmarkClause = BenchmarkStatement | BenchmarkDetailed
-export type BenchmarkStatement = (Benchmark, ...Parameter) -> ()
-export type BenchmarkDetailed = (desc: string) -> BenchmarkStatement
-export type Benchmark = (...any) -> ()
-
-export type ParameterClause = (name: string) -> (...any) -> Parameter
-export type Parameter = unknown
-
-type Status
-	= "planning" -- While building tree.
-	| "test" -- While running a test.
-	| "benchmark" -- While running a benchmark.
-
-type TState = {
-	T: T,
-	Status: Status,
-	Stack: {Node},
-	Config: UnitConfig,
-	Iterations: number,
-	Timing: boolean,
-	Duration: number,
-	StartTime: number,
-}
-
-local function newT(tree: Tree, parent: Node, config: UnitConfig): TState
-	--TODO: manage errors.
-
-	local t = {}
-
-	local state: TState = {
-		T = t::T,
-		Status = "planning",
-		Stack = {},
-		Config = config,
-		Iterations = 0,
-		Timing = false,
-		Duration = 0,
-		StartTime = 0,
-	}
-
-	-- Returns the node at the top of the stack.
-	local function peekNode(): Node
-		return assert(state.Stack[#state.Stack], "empty stack")
-	end
-
-	-- Creates a new node as a child of the node at the top of the stack,
-	-- referred to using *key*. If *key* is equal to *closure* then the node's
-	-- child location is used instead. A Context of type *type* is set to the
-	-- node's data.
-	local function createNode<X>(
-		node: NodeType,
-		context: ContextType,
-		key: any,
-		compare: X,
-		closure: Closure?
-	)
-		local parent = peekNode()
-		if key == compare then
-			-- Unlabeled statement. Use node's predicted location in
-			-- parent.
-			key = #parent.Children + 1
-		end
-		local node = tree:CreateNode(node, parent, key)
-		node.Data.Context = newContext(context, closure or function()end)
-		table.insert(state.Stack, node)
-	end
-
-	-- Pop the top node from the stack.
-	local function popNode(): Node
-		return assert(table.remove(state.Stack), "empty stack")
-	end
-
-	-- Visit each permutation of parameter variations.
-	local function permuteParameters(
-		params: {{_variations:{any}}},
-		visit: (...any)->(),
-		n: number?,
-		...: any
-	)
-		local n = n or #params
-		if n <= 0 then
-			visit(...)
-		else
-			local param = params[n]
-			for _, v in param._variations do
-				permuteParameters(params, visit, n-1, v, ...)
-			end
-		end
-	end
-
-	-- Generates a benchmark unit for each permutation of the given parameters.
-	-- If the given description cannot be formatted according to the given
-	-- parameters, then only one benchmark is generated.
-	local function generateBenchmarks(key: any, benchmark: Benchmark, ...: Parameter)
-		-- List of first variation of each parameter.
-		local firsts: {n: number, [number]: any} = table.pack(...)
-		for i, param in ipairs(firsts) do
-			firsts[i] = (param::any)._variations[1]
-		end
-		table.freeze(firsts)
-
-		-- Verify that key can be used to format parameters.
-		local ok = pcall(function(...: Parameter)
-			string.format(key, table.unpack(firsts, 1, firsts.n))
-		end, ...)
-
-		if ok then
-			local parameters = table.freeze(table.pack(...))
-			permuteParameters(parameters::any, function(...)
-				local formatted = string.format(key, ...)
-				local values = table.freeze(table.pack(...))
-				createNode("bench", "measure", formatted, benchmark, function()
-					benchmark(table.unpack(values, 1, values.n))
-				end)
-				popNode()
-			end)
-		else
-			-- Cannot produce variations of key. Generate only one benchmark
-			-- using the first variation of each parameter.
-			createNode("bench", "measure", key, benchmark, function()
-				benchmark(table.unpack(firsts, 1, firsts.n))
-			end)
-			popNode()
-		end
-	end
-
-	-- Throw error indicating that caller cannot be called during status.
-	local function statusError(statement: string, status: string): never
-		error(string.format("cannot use %q during %s", statement, status), 3)
-	end
-
-	-- Verify that caller is within expected context.
-	local function assertContext(statement: string, expected: ContextType)
-		local node = peekNode()
-		local context = assert(node.Data.Context, "missing context")
-		if context.Type ~= expected then
-			error(string.format("cannot use %s within %s", statement, expected), 3)
-		end
-	end
-
-	-- Use parent node as the root context.
-	parent.Data.Context = newContext("definition", function()end)
-	table.insert(state.Stack, parent)
-
 	--@sec: T.describe
 	--@def: describe: Clause<Closure>
-	--@doc: **Within:** definition, [describe][T.describe]
+	--@doc: **Within:** plan, [describe][T.describe]
 	--
 	-- Defines a new context for a test or benchmark.
-	function t.describe(desc: string | Closure): Statement<Closure>?
-		if state.Status == "planning" then
-			local function process(closure: Closure)
-				-- Run closure using created node as context.
-				createNode("node", "describe", desc, closure)
-				closure()
-				popNode()
-			end
-			if type(desc) == "string" then
-				return process
-			elseif desc == nil then
-				error("description cannot be nil", 2)
-			else
-				process(desc)
-				return
-			end
-		else
-			return statusError("describe", state.Status)
-		end
-	end
+	describe: Clause<Closure>,
 
 	--@sec: T.before_each
 	--@def: before_each: Statement<Closure>
-	--@doc: **Within:** definition, [describe][T.describe]
+	--@doc: **Within:** plan, [describe][T.describe]
 	--
 	-- Defines function to call before each unit, scoped to the context.
-	function t.before_each(closure: Closure)
-		if state.Status == "planning" then
-			local node = peekNode()
-			assert(node.Data.Context, "missing context")
-			table.insert(node.Data.Context.Before, closure)
-		else
-			statusError("before_each", state.Status)
-		end
-	end
+	before_each: Statement<Closure>,
 
 	--@sec: T.after_each
 	--@def: after_each: Statement<Closure>
-	--@doc: **Within:** definition, [describe][T.describe]
+	--@doc: **Within:** plan, [describe][T.describe]
 	--
 	-- Defines a function to call after each unit, scoped to the context.
-	function t.after_each(closure: Closure)
-		if state.Status == "planning" then
-			local node = peekNode()
-			assert(node.Data.Context, "missing context")
-			table.insert(node.Data.Context.After, closure)
-		else
-			statusError("after_each", state.Status)
-		end
-	end
+	after_each: Statement<Closure>,
 
 	--@sec: T.it
 	--@def: it: Clause<Closure>
-	--@doc: **Within:** definition, [describe][T.describe]
+	--@doc: **Within:** plan, [describe][T.describe]
 	--
 	-- Defines a new test unit.
-	function t.it(desc: string | Closure): Statement<Closure>?
-		if state.Status == "planning" then
-			local function process(closure: Closure)
-				createNode("test", "it", desc, closure, closure)
-				popNode()
-			end
-			if type(desc) == "string" then
-				return process
-			elseif desc == nil then
-				error("description cannot be nil", 2)
-			else
-				process(desc)
-				return
-			end
-		else
-			return statusError("it", state.Status)
-		end
-	end
+	it: Clause<Closure>,
 
 	--@sec: T.expect
 	--@def: expect: Clause<Assertion>
 	--@doc: **Within:** [it][T.it]
 	--
 	-- Expects the result of an assertion to be truthy.
-	function t.expect(desc: string | Assertion): Statement<Assertion>?
-		if state.Status == "planning" then
-			return statusError("expect", state.Status)
-		else
-			local function process(assertion: Assertion)
-				assertContext("expect", "it")
-				local node = peekNode()
-				local ok, result = pcall(assertion)
-				if ok then
-					if result then
-						node.Data.Result = newResult("test", true, "")
-					elseif type(desc) == "string" then
-						local reason = string.format("expect %s", desc)
-						node.Data.Result = newResult("test", false, reason)
-					else
-						node.Data.Result = newResult("test", false, "expectation failed")
-					end
-				else
-					node.Data.Result = newResult("test", ok, result)
-				end
-			end
-			if type(desc) == "string" then
-				return process
-			elseif desc == nil then
-				error("description cannot be nil", 2)
-			else
-				process(desc)
-				return
-			end
-		end
-	end
+	expect: Clause<Assertion>,
 
 	--@sec: T.expect_error
 	--@def: expect_error: Clause<Closure>
 	--@doc: **Within:** [it][T.it]
 	--
 	-- Expects the closure to throw an error.
-	function t.expect_error(desc: string | Closure): Statement<Closure>?
-		if state.Status == "planning" then
-			return statusError("expect", state.Status)
-		else
-			local function process(assertion: Assertion)
-				assertContext("expect_error", "it")
-				local node = peekNode()
-				local ok = pcall(assertion)
-				if ok then
-					if type(desc) == "string" then
-						local reason = string.format("expect error %s", desc)
-						node.Data.Result = newResult("test", false, reason)
-					else
-						node.Data.Result = newResult("test", false, "expect error")
-					end
-				else
-					node.Data.Result = newResult("test", true, "")
-				end
-			end
-			if type(desc) == "string" then
-				return process
-			elseif desc == nil then
-				error("description cannot be nil", 2)
-			else
-				process(desc)
-				return
-			end
-		end
-	end
+	expect_error: Clause<Closure>,
 
 	--@sec: T.parameter
 	--@def: parameter: ParameterClause
-	--@doc: **Within:** definition, [describe][T.describe]
+	--@doc: **Within:** plan, [describe][T.describe]
 	--
 	-- Defines a parameter symbol that can be passed to [measure][T.measure].
-	function t.parameter<X>(name: string): (...X) -> Parameter
-		if state.Status == "planning" then
-			return function(...: X): Parameter
-				return table.freeze{
-					_variations = table.freeze(table.pack(...)),
-				}
-			end
-		else
-			return statusError("parameter", state.Status)
-		end
-	end
+	parameter: ParameterClause,
 
 	--@sec: T.measure
 	--@def: measure: BenchmarkClause
-	--@doc: **Within:** definition, [describe][T.describe]
+	--@doc: **Within:** plan, [describe][T.describe]
 	--
 	-- Defines a new benchmark unit.
-	function t.measure<X...>(desc: string | Benchmark, ...: Parameter): BenchmarkStatement?
-		if state.Status == "planning" then
-			local function process(benchmark: Benchmark, ...: Parameter)
-				assert(type(benchmark) == "function", "function expected")
-				generateBenchmarks(desc, benchmark, ...)
-			end
-			if type(desc) == "string" then
-				return process
-			elseif desc == nil then
-				error("description cannot be nil", 2)
-			else
-				process(desc, ...)
-				return
-			end
-		else
-			return statusError("measure", state.Status)
-		end
-	end
+	measure: BenchmarkClause,
 
 	--@sec: T.operation
 	--@def: operation: Clause<Closure>
@@ -1142,69 +913,7 @@ local function newT(tree: Tree, parent: Node, config: UnitConfig): TState
 	--
 	-- Defines the operation of a benchmark unit that is being measured. This
 	-- operation is run repeatedly.
-	function t.operation(closure: Closure)
-		if state.Status == "planning" then
-			statusError("operation", state.Status)
-		else
-			assertContext("operation", "measure")
-			local node = peekNode()
-			-- Make sure measure calls operation only once.
-			if node.Data.Result then
-				-- Nowhere else to put it, so override results with error.
-				node.Data.Result = newResult("bench", false, "measure must have one operation")
-				--TODO: Need a better way to detect this. Results persist
-				--between runs until overwritten, rather than all resulting
-				--being result before the new run.
-				--
-				--Maybe set state status to "operation" until end of benchmark?
-				return
-			end
-
-			-- Do all work within pcall so that slow pcall is called once per
-			-- benchmark instead of once per operation.
-			local ok, err = pcall(function() --TODO: use xpcall to acquire trace
-				--TODO: Script can be timed out by Studio.ScriptTimeoutLength.
-				--If we're allowed to read settings(), insert yields required to
-				--keep time just under configured timeout.
-				--
-				--If setting is zero or inaccessible, perform with default yield
-				--frequency to give user chance to cancel out of a large target
-				--duration.
-				--
-				--NOTE: With parallel runs, Actors require syncing each frame,
-				--so durations have to be limited to framerate.
-				local DEFAULT_DURATION = 1
-				local targetN = state.Config.Iterations or 0
-				state.Duration = 0
-				if targetN > 0 then
-					-- Run configured number of iterations.
-					for i = 1, targetN do
-						state.Timing = true
-						state.StartTime = os.clock()
-						closure()
-						local c = os.clock()
-						state.Duration += c - state.StartTime
-					end
-					state.Timing = false
-					state.Iterations = targetN
-				else
-					-- Run for configured duration.
-					local targetD = state.Config.Duration or DEFAULT_DURATION
-					local start = os.clock()
-					while os.clock()-start < targetD do
-						state.Iterations += 1
-						state.Timing = true
-						state.StartTime = os.clock()
-						closure()
-						local c = os.clock()
-						state.Duration += c - state.StartTime
-					end
-					state.Timing = false
-				end
-			end)
-			node.Data.Result = newResult("bench", ok, err or "")
-		end
-	end
+	operation: Statement<Closure>,
 
 	--@sec: T.reset_timer
 	--@def: reset_timer: () -> ()
@@ -1212,37 +921,21 @@ local function newT(tree: Tree, parent: Node, config: UnitConfig): TState
 	--
 	-- Resets the unit's elapsed time and all metrics. Does not affect whether
 	-- the timer is running.
-	function t.reset_timer()
-		state.Duration = 0
-		if state.Timing then
-			state.StartTime = os.clock()
-		end
-	end
+	reset_timer: () -> (),
 
 	--@sec: T.start_timer
 	--@def: start_timer: () -> ()
 	--@doc: **Within:** anything
 	--
 	-- Starts or resumes the unit timer.
-	function t.start_timer()
-		if not state.Timing then
-			state.Timing = true
-			state.StartTime = os.clock()
-		end
-	end
+	start_timer: () -> (),
 
 	--@sec: T.stop_timer
 	--@def: stop_timer: () -> ()
 	--@doc: **Within:** anything
 	--
 	-- Stops the unit timer.
-	function t.stop_timer()
-		if state.Timing then
-			local c = os.clock()
-			state.Duration += c - state.StartTime
-			state.Timing = false
-		end
-	end
+	stop_timer: () -> (),
 
 	--@sec: T.report
 	--@def: report: Clause<number>
@@ -1272,18 +965,100 @@ local function newT(tree: Tree, parent: Node, config: UnitConfig): TState
 	-- report "compares/op" (compares) -- Report value per operation.
 	-- report "compares/s" (compares) -- Report value per second.
 	-- ```
-	function t.report(unit: string)
-		assert(type(unit) == "string", "string expected")
-		return function(value: number)
-			assert(type(value) == "number", "number expected")
-			local node = peekNode()
-			node.Data.Metrics[unit] = value
+	report: Detailed<number>,
+}
+
+-- Receives a statement or string. When a string, it returns a function that
+-- receives the statement, enabling the following syntax sugar:
+--
+-- ```lua
+-- clause(statement)
+-- clause "description" (statement)
+-- ```
+export type Clause<X> = Statement<X> & Detailed<X>
+export type Statement<X> = (X) -> ()
+export type Detailed<X> = (desc: any) -> Statement<X>
+
+-- General function operating on upvalues.
+export type Closure = () -> ()
+-- Caller expects a result.
+export type Assertion = () -> any
+
+-- Variation of clause and statement for benchmarks, which receives a variable
+-- number of specific parameter values.
+export type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed
+export type BenchmarkStatement = (Benchmark, ...Parameter) -> ()
+export type BenchmarkDetailed = (desc: any) -> BenchmarkStatement
+export type Benchmark = (...any) -> ()
+
+export type ParameterClause = (name: string) -> (...any) -> Parameter
+export type Parameter = unknown
+
+-- Returns a clause function that can be called in one of two ways:
+--
+--     clause (closure)
+--     clause (description) (closure)
+--
+-- If called with the non-description form, the description will be nil. If
+-- called with the description form, errors if nil is passed as the description.
+local function newClause<X>(process: (description: any?, closure: X)->()): Clause<X>
+	return function(description: any | X): any
+		if description == nil then
+			error("description cannot be nil", 2)
+		elseif type(description) == "function" then
+			process(nil, description)
+			return
+		else
+			return function(closure: X)
+				process(description, closure)
+			end
 		end
 	end
+end
 
-	table.freeze(t)
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 
-	return state
+-- Represents the state of a plan.
+type PlanState = {
+	Stack: {Node},
+	CreateNode: (self: PlanState, node: NodeType, key: any?, closure: Closure?) -> (),
+	PeekNode: (self: PlanState) -> Node,
+	PopNode: (self: PlanState) -> Node,
+}
+
+local function newPlanState(tree: Tree): PlanState
+	local self = {
+		Stack = {},
+	}
+
+	-- Creates a new node as a child of the node at the top of the stack,
+	-- referred to using *key*. If *key* is equal to *compare* then the node's
+	-- child location is used instead. A Unit of type *type* is set to the
+	-- node's data.
+	function self.CreateNode(self: PlanState, node: NodeType, key: any?, closure: Closure?)
+		local parent = self:PeekNode()
+		if key == nil then
+			-- Unlabeled statement. Use node's predicted location in
+			-- parent.
+			key = #parent.Children + 1
+		end
+		local node = tree:CreateNode(node, parent, key)
+		node.Data.Closure = closure
+		table.insert(self.Stack, node)
+	end
+
+	-- Returns the node at the top of the stack.
+	function self.PeekNode(self: PlanState): Node
+		return assert(self.Stack[#self.Stack], "empty stack")
+	end
+
+	-- Pop the top node from the stack.
+	function self.PopNode(self: PlanState): Node
+		return assert(table.remove(self.Stack), "empty stack")
+	end
+
+	return self
 end
 
 --------------------------------------------------------------------------------
@@ -1296,7 +1071,7 @@ end
 -- the tree has a key, and can be visited using a path.
 --
 -- Converting to a string displays formatted results of the last run. Metrics
--- are tabulated per definition.
+-- are tabulated per plan.
 --
 -- Note that the runner requires spek modules as-is.
 local Runner = {__index={}}
@@ -1318,35 +1093,168 @@ export type Runner = {
 type _Runner = Runner & {
 	_active: WaitGroup?,
 	_tree: Tree,
+	_config: UnitConfig,
 	_resultObservers: {[Unsubscribe]: ResultObserver},
 	_metricObservers: {[Unsubscribe]: MetricObserver},
 	_start: (self: _Runner) -> WaitGroup,
 }
 
-export type Spek = Definition | {[any]: Spek}
-export type Definition = (t: T) -> ()
+export type Spek = Plan | {[any]: Spek}
+export type Plan = (t: T) -> ()
+
+-- Sets a context for running a plan.
+local function setPlanContext(ctx: ThreadContext<T>, tree: Tree, parent: Node): PlanState
+	local state = newPlanState(tree)
+
+	-- Use parent node as the root context.
+	table.insert(state.Stack, parent)
+
+	ctx:With("while planning", function(t)
+		t.describe = newClause(function(desc: any?, closure: Closure)
+			-- Run closure using created node as context.
+			state:CreateNode("node", "describe", desc)
+			closure()
+			state:PopNode()
+		end)
+
+		function t.before_each(closure: Closure)
+			local node = state:PeekNode()
+			table.insert(node.Data.Before, closure)
+		end
+
+		function t.after_each(closure: Closure)
+			local node = state:PeekNode()
+			table.insert(node.Data.After, closure)
+		end
+
+		t.it = newClause(function(desc: any?, closure: Closure)
+			state:CreateNode("test", desc, closure)
+			state:PopNode()
+		end)
+
+		function t.parameter<X>(name: string): (...X) -> Parameter
+			if type(name) ~= "string" then
+				error("parameter name must be a string", 2)
+			end
+			return function(...: X): Parameter
+				return table.freeze{
+					_name = name,
+					_variations = table.freeze(table.pack(...)),
+				}
+			end
+		end
+
+		-- Visit each permutation of parameter variations.
+		local function permuteParameters(
+			params: {{_variations:{any}}},
+			visit: (...any)->(),
+			n: number?,
+			...: any
+		)
+			local n = n or #params
+			if n <= 0 then
+				visit(...)
+			else
+				local param = params[n]
+				for _, v in param._variations do
+					permuteParameters(params, visit, n-1, v, ...)
+				end
+			end
+		end
+
+		-- Generates a benchmark unit for each permutation of the given parameters.
+		-- If the given description cannot be formatted according to the given
+		-- parameters, then only one benchmark is generated.
+		local function generateBenchmarks(key: any, benchmark: Benchmark, ...: Parameter)
+			-- List of first variation of each parameter.
+			local firsts: {n: number, [number]: any} = table.pack(...)
+			for i, param in ipairs(firsts) do
+				firsts[i] = (param::any)._variations[1]
+			end
+			table.freeze(firsts)
+
+			-- Verify that key can be used to format parameters.
+			local ok = pcall(function(...: Parameter)
+				string.format(key, table.unpack(firsts, 1, firsts.n))
+			end, ...)
+
+			if ok then
+				local parameters = table.freeze(table.pack(...))
+				permuteParameters(parameters::any, function(...)
+					local formatted = string.format(key, ...)
+					local values = table.freeze(table.pack(...))
+					state:CreateNode("benchmark", formatted, function()
+						benchmark(table.unpack(values, 1, values.n))
+					end)
+					state:PopNode()
+				end)
+			else
+				-- Cannot produce variations of key. Generate only one benchmark
+				-- using the first variation of each parameter.
+				state:CreateNode("benchmark", key, function()
+					benchmark(table.unpack(firsts, 1, firsts.n))
+				end)
+				state:PopNode()
+			end
+		end
+
+		function t.measure<X...>(description: string | Benchmark, ...: Parameter): BenchmarkStatement?
+			local function process(benchmark: Benchmark, ...: Parameter)
+				assert(type(benchmark) == "function", "function expected")
+				generateBenchmarks(description, benchmark, ...)
+			end
+			if type(description) == "string" then
+				return process
+			elseif description == nil then
+				error("description cannot be nil", 2)
+			else
+				process(description, ...)
+				return
+			end
+		end
+	end)
+	return state
+end
 
 -- Processes the value returned by a module, recursively creating nodes
 -- corresponding to the structure. If a value is of an unexpected type, the
 -- corresponding node is filled with a failing result.
-local function processDefinition(tree: Tree, def: Spek, parent: Node?, key: any)
-	if type(def) == "function" then
-		local node = tree:CreateNode("def", parent, key)
-		local state = newT(tree, node, tree.Config)
-		node.Data.TState = state
-		-- Generate sub-tree by processing plan provided by definition.
-		local ok, err = pcall(def::PCALLABLE, state.T)
+local function processPlan(tree: Tree, plan: Spek, parent: Node?, key: any)
+	if type(plan) == "function" then
+		local node = tree:CreateNode("plan", parent, key)
+		local ctx = newThreadContext(
+			"describe",
+			"before_each",
+			"after_each",
+
+			"it",
+			"expect",
+			"expect_error",
+
+			"parameter",
+			"measure",
+			"operation",
+
+			"reset_timer",
+			"start_timer",
+			"stop_timer",
+			"report"
+		)
+		node.Data.ThreadContext = ctx
+		setPlanContext(ctx, tree, node)
+		-- Generate sub-tree by processing plan provided by plan.
+		local ok, err = pcall(plan::PCALLABLE, ctx.Object)
 		if not ok then
-			node.Data.Result = newResult("def", false, err)
+			node:UpdateResult(newResult(node.Type, false, err))
 			table.freeze(node.Data)
 		end
-	elseif type(def) == "table" then
-		local node = tree:CreateNode("def", parent, key)
-		for key, def in def do
-			processDefinition(tree, def, node, key)
+	elseif type(plan) == "table" then
+		local node = tree:CreateNode("plan", parent, key)
+		for key, plan in plan do
+			processPlan(tree, plan, node, key)
 		end
 	else
-		tree:CreateErrorNode("def", parent, key, "unexpected definition type %q", typeof(def))
+		tree:CreateErrorNode("plan", parent, key, "unexpected plan type %q", typeof(plan))
 	end
 end
 
@@ -1354,40 +1262,27 @@ end
 -- module.
 local function processSpek(tree: Tree, spek: ModuleScript)
 	local key = spek:GetFullName()
-	local ok, def = pcall(require, spek)
+	local ok, plan = pcall(require, spek)
 	if not ok then
-		tree:CreateErrorNode("def", nil, key, def)
+		tree:CreateErrorNode("plan", nil, key, plan)
 		return
 	end
-	processDefinition(tree, def, nil, key)
-end
-
-type UnitConfig = {
-	-- Target iterations for each benchmark.
-	Iterations: number?,
-	-- Target duration for each benchmark.
-	Duration: number?,
-}
-
-local function newConfig(config: UnitConfig?): UnitConfig
-	local config: UnitConfig = config or {}
-	config.Iterations = config.Iterations or 1
-	config.Duration = config.Duration or 1
-	return config
+	processPlan(tree, plan, nil, key)
 end
 
 --@sec: Spek.runner
 --@def: function Spek.runner(speks: {ModuleScript}): Runner
 --@doc: Creates a new [Runner][Runner].
 function export.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
-	local tree = newTree(newConfig(config))
-	-- Build def nodes by processing spek modules.
+	local tree = newTree()
+	-- Build plan nodes by processing spek modules.
 	for _, spek in speks do
 		processSpek(tree, spek)
 	end
 	local self: _Runner = setmetatable({
 		_active = nil,
 		_tree = tree,
+		_config = newUnitConfig(config),
 		_resultObservers = {},
 		_metricObservers = {},
 	}, Runner) :: any
@@ -1404,103 +1299,290 @@ function export.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
 	return self
 end
 
+function Runner.__tostring(self: _Runner): string
+	return "TODO: format Runner"
+end
+
 -- Accumulate all before and after functions to run around the test.
 local function gatherEnvironment(node: Node?, befores: {Closure}, afters: {Closure})
-	-- Only walk back to nearest def node. def will not contain other defs, so
+	-- Only walk back to nearest plan node. plan will not contain other plans, so
 	-- it wont ever stop too early.
-	if node and node.Type ~= "def" then
+	if node and node.Type ~= "plan" then
 		gatherEnvironment(node.Parent, befores, afters)
-		local context = node.Data.Context
-		if context then
-			table.move(context.Before, 1, #context.Before, #befores+1, befores)
-			table.move(context.After, 1, #context.After, #afters+1, afters)
-		end
+		table.move(node.Data.Before, 1, #node.Data.Before, #befores+1, befores)
+		table.move(node.Data.After, 1, #node.Data.After, #afters+1, afters)
 	end
 end
 
-local function runUnit(node: Node, status: Status, unit: (closure: Closure, state: TState)->())
-	local context = assert(node.Data.Context, "unit node must have context")
-	local state: TState = assert(node.Data.TState, "unit node must have tstate")
-	state.Status = status
+local function runUnit(node: Node, state: UnitState)
+	local closure = assert(node.Data.Closure, "unit node must have closure")
 
 	local befores, afters = {}, {}
 	gatherEnvironment(node, befores, afters)
 
-	for _, before in befores do
-		local ok, err = pcall(before::PCALLABLE)
+	local result: Result? = nil
+	;(function()
+		for _, before in befores do
+			local ok, err = pcall(before::PCALLABLE)
+			if not ok then
+				--TODO: add context to error
+				result = newResult(node.Type, false, err)
+				-- Exit early; errors occurring before are considered fatal.
+				return
+			end
+		end
+
+		local ok, err = pcall(closure::PCALLABLE)
 		if not ok then
 			--TODO: add context to error
-			node.Data.Result = newResult("test", false, err)
-			-- Exit early; errors occurring before are considered fatal.
-			return
+
+			-- Don't override existing result, which is likely the result of a
+			-- failed expectation, and the error is the result of being in an
+			-- unexpected state.
+			if not result then
+				result = newResult(node.Type, false, err)
+			end
+			-- Run afters even if test fails.
 		end
-	end
 
-	local ok, err = pcall(unit::PCALLABLE, context.Closure, state)
-	if not ok then
-		--TODO: add context to error
-		node.Data.Result = newResult("test", false, err)
-		-- Run afters even if test fails.
-	end
-
-	for _, after in afters do
-		local ok, err = pcall(after::PCALLABLE)
-		if not ok then
-			--TODO: add context to error
-			node.Data.Result = newResult("test", false, err)
-			-- Override and exit early; errors occurring after are considered
-			-- fatal and more significant, given that they are a problem with
-			-- the definition itself.
-			return
+		for _, after in afters do
+			local ok, err = pcall(after::PCALLABLE)
+			if not ok then
+				--TODO: add context to error
+				if not result then
+					result = newResult(node.Type, false, err)
+				end
+				-- Override and exit early; errors occurring after are considered
+				-- fatal and more significant, given that they are a problem with
+				-- the plan itself.
+				return
+			end
 		end
-	end
+	end)()
 
-	node.Data.Iterations = state.Iterations
-	node.Data.Duration = state.Duration
+	if result == nil then
+		result = state.Result
+	end
+	if result == nil then
+		result = newResult(node.Type, true, "")
+	end
+	node:UpdateResult(state.Result)
+	node:UpdateBenchmark(state.Iterations, state.Duration)
+	for unit, value in state.Metrics do
+		node:UpdateMetric(value, unit)
+	end
 end
 
-local function runTest(node: Node)
-	runUnit(node, "test", function(closure: Closure, state: TState)
-		state.Iterations = 1
-		state.Duration = 0
-		state.Timing = true
-		state.StartTime = os.clock()
-		closure()
-		local c = os.clock()
-		state.Duration += c - state.StartTime
-		state.Timing = false
-	end)
+type UnitState = {
+	Timing: boolean, -- Whether time measurement is active.
+	Duration: number, -- Accumulated time measurement.
+	StartTime: number, -- Last time the clock was updated.
+	Result: Result?, -- Nil indicates okay, or no error.
+	Iterations: number, -- Number of iterations of the unit.
+	Metrics: Metrics, -- Reported metrics.
+}
+
+local function newUnitState(): UnitState
+	return {
+		Timing = false,
+		Duration = 0,
+		StartTime = 0,
+		Result = nil,
+		Iterations = 0,
+		Metrics = {},
+	}
 end
 
-local function runBenchmark(node: Node)
-	runUnit(node, "benchmark", function(closure: Closure)
-		-- Timing is handled by operation function.
-		closure()
+local function runTest(node: Node, ctx: ThreadContext<T>)
+	local state = newUnitState()
+	state.Iterations = 1
+	ctx:With("during test", function(t)
+		t.expect = newClause(function(description: any?, assertion: Assertion)
+			if state.Result then
+				return
+			end
+			local ok, result = pcall(assertion)
+			if ok then
+				if result then
+					-- Nil indicates okay result.
+				elseif description == nil then
+					state.Result = newResult(node.Type, false, "expectation failed")
+				else
+					local reason = string.format("expect %s", tostring(description))
+					state.Result = newResult(node.Type, false, reason)
+				end
+			else
+				state.Result = newResult(node.Type, ok, result)
+			end
+		end)
+
+		t.expect_error = newClause(function(description: any?, closure: Closure)
+			if pcall(closure) then
+				local reason
+				if description == nil then
+					reason = "expect error"
+				else
+					reason = string.format("expect error %s", tostring(description))
+				end
+				state.Result = newResult(node.Type, false, reason)
+			end
+		end)
+
+		function t.reset_timer()
+			state.Duration = 0
+			if state.Timing then
+				state.StartTime = os.clock()
+			end
+		end
+
+		function t.start_timer()
+			if not state.Timing then
+				state.Timing = true
+				state.StartTime = os.clock()
+			end
+		end
+
+		function t.stop_timer()
+			if state.Timing then
+				local c = os.clock()
+				state.Duration += c - state.StartTime
+				state.Timing = false
+			end
+		end
+
+		function t.report(unit: string)
+			assert(type(unit) == "string", "string expected")
+			return function(value: number)
+				assert(type(value) == "number", "number expected")
+				state.Metrics[unit] = value
+			end
+		end
 	end)
+	runUnit(node, state)
+end
+
+local function runBenchmark(node: Node, config: UnitConfig, ctx: ThreadContext<T>)
+	local state = newUnitState()
+	local operated = false
+	ctx:With("during benchmark", function(t)
+		function t.operation(closure: Closure)
+			if operated then
+				state.Result = newResult(node.Type, false, "multiple operations per measure")
+				return
+			end
+			operated = true
+			-- Do all work within pcall so that slow pcall is called once per
+			-- benchmark instead of once per operation.
+			local ok, err = pcall(function() --TODO: use xpcall to acquire trace
+				--TODO: Script can be timed out by Studio.ScriptTimeoutLength.
+				--If we're allowed to read settings(), insert yields required to
+				--keep time just under configured timeout.
+				--
+				--If setting is zero or inaccessible, perform with default yield
+				--frequency to give user chance to cancel out of a large target
+				--duration.
+				--
+				--NOTE: With parallel runs, Actors require syncing each frame,
+				--so durations have to be limited to framerate.
+				local DEFAULT_DURATION = 1
+				local targetN = config.Iterations or 0
+				state.Duration = 0
+				if targetN > 0 then
+					-- Run configured number of iterations.
+					for i = 1, targetN do
+						state.Timing = true
+						state.StartTime = os.clock()
+						closure()
+						local c = os.clock()
+						state.Duration += c - state.StartTime
+					end
+					state.Timing = false
+					state.Iterations = targetN
+				else
+					-- Run for configured duration.
+					local targetD = config.Duration or DEFAULT_DURATION
+					local start = os.clock()
+					while os.clock()-start < targetD do
+						state.Iterations += 1
+						state.Timing = true
+						state.StartTime = os.clock()
+						closure()
+						local c = os.clock()
+						state.Duration += c - state.StartTime
+					end
+					state.Timing = false
+				end
+			end)
+			if not ok then
+				state.Result = newResult(node.Type, false, err)
+			end
+		end
+
+		function t.reset_timer()
+			state.Duration = 0
+			if state.Timing then
+				state.StartTime = os.clock()
+			end
+		end
+
+		function t.start_timer()
+			if not state.Timing then
+				state.Timing = true
+				state.StartTime = os.clock()
+			end
+		end
+
+		function t.stop_timer()
+			if state.Timing then
+				local c = os.clock()
+				state.Duration += c - state.StartTime
+				state.Timing = false
+			end
+		end
+
+		function t.report(unit: string)
+			assert(type(unit) == "string", "string expected")
+			return function(value: number)
+				assert(type(value) == "number", "number expected")
+				state.Metrics[unit] = value
+			end
+		end
+	end)
+	runUnit(node, state)
 end
 
 function Runner.__index._start(self: _Runner): WaitGroup
 	local wg = newWaitGroup()
 	self._active = wg
-	task.defer(function(tree: Tree, wg: WaitGroup)
-		local function visit(node: Node)
-			if node.Type == "def" or node.Type == "node" then
-				for _, child in node.Children do
-					visit(child)
-				end
-			elseif node.Type == "test" then
-				wg:Add(runTest, node)
-			elseif node.Type == "bench" then
-				wg:Add(runBenchmark, node)
-			else
-				error("unreachable")
+	local function visit(node: Node, ctx: ThreadContext<T>?)
+		if node.Type == "plan" then
+			for _, child in node.Children do
+				visit(child, node.Data.ThreadContext)
 			end
+		elseif node.Type == "node" then
+			for _, child in node.Children do
+				visit(child, ctx)
+			end
+		elseif node.Type == "test" then
+			wg:Add(
+				runTest,
+				node,
+				(assert(ctx, "missing thread context"))
+			)
+		elseif node.Type == "benchmark" then
+			wg:Add(
+				runBenchmark,
+				node,
+				self._config,
+				(assert(ctx, "missing thread context"))
+			)
+		else
+			error("unreachable")
 		end
-		for _, node in tree.Roots do
-			visit(node)
-		end
-		wg:Wait()
-	end, self._tree, wg)
+	end
+	for _, node in self._tree.Roots do
+		visit(node)
+	end
 	return wg
 end
 
