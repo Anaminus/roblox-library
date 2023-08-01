@@ -183,9 +183,9 @@ end
 -- in another, while still using the same upvalue functions.
 type ContextManager<X> = {
 	-- Sets the context for the running thread for the duration of the call to
-	-- *body*, then calls *body*. *location* is a description indicating when or
-	-- where a function is running (e.g. "within X", "during X", "while Xing").
-	-- *context* is called to populate the context with implementations for each
+	-- *body*, then calls *body*. *verb* is a description indicating what is
+	-- happening while function is running (e.g. while "executing"). *context*
+	-- is called to populate the context with implementations for each
 	-- predefined function.
 	--
 	-- *context* does not need to implement all functions. If an unimplemented
@@ -195,9 +195,9 @@ type ContextManager<X> = {
 	-- The user of a context is not expected to call these functions from
 	-- different threads. An error will be thrown if a function is called from a
 	-- thread not known by the ContextManager.
-	With: (
+	While: (
 		self: ContextManager<X>,
-		location: string,
+		verb: string,
 		context: (ContextObject)->(),
 		body: () -> ()
 	) -> (),
@@ -213,7 +213,7 @@ local function newContextManager<X>(...: string): ContextManager<X>
 	local self = {}
 
 	type ThreadState = {
-		Location: string,
+		Verb: string,
 		Object: ContextObject,
 	}
 
@@ -233,7 +233,7 @@ local function newContextManager<X>(...: string): ContextManager<X>
 			local implementation = state.Object[field]
 			if not implementation then
 				-- Not implemented by this context.
-				error(string.format("cannot call %q %s", field, state.Location), 2)
+				error(string.format("cannot call %q while %s", field, state.Verb), 2)
 			end
 			return implementation(...)
 		end
@@ -241,15 +241,15 @@ local function newContextManager<X>(...: string): ContextManager<X>
 	-- Assume that given fields implement X.
 	self.Object = object :: any
 
-	function self.With(
+	function self.While(
 		self: ContextManager<X>,
-		location: string,
+		verb: string,
 		context: (ContextObject) -> (),
 		body: () -> ()
 	)
 		local t: ContextObject = {}
 		context(t)
-		local state = {Location = location, Object = t}
+		local state = {Verb = verb, Object = t}
 		local thread = coroutine.running()
 		threadStates[thread] = state
 		local ok, err = pcall(body::PCALLABLE)
@@ -1320,7 +1320,7 @@ local function processPlan(tree: Tree, plan: Plans, parent: Node?, key: any)
 		node.Data.ContextManager = ctxm
 		local context = planContext(ctxm, tree, node)
 		local ok, err
-		ctxm:With("while planning", context, function()
+		ctxm:While("planning", context, function()
 			-- Generate sub-tree by processing plan provided by plan.
 			ok, err = pcall(plan::PCALLABLE, ctxm.Object)
 		end)
@@ -1545,7 +1545,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			end
 		end
 	end
-	ctxm:With("during test", context, function()
+	ctxm:While("testing", context, function()
 		runUnit(node, state)
 	end)
 end
@@ -1639,7 +1639,7 @@ local function runBenchmark(node: Node, config: UnitConfig, ctxm: ContextManager
 			end
 		end
 	end
-	ctxm:With("during benchmark", context, function()
+	ctxm:While("benchmarking", context, function()
 		runUnit(node, state)
 	end)
 end
