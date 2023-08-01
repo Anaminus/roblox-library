@@ -196,11 +196,17 @@ return function(t: Spek.T)
 end
 ```
 
-Certain functions may only be called in certain contexts. For example,
-[expect][T.expect] may only be called within an [it][T.it] closure. Each
-description of a function lists where the function is allowed to be called.
-Some functions are allowed to be called anywhere. The root plan function
-behaves the same as [describe][T.describe].
+Certain functions may only be called within certain **contexts**. For
+example, [expect][T.expect] may only be called while testing, so it should
+only be called within an [it][T.it] closure. Each description of a function
+lists which contexts the function is allowed to be called. Some functions are
+allowed to be called anywhere.
+
+The following contexts are available:
+
+- **planning**: While processing the current [Plan][Plan].
+- **testing**: While running a test.
+- **benchmarking**: While running a benchmark.
 
 ## Benchmark functions
 
@@ -214,9 +220,10 @@ TODO: finish T docs
 after_each: Statement<Closure>
 ```
 
-**Within:** plan, [describe][T.describe]
+**While:** planning
 
-Defines a function to call after each unit, scoped to the context.
+Defines a function to call after each unit within the scope. The closure
+is called while testing or benchmarking.
 
 ## T.before_each
 [T.before_each]: #tbefore_each
@@ -224,9 +231,10 @@ Defines a function to call after each unit, scoped to the context.
 before_each: Statement<Closure>
 ```
 
-**Within:** plan, [describe][T.describe]
+**While:** planning
 
-Defines function to call before each unit, scoped to the context.
+Defines function to call before each unit within the scope. The closure
+is called while testing or benchmarking.
 
 ## T.describe
 [T.describe]: #tdescribe
@@ -234,9 +242,10 @@ Defines function to call before each unit, scoped to the context.
 describe: Clause<Closure>
 ```
 
-**Within:** plan, [describe][T.describe]
+**While:** planning
 
-Defines a new context for a test or benchmark.
+Defines a new scope for a test or benchmark. The closure is called
+immediately, while planning.
 
 ## T.expect
 [T.expect]: #texpect
@@ -244,9 +253,10 @@ Defines a new context for a test or benchmark.
 expect: Clause<Assertion>
 ```
 
-**Within:** [it][T.it]
+**While:** testing
 
-Expects the result of an assertion to be truthy.
+Expects the result of an assertion to be truthy. The closure is called
+while testing.
 
 ## T.expect_error
 [T.expect_error]: #texpect_error
@@ -254,9 +264,10 @@ Expects the result of an assertion to be truthy.
 expect_error: Clause<Closure>
 ```
 
-**Within:** [it][T.it]
+**While:** testing
 
-Expects the closure to throw an error.
+Expects the closure to throw an error. The closure is called while
+testing.
 
 ## T.it
 [T.it]: #tit
@@ -264,9 +275,9 @@ Expects the closure to throw an error.
 it: Clause<Closure>
 ```
 
-**Within:** plan, [describe][T.describe]
+**While:** planning
 
-Defines a new test unit.
+Defines a new test unit. The closure is called while testing.
 
 ## T.measure
 [T.measure]: #tmeasure
@@ -274,9 +285,9 @@ Defines a new test unit.
 measure: BenchmarkClause
 ```
 
-**Within:** plan, [describe][T.describe]
+**While:** planning
 
-Defines a new benchmark unit.
+Defines a new benchmark unit. The closure is called while benchmarking.
 
 ## T.operation
 [T.operation]: #toperation
@@ -284,10 +295,11 @@ Defines a new benchmark unit.
 operation: Clause<Closure>
 ```
 
-**Within:** [measure][T.measure] (only once)
+**While:** benchmarking (only once)
 
 Defines the operation of a benchmark unit that is being measured. This
-operation is run repeatedly.
+operation is run repeatedly. The operation is called while benchmarking.
+This function must only be called once per benchmark.
 
 ## T.parameter
 [T.parameter]: #tparameter
@@ -295,7 +307,7 @@ operation is run repeatedly.
 parameter: ParameterClause
 ```
 
-**Within:** plan, [describe][T.describe]
+**While:** planning
 
 Defines a parameter symbol that can be passed to [measure][T.measure].
 
@@ -305,7 +317,7 @@ Defines a parameter symbol that can be passed to [measure][T.measure].
 report: Detailed<number>
 ```
 
-**Within:** anything
+**While:** (doing anything)
 
 Reports a user-defined metric. Any previously reported value will be
 overridden.
@@ -338,7 +350,7 @@ report "compares/s" (compares) -- Report value per second.
 reset_timer: () -> ()
 ```
 
-**Within:** anything
+**While:** (doing anything)
 
 Resets the unit's elapsed time and all metrics. Does not affect whether
 the timer is running.
@@ -349,7 +361,7 @@ the timer is running.
 start_timer: () -> ()
 ```
 
-**Within:** anything
+**While:** (doing anything)
 
 Starts or resumes the unit timer.
 
@@ -359,7 +371,7 @@ Starts or resumes the unit timer.
 stop_timer: () -> ()
 ```
 
-**Within:** anything
+**While:** (doing anything)
 
 Stops the unit timer.
 
@@ -380,7 +392,7 @@ Note that the runner requires spek modules as-is.
 ## Runner.Keys
 [Runner.Keys]: #runnerkeys
 ```
-function Runner:Keys()
+function Runner:Keys(path: Path?): {Path}?
 ```
 
 Returns keys that exist under *path* as a list of absolute paths. If
@@ -390,17 +402,17 @@ exist.
 ## Runner.Metrics
 [Runner.Metrics]: #runnermetrics
 ```
-function Runner:Metrics()
+function Runner:Metrics(path: Path): Metrics?
 ```
 
-Returns a snapshot of the metrics at *path*. Returns false if the result
-is not yet ready. Returns nil if *path* does not exist or does not have a
-result.
+Returns a snapshot of the [metrics][Metrics] at *path*. Returns false if
+the result is not yet ready. Returns nil if *path* does not exist or does not
+have a result.
 
 ## Runner.ObserveMetric
 [Runner.ObserveMetric]: #runnerobservemetric
 ```
-function Runner:ObserveMetric()
+function Runner:ObserveMetric(observer: MetricObserver): Unsubscribe
 ```
 
 Sets an observer to be called whenever a single metric changes. Returns
@@ -409,7 +421,7 @@ a function that removes the observer when called.
 ## Runner.ObserveResult
 [Runner.ObserveResult]: #runnerobserveresult
 ```
-function Runner:ObserveResult()
+function Runner:ObserveResult(observer: ResultObserver): Unsubscribe
 ```
 
 Sets an observer to be called whenever a result changes. Returns a
@@ -461,11 +473,12 @@ runner is not running.
 ## Runner.Value
 [Runner.Value]: #runnervalue
 ```
-function Runner:Value()
+function Runner:Value(path: Path): Result?
 ```
 
-Returns the current result at *path*. Returns false if the result is not
-yet ready. Returns nil if *path* does not exist or does not have a result.
+Returns the current [result][Result] at *path*. Returns false if the
+result is not yet ready. Returns nil if *path* does not exist or does not
+have a result.
 
 ## Runner.Wait
 [Runner.Wait]: #runnerwait

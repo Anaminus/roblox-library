@@ -877,11 +877,17 @@ end
 -- end
 -- ```
 --
--- Certain functions may only be called in certain contexts. For example,
--- [expect][T.expect] may only be called within an [it][T.it] closure. Each
--- description of a function lists where the function is allowed to be called.
--- Some functions are allowed to be called anywhere. The root plan function
--- behaves the same as [describe][T.describe].
+-- Certain functions may only be called within certain **contexts**. For
+-- example, [expect][T.expect] may only be called while testing, so it should
+-- only be called within an [it][T.it] closure. Each description of a function
+-- lists which contexts the function is allowed to be called. Some functions are
+-- allowed to be called anywhere.
+--
+-- The following contexts are available:
+--
+-- - **planning**: While processing the current [Plan][Plan].
+-- - **testing**: While running a test.
+-- - **benchmarking**: While running a benchmark.
 --
 -- ## Benchmark functions
 --
@@ -891,71 +897,77 @@ end
 export type T = {
 	--@sec: T.describe
 	--@def: describe: Clause<Closure>
-	--@doc: **Within:** plan, [describe][T.describe]
+	--@doc: **While:** planning
 	--
-	-- Defines a new context for a test or benchmark.
+	-- Defines a new scope for a test or benchmark. The closure is called
+	-- immediately, while planning.
 	describe: Clause<Closure>,
 
 	--@sec: T.before_each
 	--@def: before_each: Statement<Closure>
-	--@doc: **Within:** plan, [describe][T.describe]
+	--@doc: **While:** planning
 	--
-	-- Defines function to call before each unit, scoped to the context.
+	-- Defines function to call before each unit within the scope. The closure
+	-- is called while testing or benchmarking.
 	before_each: Statement<Closure>,
 
 	--@sec: T.after_each
 	--@def: after_each: Statement<Closure>
-	--@doc: **Within:** plan, [describe][T.describe]
+	--@doc: **While:** planning
 	--
-	-- Defines a function to call after each unit, scoped to the context.
+	-- Defines a function to call after each unit within the scope. The closure
+	-- is called while testing or benchmarking.
 	after_each: Statement<Closure>,
 
 	--@sec: T.it
 	--@def: it: Clause<Closure>
-	--@doc: **Within:** plan, [describe][T.describe]
+	--@doc: **While:** planning
 	--
-	-- Defines a new test unit.
+	-- Defines a new test unit. The closure is called while testing.
 	it: Clause<Closure>,
 
 	--@sec: T.expect
 	--@def: expect: Clause<Assertion>
-	--@doc: **Within:** [it][T.it]
+	--@doc: **While:** testing
 	--
-	-- Expects the result of an assertion to be truthy.
+	-- Expects the result of an assertion to be truthy. The closure is called
+	-- while testing.
 	expect: Clause<Assertion>,
 
 	--@sec: T.expect_error
 	--@def: expect_error: Clause<Closure>
-	--@doc: **Within:** [it][T.it]
+	--@doc: **While:** testing
 	--
-	-- Expects the closure to throw an error.
+	-- Expects the closure to throw an error. The closure is called while
+	-- testing.
 	expect_error: Clause<Closure>,
 
 	--@sec: T.parameter
 	--@def: parameter: ParameterClause
-	--@doc: **Within:** plan, [describe][T.describe]
+	--@doc: **While:** planning
 	--
 	-- Defines a parameter symbol that can be passed to [measure][T.measure].
 	parameter: ParameterClause,
 
 	--@sec: T.measure
 	--@def: measure: BenchmarkClause
-	--@doc: **Within:** plan, [describe][T.describe]
+	--@doc: **While:** planning
 	--
-	-- Defines a new benchmark unit.
+	-- Defines a new benchmark unit. The closure is called while benchmarking.
 	measure: BenchmarkClause,
 
 	--@sec: T.operation
 	--@def: operation: Clause<Closure>
-	--@doc: **Within:** [measure][T.measure] (only once)
+	--@doc: **While:** benchmarking (only once)
 	--
 	-- Defines the operation of a benchmark unit that is being measured. This
-	-- operation is run repeatedly.
+	-- operation is run repeatedly. The operation is called while benchmarking.
+	-- This function must only be called once per benchmark.
 	operation: Clause<Closure>,
 
 	--@sec: T.reset_timer
 	--@def: reset_timer: () -> ()
-	--@doc: **Within:** anything
+	--@doc: **While:** (doing anything)
 	--
 	-- Resets the unit's elapsed time and all metrics. Does not affect whether
 	-- the timer is running.
@@ -963,21 +975,21 @@ export type T = {
 
 	--@sec: T.start_timer
 	--@def: start_timer: () -> ()
-	--@doc: **Within:** anything
+	--@doc: **While:** (doing anything)
 	--
 	-- Starts or resumes the unit timer.
 	start_timer: () -> (),
 
 	--@sec: T.stop_timer
 	--@def: stop_timer: () -> ()
-	--@doc: **Within:** anything
+	--@doc: **While:** (doing anything)
 	--
 	-- Stops the unit timer.
 	stop_timer: () -> (),
 
 	--@sec: T.report
 	--@def: report: Detailed<number>
-	--@doc: **Within:** anything
+	--@doc: **While:** (doing anything)
 	--
 	-- Reports a user-defined metric. Any previously reported value will be
 	-- overridden.
@@ -1744,7 +1756,7 @@ function Runner.__index.Reset(self: _Runner)
 end
 
 --@sec: Runner.Keys
---@def: function Runner:Keys()
+--@def: function Runner:Keys(path: Path?): {Path}?
 --@doc: Returns keys that exist under *path* as a list of absolute paths. If
 -- *path* is nil, the root keys are returned. Returns nil if *path* does not
 -- exist.
@@ -1768,9 +1780,10 @@ function Runner.__index.Keys(self: _Runner, path: Path?): {Path}?
 end
 
 --@sec: Runner.Value
---@def: function Runner:Value()
---@doc: Returns the current result at *path*. Returns false if the result is not
--- yet ready. Returns nil if *path* does not exist or does not have a result.
+--@def: function Runner:Value(path: Path): Result?
+--@doc: Returns the current [result][Result] at *path*. Returns false if the
+-- result is not yet ready. Returns nil if *path* does not exist or does not
+-- have a result.
 function Runner.__index.Value(self: _Runner, path: Path): Result?
 	local node = self._tree.Nodes[path]
 	if not node then
@@ -1780,10 +1793,10 @@ function Runner.__index.Value(self: _Runner, path: Path): Result?
 end
 
 --@sec: Runner.Metrics
---@def: function Runner:Metrics()
---@doc: Returns a snapshot of the metrics at *path*. Returns false if the result
--- is not yet ready. Returns nil if *path* does not exist or does not have a
--- result.
+--@def: function Runner:Metrics(path: Path): Metrics?
+--@doc: Returns a snapshot of the [metrics][Metrics] at *path*. Returns false if
+-- the result is not yet ready. Returns nil if *path* does not exist or does not
+-- have a result.
 function Runner.__index.Metrics(self: _Runner, path: Path): Metrics?
 	local node = self._tree.Nodes[path]
 	if not node then
@@ -1812,7 +1825,7 @@ export type MetricObserver = (path: Path, unit: string, value: number) -> ()
 export type Unsubscribe = () -> ()
 
 --@sec: Runner.ObserveResult
---@def: function Runner:ObserveResult()
+--@def: function Runner:ObserveResult(observer: ResultObserver): Unsubscribe
 --@doc: Sets an observer to be called whenever a result changes. Returns a
 -- function that removes the observer when called.
 function Runner.__index.ObserveResult(self: _Runner, observer: ResultObserver): Unsubscribe
@@ -1827,7 +1840,7 @@ function Runner.__index.ObserveResult(self: _Runner, observer: ResultObserver): 
 end
 
 --@sec: Runner.ObserveMetric
---@def: function Runner:ObserveMetric()
+--@def: function Runner:ObserveMetric(observer: MetricObserver): Unsubscribe
 --@doc: Sets an observer to be called whenever a single metric changes. Returns
 -- a function that removes the observer when called.
 function Runner.__index.ObserveMetric(self: _Runner, observer: MetricObserver): Unsubscribe
