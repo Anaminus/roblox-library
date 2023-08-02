@@ -1161,7 +1161,7 @@ export type Runner = {
 	Wait: (self: Runner) -> (),
 	Stop: (self: Runner) -> (),
 	Reset: (self: Runner) -> (),
-	Keys: (self: Runner, path: Path?) -> {Path}?,
+	Keys: ((self: Runner, path: Path) -> {Path}?) & ((self: Runner, path: nil) -> {Path}),
 	Value: (self: Runner, path: Path) -> Result?,
 	Metrics: (self: Runner, path: Path) -> Metrics?,
 	ObserveResult: (self: Runner, observer: ResultObserver) -> ()->(),
