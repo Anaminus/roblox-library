@@ -1198,7 +1198,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 	return function(t: ContextObject)
 		t.describe = newClause(function(desc: any?, closure: Closure)
 			-- Run closure using created node as context.
-			state:CreateNode("node", "describe", desc)
+			state:CreateNode("node", desc)
 			closure()
 			state:PopNode()
 		end)
