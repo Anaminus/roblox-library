@@ -10,11 +10,12 @@ measurements (benchmarks). As a Roblox instance, a spek is any ModuleScript
 whose Name has the `.spek` suffix.
 
 The principle value returned by a module is a **plan**, or a function that
-receives a [T][T] object. A table of plans can be returned instead. The full
+receives a [T][T] object. A table of plans can be returned instead.
+ModuleScripts may also be returned, which will be required as speks. The full
 definition for the returned value is as follows:
 
 ```lua
-type Plans = Plan | {[any]: Plans}
+type Plans = Plan | ModuleScript | {[any]: Plans}
 type Plan = (t: T) -> ()
 ```
 
@@ -103,11 +104,11 @@ Locates speks under a given instance.
 ## Spek.runner
 [Spek.runner]: #spekrunner
 ```
-function Spek.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
+function Spek.runner(speks: Plans, config: UnitConfig?): Runner
 ```
 
-Creates a new [Runner][Runner]. An optional [UnitConfig][UnitConfig]
-configures how units are run.
+Creates a new [Runner][Runner] that runs the given [Plans][Plans]. An
+optional [UnitConfig][UnitConfig] configures how units are run.
 
 # UnitConfig
 [UnitConfig]: #unitconfig
@@ -622,10 +623,11 @@ Receives a [T][T] to plan a testing suite.
 # Plans
 [Plans]: #plans
 ```
-type Plans = Plan | {[any]: Plans}
+type Plans = Plan | ModuleScript | {[any]: Plans}
 ```
 
-Represents a tree of [Plan][Plan] values, or a single Plan.
+Represents a [Plan][Plan], a spek ModuleScript, or a tree of such. Other
+values cause an error, including ModuleScripts that do not qualify as speks.
 
 # Result
 [Result]: #result

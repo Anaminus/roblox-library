@@ -11,11 +11,12 @@
 -- whose Name has the `.spek` suffix.
 --
 -- The principle value returned by a module is a **plan**, or a function that
--- receives a [T][T] object. A table of plans can be returned instead. The full
+-- receives a [T][T] object. A table of plans can be returned instead.
+-- ModuleScripts may also be returned, which will be required as speks. The full
 -- definition for the returned value is as follows:
 --
 -- ```lua
--- type Plans = Plan | {[any]: Plans}
+-- type Plans = Plan | ModuleScript | {[any]: Plans}
 -- type Plan = (t: T) -> ()
 -- ```
 --
@@ -1183,8 +1184,9 @@ type _Runner = Runner & {
 }
 
 --@sec: Plans
---@def: type Plans = Plan | {[any]: Plans}
---@doc: Represents a tree of [Plan][Plan] values, or a single Plan.
+--@def: type Plans = Plan | ModuleScript | {[any]: Plans}
+--@doc: Represents a [Plan][Plan], a spek ModuleScript, or a tree of such. Other
+-- values cause an error, including ModuleScripts that do not qualify as speks.
 export type Plans = Plan | {[any]: Plans}
 
 --@sec: Plan
@@ -1307,9 +1309,17 @@ end
 
 -- Processes the value returned by a module, recursively creating nodes
 -- corresponding to the structure. If a value is of an unexpected type, the
--- corresponding node is filled with a failing result.
-local function processPlan(tree: Tree, plan: Plans, parent: Node?, key: any)
+-- corresponding node is filled with a failing result. If a table is received
+-- without a key, then its contents are added to the parent node.
+local function processPlans(tree: Tree, plan: Plans, parent: Node?, key: any)
 	if type(plan) == "function" then
+		if key == nil then
+			-- Better than nothing.
+			key = debug.info(plan, "n")
+			if key == "" then
+				key = plan
+			end
+		end
 		local node = tree:CreateNode("plan", parent, key)
 		local ctxm = newContextManager(
 			"describe",
@@ -1340,38 +1350,47 @@ local function processPlan(tree: Tree, plan: Plans, parent: Node?, key: any)
 			node:UpdateResult(newResult(node.Type, false, err))
 			table.freeze(node.Data)
 		end
+	elseif typeof(plan) == "Instance" then
+		if plan:IsA("ModuleScript") and plan.Name:match("%.spek$") then
+			-- Collapses into parent.
+			if key ~= nil then
+				-- Fallback to full name.
+				key = plan:GetFullName()
+			end
+			local ok, plan = pcall(require, plan)
+			if not ok then
+				tree:CreateErrorNode("plan", parent, key, plan)
+				return
+			end
+			processPlans(tree, plan, parent, key)
+			return
+		end
+		tree:CreateErrorNode("plan", parent, key, "unexpected plan type %q", plan.ClassName)
 	elseif type(plan) == "table" then
-		local node = tree:CreateNode("plan", parent, key)
-		for key, plan in plan do
-			processPlan(tree, plan, node, key)
+		if key == nil then
+			-- Collapse into parent.
+			for k, plan in plan do
+				processPlans(tree, plan, parent, k)
+			end
+			return
+		end
+		local node = tree:CreateNode("node", parent, key)
+		for k, plan in plan do
+			processPlans(tree, plan, node, k)
 		end
 	else
 		tree:CreateErrorNode("plan", parent, key, "unexpected plan type %q", typeof(plan))
 	end
 end
 
--- Processes a single spek module. Creates a node mapped to the full name ofthe
--- module.
-local function processSpek(tree: Tree, spek: ModuleScript)
-	local key = spek:GetFullName()
-	local ok, plan = pcall(require, spek)
-	if not ok then
-		tree:CreateErrorNode("plan", nil, key, plan)
-		return
-	end
-	processPlan(tree, plan, nil, key)
-end
-
 --@sec: Spek.runner
---@def: function Spek.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
---@doc: Creates a new [Runner][Runner]. An optional [UnitConfig][UnitConfig]
--- configures how units are run.
-function export.runner(speks: {ModuleScript}, config: UnitConfig?): Runner
+--@def: function Spek.runner(speks: Plans, config: UnitConfig?): Runner
+--@doc: Creates a new [Runner][Runner] that runs the given [Plans][Plans]. An
+-- optional [UnitConfig][UnitConfig] configures how units are run.
+function export.runner(speks: Plans, config: UnitConfig?): Runner
 	local tree = newTree()
 	-- Build plan nodes by processing spek modules.
-	for _, spek in speks do
-		processSpek(tree, spek)
-	end
+	processPlans(tree, speks)
 	local self: _Runner = setmetatable({
 		_active = nil,
 		_tree = tree,
