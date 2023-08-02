@@ -1475,7 +1475,7 @@ local function runUnit(node: Node, state: UnitState)
 	if result == nil then
 		result = newResult(node.Type, true, "")
 	end
-	node:UpdateResult(state.Result)
+	node:UpdateResult(result)
 	node:UpdateBenchmark(state.Iterations, state.Duration)
 	for unit, value in state.Metrics do
 		node:UpdateMetric(value, unit)
