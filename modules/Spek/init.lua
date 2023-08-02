@@ -1161,6 +1161,7 @@ export type Runner = {
 	Wait: (self: Runner) -> (),
 	Stop: (self: Runner) -> (),
 	Reset: (self: Runner) -> (),
+	All: ((self: Runner) -> {Path}),
 	Keys: ((self: Runner, path: Path) -> {Path}?) & ((self: Runner, path: nil) -> {Path}),
 	Value: (self: Runner, path: Path) -> Result?,
 	Metrics: (self: Runner, path: Path) -> Metrics?,
@@ -1766,6 +1767,21 @@ function Runner.__index.Reset(self: _Runner)
 			end
 		end
 	end
+end
+
+--@sec: Runner.All
+--@def: function Runner:All(): {Path}
+--@doc: Returns a list of all paths in the runner. Paths are sorted by their
+-- string representation.
+function Runner.__index.All(self: _Runner): {Path}
+	local keys = {}
+	for path in self._tree.Nodes do
+		table.insert(keys, path)
+	end
+	table.sort(keys, function(a: any, b: any): boolean
+		return a._string < b._string
+	end)
+	return keys
 end
 
 --@sec: Runner.Keys

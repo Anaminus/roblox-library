@@ -60,17 +60,18 @@ end
 	12. [T.start_timer][T.start_timer]
 	13. [T.stop_timer][T.stop_timer]
 4. [Runner][Runner]
-	1. [Runner.Keys][Runner.Keys]
-	2. [Runner.Metrics][Runner.Metrics]
-	3. [Runner.ObserveMetric][Runner.ObserveMetric]
-	4. [Runner.ObserveResult][Runner.ObserveResult]
-	5. [Runner.Reset][Runner.Reset]
-	6. [Runner.Run][Runner.Run]
-	7. [Runner.Running][Runner.Running]
-	8. [Runner.Start][Runner.Start]
-	9. [Runner.Stop][Runner.Stop]
-	10. [Runner.Value][Runner.Value]
-	11. [Runner.Wait][Runner.Wait]
+	1. [Runner.All][Runner.All]
+	2. [Runner.Keys][Runner.Keys]
+	3. [Runner.Metrics][Runner.Metrics]
+	4. [Runner.ObserveMetric][Runner.ObserveMetric]
+	5. [Runner.ObserveResult][Runner.ObserveResult]
+	6. [Runner.Reset][Runner.Reset]
+	7. [Runner.Run][Runner.Run]
+	8. [Runner.Running][Runner.Running]
+	9. [Runner.Start][Runner.Start]
+	10. [Runner.Stop][Runner.Stop]
+	11. [Runner.Value][Runner.Value]
+	12. [Runner.Wait][Runner.Wait]
 5. [Assertion][Assertion]
 6. [Benchmark][Benchmark]
 7. [BenchmarkClause][BenchmarkClause]
@@ -389,6 +390,15 @@ Converting to a string displays formatted results of the last run. Metrics
 are tabulated per plan.
 
 Note that the runner requires spek modules as-is.
+
+## Runner.All
+[Runner.All]: #runnerall
+```
+function Runner:All(): {Path}
+```
+
+Returns a list of all paths in the runner. Paths are sorted by their
+string representation.
 
 ## Runner.Keys
 [Runner.Keys]: #runnerkeys
