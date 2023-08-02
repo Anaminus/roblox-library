@@ -1347,7 +1347,7 @@ local function processPlans(tree: Tree, plan: Plans, parent: Node?, key: any)
 	elseif typeof(plan) == "Instance" then
 		if plan:IsA("ModuleScript") and plan.Name:match("%.spek$") then
 			-- Collapses into parent.
-			if key ~= nil then
+			if key == nil then
 				-- Fallback to full name.
 				key = plan:GetFullName()
 			end
