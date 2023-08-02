@@ -1182,7 +1182,7 @@ type _Runner = Runner & {
 --@def: type Plans = Plan | ModuleScript | {[any]: Plans}
 --@doc: Represents a [Plan][Plan], a spek ModuleScript, or a tree of such. Other
 -- values cause an error, including ModuleScripts that do not qualify as speks.
-export type Plans = Plan | {[any]: Plans}
+export type Plans = Plan | ModuleScript | {[any]: Plans}
 
 --@sec: Plan
 --@def: type Plan = (t: T) -> ()
