@@ -1382,10 +1382,11 @@ end
 --@def: function Spek.runner(speks: Plans, config: UnitConfig?): Runner
 --@doc: Creates a new [Runner][Runner] that runs the given [Plans][Plans]. An
 -- optional [UnitConfig][UnitConfig] configures how units are run.
-function export.runner(speks: Plans, config: UnitConfig?): Runner
+function export.runner(speks: Plans?, config: UnitConfig?): Runner
 	local tree = newTree()
-	-- Build plan nodes by processing spek modules.
-	processPlans(tree, speks)
+	if speks ~= nil then
+		processPlans(tree, speks)
+	end
 	local self: _Runner = setmetatable({
 		_active = nil,
 		_tree = tree,
