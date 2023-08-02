@@ -558,7 +558,7 @@ function Node.__index.ReconcileResults(self: Node): boolean
 	if #self.Children > 0 then
 		local changed = false
 		for _, node in self.Children do
-			changed = changed or node:ReconcileResults()
+			changed = node:ReconcileResults() or changed
 		end
 		if not changed then
 			return false
@@ -592,7 +592,7 @@ function Node.__index.ReconcileMetrics(self: Node): boolean
 	if #self.Children > 0 then
 		local changed = false
 		for _, node in self.Children do
-			changed = changed or node:ReconcileMetrics()
+			changed = node:ReconcileMetrics() or changed
 		end
 		if not changed then
 			return false
@@ -619,7 +619,7 @@ function Node.__index.ReconcileMetrics(self: Node): boolean
 		end
 	end
 	for unit, value in metrics do
-		changed = changed or self:UpdateMetric(value, unit)
+		changed = self:UpdateMetric(value, unit) or changed
 	end
 	return changed
 end
