@@ -389,8 +389,8 @@ type Node = {
 	UpdateBenchmark: (self: Node, iterations: number, duration: number) -> boolean,
 
 	-- Reconciles derivative results and metrics.
-	ReconcileResults: (self: Node) -> (),
-	ReconcileMetrics: (self: Node) -> (),
+	ReconcileResults: (self: Node) -> boolean,
+	ReconcileMetrics: (self: Node) -> boolean,
 
 	-- Calls the given observers with the node's pending data.
 	Inform: (
@@ -506,13 +506,13 @@ local function compareResults(old: Result?, new: Result?): boolean
 end
 
 -- Sets the result of the node to *result*. Marks the result as pending, and
--- marks the tree as dirty. Returns false if the node is frozen.
+-- marks the tree as dirty. Returns whether the data changed.
 function Node.__index.UpdateResult(self: Node, result: Result?): boolean
 	if table.isfrozen(self.Data) then
 		return false
 	end
 	if compareResults(self.Data.Result, result) then
-		return true
+		return false
 	end
 	self.Data.Result = result
 	self.Pending.Result = true
@@ -521,13 +521,13 @@ function Node.__index.UpdateResult(self: Node, result: Result?): boolean
 end
 
 -- Sets a metric of the node. Marks the metric as pending, and marks the tree as
--- dirty. Returns false if the node is frozen.
+-- dirty. Returns whether the data changed.
 function Node.__index.UpdateMetric(self: Node, value: number, unit: string): boolean
 	if table.isfrozen(self.Data) then
 		return false
 	end
 	if self.Data.Metrics[unit] == value then
-		return true
+		return false
 	end
 	self.Data.Metrics[unit] = value
 	self.Pending.Metrics[unit] = true
@@ -536,14 +536,14 @@ function Node.__index.UpdateMetric(self: Node, value: number, unit: string): boo
 end
 
 -- Sets the benchmark metrics of the node. Marks the metrics as pending, and
--- marks the tree as dirty. Returns false if the node is frozen.
+-- marks the tree as dirty. Returns whether the data changed.
 function Node.__index.UpdateBenchmark(self: Node, iterations: number, duration: number): boolean
 	if table.isfrozen(self.Data) then
 		return false
 	end
 	if self.Data.Iterations == iterations
 	and self.Data.Duration == duration then
-		return true
+		return false
 	end
 	self.Data.Iterations = iterations
 	self.Data.Duration = duration
@@ -554,24 +554,21 @@ end
 
 -- If the node has child nodes, the Result of the node will be set to the
 -- aggregation of the children's results.
-function Node.__index.ReconcileResults(self: Node)
-	local pending = false
-	for _, node in self.Children do
-		if not node.Pending.Result then
-			continue
+function Node.__index.ReconcileResults(self: Node): boolean
+	if #self.Children > 0 then
+		local changed = false
+		for _, node in self.Children do
+			changed = changed or node:ReconcileResults()
 		end
-		node:ReconcileResults()
-		pending = true
-	end
-	if not pending then
-		return
+		if not changed then
+			return false
+		end
+	elseif self.Pending.Result then
+		return true
 	end
 	--TODO: aggregate reason/trace.
 	local okay = true
 	for _, node in self.Children do
-		if not node.Pending.Result then
-			continue
-		end
 		local result = node.Data.Result
 		if result then
 			okay = okay and result.Okay
@@ -580,44 +577,40 @@ function Node.__index.ReconcileResults(self: Node)
 			end
 		end
 	end
-	self:UpdateResult(newResult(self.Type, okay, "one or more results failed"))
+	local result
+	if okay then
+		result = newResult(self.Type, true, "")
+	else
+		result = newResult(self.Type, false, "one or more results failed")
+	end
+	return self:UpdateResult(result)
 end
 
 -- If the node has child nodes, the Metrics of the node will be set to the
 -- aggregation of the children's metrics.
-function Node.__index.ReconcileMetrics(self: Node)
-	local pending = false
-	for _, node in self.Children do
-		if not node.Pending.Benchmark
-		and not next(node.Pending.Metrics) then
-			continue
+function Node.__index.ReconcileMetrics(self: Node): boolean
+	if #self.Children > 0 then
+		local changed = false
+		for _, node in self.Children do
+			changed = changed or node:ReconcileMetrics()
 		end
-		node:ReconcileMetrics()
-		pending = true
-	end
-	if not pending then
-		return
+		if not changed then
+			return false
+		end
+	elseif self.Pending.Benchmark or next(self.Pending.Metrics) ~= nil then
+		return true
 	end
 	local iterations = 0
 	local duration = 0
 	for _, node in self.Children do
-		if not node.Pending.Benchmark then
-			continue
-		end
 		iterations += node.Data.Iterations
 		duration += node.Data.Duration
 	end
-	self:UpdateBenchmark(iterations, duration)
+	local changed = self:UpdateBenchmark(iterations, duration)
 
 	local metrics: Metrics = {}
 	for _, node in self.Children do
-		if not next(node.Pending.Metrics) then
-			continue
-		end
 		for unit, value in node.Data.Metrics do
-			if not node.Pending.Metrics[unit] then
-				continue
-			end
 			if metrics[unit] then
 				metrics[unit] += value
 			else
@@ -626,8 +619,9 @@ function Node.__index.ReconcileMetrics(self: Node)
 		end
 	end
 	for unit, value in metrics do
-		self:UpdateMetric(value, unit)
+		changed = changed or self:UpdateMetric(value, unit)
 	end
+	return changed
 end
 
 -- Produces the actual value of a metric with a specific prefix.
