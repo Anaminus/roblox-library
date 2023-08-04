@@ -1407,9 +1407,53 @@ function export.runner(speks: Plans?, config: UnitConfig?): Runner
 	return self
 end
 
+local function walkTree(nodes: {Node}, visit: ({node:Node,name:string})->(), level: string?)
+	local sorted: {any} = table.clone(nodes)
+	for i, node in sorted do
+		sorted[i] = {
+			name = tostring(node.Path:Base()),
+			node = node,
+		}
+	end
+	table.sort(sorted, function(a, b)
+		return a.name < b.name
+	end)
+	for i, node in sorted do
+		local last = i == #sorted
+		local this = last and "└───" or "├───"
+		node.name = if level then level .. this .. node.name else node.name
+		visit(node)
+		walkTree(node.node.Children, visit, if level then level .. (last and "    " or "│   ") else "")
+	end
+end
+
 -- A readable representation of the runner's results.
 function Runner.__tostring(self: _Runner): string
-	return "TODO: format Runner"
+	local nodes = {}
+	local max = 0
+	walkTree(self._tree.Roots, function(node: {node:Node,name:string})
+		table.insert(nodes, node)
+		local l = utf8.len(node.name) or #node.name
+		if l > max then
+			max = l
+		end
+	end)
+	local out = {""}
+	for _, node in nodes do
+		local result = node.node.Data.Result
+		local okay = if result then result.Okay else true
+		local reason = if result then result.Reason else ""
+		table.insert(out,
+			node.name
+			.. " "
+			.. string.rep("…", max-(utf8.len(node.name) or #node.name))
+			.. " | "
+			.. (if okay then " ok " else "FAIL")
+			.. " | "
+			.. reason
+		)
+	end
+	return table.concat(out, "\n")
 end
 
 -- Accumulate all before and after functions to run around the test.
