@@ -16,7 +16,7 @@
 -- definition for the returned value is as follows:
 --
 -- ```lua
--- type Plans = Plan | ModuleScript | {[any]: Plans}
+-- type Input = Plan | ModuleScript | {[any]: Input}
 -- type Plan = (t: T) -> ()
 -- ```
 --
@@ -68,6 +68,9 @@ type _Path = Path & {
 local function newPath(...: any): Path
 	local elements = table.freeze{...}
 	local s = table.create(#elements)
+	if #elements == 0 then
+		s[1] = "(root)"
+	end
 	for i, element in elements do
 		local str = tostring(element)
 		if str:match("[%[%]]") then
@@ -401,21 +404,21 @@ type Node = {
 }
 
 --@sec: ResultType
---@def: type ResultType = "test" | "benchmark" | "node" | "plan"
+--@def: type ResultType = "node" | "plan" | "test" | "benchmark"
 --@doc: Indicates the type of a result tree node.
 --
 -- Value     | Description
 -- ----------|------------
--- test      | A test unit.
--- benchmark | A benchmark unit.
 -- node      | A general node aggregating a number of units.
 -- plan      | A discrete node representing a plan.
+-- test      | A test unit.
+-- benchmark | A benchmark unit.
 --
 export type ResultType
-	= "test"
-	| "benchmark"
-	| "node"
+	= "node"
 	| "plan"
+	| "test"
+	| "benchmark"
 
 --@sec: Metrics
 --@def: type Metrics = {[string]: number}
@@ -431,9 +434,8 @@ export type ResultType
 export type Metrics = {[string]: number}
 
 -- Creates under *tree* a new Node of type *type*, parented to *parent* under
--- *key*. If *parent* is nil, the node is added to the root of *tree*.
+-- *key*. If *parent* is nil, the node assumed to be the root of *tree*.
 local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): Node
-	assert(key ~= nil, "key cannot be nil")
 	local node: Node = setmetatable({
 		Type = type,
 		Tree = tree,
@@ -457,15 +459,18 @@ local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): N
 		},
 	}, Node) :: any
 	if parent == nil then
-		node.Path = newPath(key)
-		table.insert(tree.Roots, node)
-	else
+		-- Root node.
+		node.Path = newPath()
+		tree.Root = node
+		tree.Nodes[node.Path] = node
+	elseif parent ~= nil then
+		assert(key ~= nil, "key cannot be nil")
 		local elements = parent.Path:Elements()
 		table.insert(elements, key)
 		node.Path = newPath(table.unpack(elements))
 		table.insert(parent.Children, node)
+		tree.Nodes[node.Path] = node
 	end
-	tree.Nodes[node.Path] = node
 	return table.freeze(node)
 end
 
@@ -699,8 +704,8 @@ local Tree = {__index={}}
 type Tree = {
 	-- Flat map of paths to nodes.
 	Nodes: {[Path]: Node},
-	-- Nodes that are at the root of the tree.
-	Roots: {Node},
+	-- The implicit root node.
+	Root: Node,
 	-- Whether the tree contains nodes with pending data.
 	IsDirty: boolean,
 
@@ -738,18 +743,23 @@ type Tree = {
 local function newTree(): Tree
 	local self: Tree = setmetatable({
 		Nodes = {},
-		Roots = {},
+		Root = nil,
 		IsDirty = false,
 		ResultObserver = nil,
 		MetricObserver = nil,
 	}, Tree) :: any
+	newNode(self, "node", nil)
 	return self
 end
 
 -- Creates a new node refered to by *key* under *parent*, or root if *parent* is
 -- nil.
 function Tree.__index.CreateNode(self: Tree, type: ResultType, parent: Node?, key: any): Node
-	return newNode(self, type, parent, key)
+	if parent == nil then
+		return newNode(self, type, self.Root, key)
+	else
+		return newNode(self, type, parent, key)
+	end
 end
 
 -- Creates a node as usual, but the result is filled in with an error, and the
@@ -784,21 +794,15 @@ end
 
 -- Reconciles derivative data.
 function Tree.__index.ReconcileData(self: Tree)
-	for _, node in self.Roots do
-		node:ReconcileResults()
-	end
-	for _, node in self.Roots do
-		node:ReconcileMetrics()
-	end
+	self.Root:ReconcileResults()
+	self.Root:ReconcileMetrics()
 end
 
 -- Calls the Inform method of each root node with the configured observers.
 function Tree.__index.InformObservers(self: Tree)
 	local result = self.ResultObserver or function()end
 	local metric = self.MetricObserver or function()end
-	for _, node in self.Roots do
-		node:Inform(result, metric)
-	end
+	self.Root:Inform(result, metric)
 end
 
 --------------------------------------------------------------------------------
@@ -1161,8 +1165,9 @@ export type Runner = {
 	Wait: (self: Runner) -> (),
 	Stop: (self: Runner) -> (),
 	Reset: (self: Runner) -> (),
-	All: ((self: Runner) -> {Path}),
-	Keys: ((self: Runner, path: Path) -> {Path}?) & ((self: Runner, path: nil) -> {Path}),
+	Root: (self: Runner) -> Path,
+	All: (self: Runner) -> {Path},
+	Paths: ((self: Runner, path: Path) -> {Path}?),
 	Value: (self: Runner, path: Path) -> Result?,
 	Metrics: (self: Runner, path: Path) -> Metrics?,
 	ObserveResult: (self: Runner, observer: ResultObserver) -> ()->(),
@@ -1178,11 +1183,16 @@ type _Runner = Runner & {
 	_start: (self: _Runner) -> WaitGroup,
 }
 
---@sec: Plans
---@def: type Plans = Plan | ModuleScript | {[any]: Plans}
---@doc: Represents a [Plan][Plan], a spek ModuleScript, or a tree of such. Other
--- values cause an error, including ModuleScripts that do not qualify as speks.
-export type Plans = Plan | ModuleScript | {[any]: Plans}
+--@sec: Input
+--@def: type Input = Plan | ModuleScript | {[any]: Input}
+--@doc: Represents a [Plan][Plan], a valid spek ModuleScript, or a tree of such.
+-- Inputs produce nodes within a [Runner][Runner]:
+--
+-- - A table produces a node for each entry.
+-- - A spek produces a node for the spek.
+-- - A plan does not produce a node, but its content usually does.
+-- - Other values produce a node indicating an error.
+export type Input = Plan | ModuleScript | {[any]: Input}
 
 --@sec: Plan
 --@def: type Plan = (t: T) -> ()
@@ -1302,20 +1312,10 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 	end
 end
 
--- Processes the value returned by a module, recursively creating nodes
--- corresponding to the structure. If a value is of an unexpected type, the
--- corresponding node is filled with a failing result. If a table is received
--- without a key, then its contents are added to the parent node.
-local function processPlans(tree: Tree, plan: Plans, parent: Node?, key: any)
-	if type(plan) == "function" then
-		if key == nil then
-			-- Better than nothing.
-			key = debug.info(plan, "n")
-			if key == "" then
-				key = plan
-			end
-		end
-		local node = tree:CreateNode("plan", parent, key)
+-- Creates nodes under *parent* according to *input*.
+local function processInput(tree: Tree, parent: Node, input: Input)
+	if type(input) == "function" then
+		-- Assumed to be a plan function.
 		local ctxm = newContextManager(
 			"describe",
 			"before_each",
@@ -1334,58 +1334,64 @@ local function processPlans(tree: Tree, plan: Plans, parent: Node?, key: any)
 			"stop_timer",
 			"report"
 		)
-		node.Data.ContextManager = ctxm
-		local context = planContext(ctxm, tree, node)
+		-- A plan does not produce a node, because there's no reasonable key to
+		-- use for it. Instead, the parent node is used. A consequence is that
+		-- any input that contains a plan must produce a node in order for the
+		-- plan to have something to operate on.
+		parent.Data.ContextManager = ctxm
+		local context = planContext(ctxm, tree, parent)
 		local ok, err
 		ctxm:While("planning", context, function()
 			-- Generate sub-tree by processing plan provided by plan.
-			ok, err = pcall(plan::PCALLABLE, ctxm.Object)
+			ok, err = pcall(input::PCALLABLE, ctxm.Object)
 		end)
 		if not ok then
-			node:UpdateResult(newResult(node.Type, false, err))
-			table.freeze(node.Data)
-		end
-	elseif typeof(plan) == "Instance" then
-		if plan:IsA("ModuleScript") and plan.Name:match("%.spek$") then
-			-- Collapses into parent.
-			if key == nil then
-				-- Fallback to full name.
-				key = plan:GetFullName()
-			end
-			local ok, plan = pcall(require, plan)
-			if not ok then
-				tree:CreateErrorNode("plan", parent, key, plan)
-				return
-			end
-			processPlans(tree, plan, parent, key)
+			-- Create single node representing the error.
+			tree:CreateErrorNode("plan", parent, "error while planning", err)
 			return
 		end
-		tree:CreateErrorNode("plan", parent, key, "unexpected plan type %q", plan.ClassName)
-	elseif type(plan) == "table" then
-		if key == nil then
-			-- Collapse into parent.
-			for k, plan in plan do
-				processPlans(tree, plan, parent, k)
-			end
+	elseif typeof(input) == "Instance" then
+		-- A spek always creates a node.
+		local key = input:GetFullName()
+		if not input:IsA("ModuleScript") then
+			tree:CreateErrorNode("node", parent, key, "unexpected spek class %q", input.ClassName)
 			return
 		end
+		if not input.Name:match("%.spek$") then
+			tree:CreateErrorNode("node", parent, key, "spek Name must have \".spek\" suffix")
+			return
+		end
+
 		local node = tree:CreateNode("node", parent, key)
-		for k, plan in plan do
-			processPlans(tree, plan, node, k)
+		local ok, inner = pcall(require, input)
+		if not ok then
+			tree:CreateErrorNode("plan", parent, key, inner)
+			return
+		end
+		processInput(tree, node, inner)
+	elseif type(input) == "table" then
+		-- Each element of a table produces a node.
+		for key, inner in input do
+			local node = tree:CreateNode("node", parent, key)
+			processInput(tree, node, inner)
 		end
 	else
-		tree:CreateErrorNode("plan", parent, key, "unexpected plan type %q", typeof(plan))
+		-- Anything else produces an error node.
+		tree:CreateErrorNode("node", parent,
+			"error traversing inputs",
+			"unexpected input type %q", typeof(input)
+		)
 	end
 end
 
 --@sec: Spek.runner
---@def: function Spek.runner(speks: Plans, config: UnitConfig?): Runner
---@doc: Creates a new [Runner][Runner] that runs the given [Plans][Plans]. An
+--@def: function Spek.runner(input: Input, config: UnitConfig?): Runner
+--@doc: Creates a new [Runner][Runner] that runs the given [Input][Input]. An
 -- optional [UnitConfig][UnitConfig] configures how units are run.
-function export.runner(speks: Plans?, config: UnitConfig?): Runner
+function export.runner(input: Input?, config: UnitConfig?): Runner
 	local tree = newTree()
-	if speks ~= nil then
-		processPlans(tree, speks)
+	if input ~= nil then
+		processInput(tree, tree.Root, input)
 	end
 	local self: _Runner = setmetatable({
 		_active = nil,
@@ -1407,8 +1413,9 @@ function export.runner(speks: Plans?, config: UnitConfig?): Runner
 	return self
 end
 
-local function walkTree(nodes: {Node}, visit: ({node:Node,name:string})->(), level: string?)
-	local sorted: {any} = table.clone(nodes)
+-- Walks a tree to produce formatted results.
+local function walkTree(parent: Node, visit: ({node:Node,name:string})->(), level: string?)
+	local sorted: {any} = table.clone(parent.Children)
 	for i, node in sorted do
 		sorted[i] = {
 			name = tostring(node.Path:Base()),
@@ -1423,7 +1430,7 @@ local function walkTree(nodes: {Node}, visit: ({node:Node,name:string})->(), lev
 		local this = last and "└───" or "├───"
 		node.name = if level then level .. this .. node.name else node.name
 		visit(node)
-		walkTree(node.node.Children, visit, if level then level .. (last and "    " or "│   ") else "")
+		walkTree(node.node, visit, if level then level .. (last and "    " or "│   ") else "")
 	end
 end
 
@@ -1431,7 +1438,7 @@ end
 function Runner.__tostring(self: _Runner): string
 	local nodes = {}
 	local max = 0
-	walkTree(self._tree.Roots, function(node: {node:Node,name:string})
+	walkTree(self._tree.Root, function(node: {node:Node,name:string})
 		table.insert(nodes, node)
 		local l = utf8.len(node.name) or #node.name
 		if l > max then
@@ -1720,15 +1727,7 @@ function Runner.__index._start(self: _Runner): WaitGroup
 	local wg = newWaitGroup()
 	self._active = wg
 	local function visit(node: Node, ctxm: ContextManager<T>?)
-		if node.Type == "plan" then
-			for _, child in node.Children do
-				visit(child, node.Data.ContextManager)
-			end
-		elseif node.Type == "node" then
-			for _, child in node.Children do
-				visit(child, ctxm)
-			end
-		elseif node.Type == "test" then
+		if node.Type == "test" then
 			wg:Add(
 				runTest,
 				node,
@@ -1742,12 +1741,15 @@ function Runner.__index._start(self: _Runner): WaitGroup
 				(assert(ctxm, "missing thread context"))
 			)
 		else
-			error("unreachable")
+			for _, child in node.Children do
+				if node.Data.ContextManager and ctxm then
+					error("nested context managers")
+				end
+				visit(child, node.Data.ContextManager or ctxm)
+			end
 		end
 	end
-	for _, node in self._tree.Roots do
-		visit(node)
-	end
+	visit(self._tree.Root)
 	return wg
 end
 
@@ -1814,50 +1816,50 @@ function Runner.__index.Reset(self: _Runner)
 	end
 end
 
+--@sec: Runner.Root
+--@def: function Runner:Root(): Path
+--@doc: Returns the [Path][Path] of the root node. The path contains zero
+-- elements.
+function Runner.__index.Root(self: _Runner): Path
+	return self._tree.Root.Path
+end
+
 --@sec: Runner.All
 --@def: function Runner:All(): {Path}
 --@doc: Returns a list of all paths in the runner. Paths are sorted by their
 -- string representation.
 function Runner.__index.All(self: _Runner): {Path}
-	local keys = {}
+	local paths = {}
 	for path in self._tree.Nodes do
-		table.insert(keys, path)
+		table.insert(paths, path)
 	end
-	table.sort(keys, function(a: any, b: any): boolean
+	table.sort(paths, function(a: any, b: any): boolean
 		return a._string < b._string
 	end)
-	return keys
+	return paths
 end
 
---@sec: Runner.Keys
---@def: function Runner:Keys(path: Path?): {Path}?
---@doc: Returns keys that exist under *path* as a list of absolute paths. If
--- *path* is nil, the root keys are returned. Returns nil if *path* does not
--- exist.
-function Runner.__index.Keys(self: _Runner, path: Path?): {Path}?
-	if path then
-		local node = self._tree.Nodes[path]
-		if node then
-			local keys = table.create(#node.Children)
-			for _, node in node.Children do
-				table.insert(keys, node.Path)
-			end
-			return keys
+--@sec: Runner.Paths
+--@def: function Runner:Paths(path: Path): {Path}?
+--@doc: Returns paths of nodes that exist under the node of *path*. Returns nil
+-- if *path* does not exist.
+function Runner.__index.Paths(self: _Runner, path: Path?): {Path}?
+	assert(path, "path expected")
+	local node = self._tree.Nodes[path]
+	if node then
+		local paths = table.create(#node.Children)
+		for _, child in node.Children do
+			table.insert(paths, child.Path)
 		end
-		return nil
+		return paths
 	end
-	local keys = table.create(#self._tree.Roots)
-	for _, node in self._tree.Roots do
-		table.insert(keys, node.Path)
-	end
-	return keys
+	return nil
 end
 
 --@sec: Runner.Value
 --@def: function Runner:Value(path: Path): Result?
---@doc: Returns the current [result][Result] at *path*. Returns false if the
--- result is not yet ready. Returns nil if *path* does not exist or does not
--- have a result.
+--@doc: Returns the current [result][Result] at *path*. Returns nil if *path*
+-- does not exist or does not have a result.
 function Runner.__index.Value(self: _Runner, path: Path): Result?
 	local node = self._tree.Nodes[path]
 	if not node then
@@ -1868,9 +1870,8 @@ end
 
 --@sec: Runner.Metrics
 --@def: function Runner:Metrics(path: Path): Metrics?
---@doc: Returns a snapshot of the [metrics][Metrics] at *path*. Returns false if
--- the result is not yet ready. Returns nil if *path* does not exist or does not
--- have a result.
+--@doc: Returns a snapshot of the [metrics][Metrics] at *path*. Returns nil if
+-- *path* does not exist or does not have a result.
 function Runner.__index.Metrics(self: _Runner, path: Path): Metrics?
 	local node = self._tree.Nodes[path]
 	if not node then

@@ -15,7 +15,7 @@ ModuleScripts may also be returned, which will be required as speks. The full
 definition for the returned value is as follows:
 
 ```lua
-type Plans = Plan | ModuleScript | {[any]: Plans}
+type Input = Plan | ModuleScript | {[any]: Input}
 type Plan = (t: T) -> ()
 ```
 
@@ -61,31 +61,32 @@ end
 	13. [T.stop_timer][T.stop_timer]
 4. [Runner][Runner]
 	1. [Runner.All][Runner.All]
-	2. [Runner.Keys][Runner.Keys]
-	3. [Runner.Metrics][Runner.Metrics]
-	4. [Runner.ObserveMetric][Runner.ObserveMetric]
-	5. [Runner.ObserveResult][Runner.ObserveResult]
+	2. [Runner.Metrics][Runner.Metrics]
+	3. [Runner.ObserveMetric][Runner.ObserveMetric]
+	4. [Runner.ObserveResult][Runner.ObserveResult]
+	5. [Runner.Paths][Runner.Paths]
 	6. [Runner.Reset][Runner.Reset]
-	7. [Runner.Run][Runner.Run]
-	8. [Runner.Running][Runner.Running]
-	9. [Runner.Start][Runner.Start]
-	10. [Runner.Stop][Runner.Stop]
-	11. [Runner.Value][Runner.Value]
-	12. [Runner.Wait][Runner.Wait]
+	7. [Runner.Root][Runner.Root]
+	8. [Runner.Run][Runner.Run]
+	9. [Runner.Running][Runner.Running]
+	10. [Runner.Start][Runner.Start]
+	11. [Runner.Stop][Runner.Stop]
+	12. [Runner.Value][Runner.Value]
+	13. [Runner.Wait][Runner.Wait]
 5. [Assertion][Assertion]
 6. [Benchmark][Benchmark]
 7. [BenchmarkClause][BenchmarkClause]
 8. [Clause][Clause]
 9. [Closure][Closure]
-10. [MetricObserver][MetricObserver]
-11. [Metrics][Metrics]
-12. [Parameter][Parameter]
-13. [ParameterClause][ParameterClause]
-14. [Path][Path]
+10. [Input][Input]
+11. [MetricObserver][MetricObserver]
+12. [Metrics][Metrics]
+13. [Parameter][Parameter]
+14. [ParameterClause][ParameterClause]
+15. [Path][Path]
 	1. [Path.Base][Path.Base]
 	2. [Path.Elements][Path.Elements]
-15. [Plan][Plan]
-16. [Plans][Plans]
+16. [Plan][Plan]
 17. [Result][Result]
 18. [ResultObserver][ResultObserver]
 19. [ResultType][ResultType]
@@ -105,10 +106,10 @@ Locates speks under a given instance.
 ## Spek.runner
 [Spek.runner]: #spekrunner
 ```
-function Spek.runner(speks: Plans, config: UnitConfig?): Runner
+function Spek.runner(input: Input, config: UnitConfig?): Runner
 ```
 
-Creates a new [Runner][Runner] that runs the given [Plans][Plans]. An
+Creates a new [Runner][Runner] that runs the given [Input][Input]. An
 optional [UnitConfig][UnitConfig] configures how units are run.
 
 # UnitConfig
@@ -400,25 +401,14 @@ function Runner:All(): {Path}
 Returns a list of all paths in the runner. Paths are sorted by their
 string representation.
 
-## Runner.Keys
-[Runner.Keys]: #runnerkeys
-```
-function Runner:Keys(path: Path?): {Path}?
-```
-
-Returns keys that exist under *path* as a list of absolute paths. If
-*path* is nil, the root keys are returned. Returns nil if *path* does not
-exist.
-
 ## Runner.Metrics
 [Runner.Metrics]: #runnermetrics
 ```
 function Runner:Metrics(path: Path): Metrics?
 ```
 
-Returns a snapshot of the [metrics][Metrics] at *path*. Returns false if
-the result is not yet ready. Returns nil if *path* does not exist or does not
-have a result.
+Returns a snapshot of the [metrics][Metrics] at *path*. Returns nil if
+*path* does not exist or does not have a result.
 
 ## Runner.ObserveMetric
 [Runner.ObserveMetric]: #runnerobservemetric
@@ -438,6 +428,15 @@ function Runner:ObserveResult(observer: ResultObserver): Unsubscribe
 Sets an observer to be called whenever a result changes. Returns a
 function that removes the observer when called.
 
+## Runner.Paths
+[Runner.Paths]: #runnerpaths
+```
+function Runner:Paths(path: Path): {Path}?
+```
+
+Returns paths of nodes that exist under the node of *path*. Returns nil
+if *path* does not exist.
+
 ## Runner.Reset
 [Runner.Reset]: #runnerreset
 ```
@@ -445,6 +444,15 @@ function Runner:Reset()
 ```
 
 Clears all results.
+
+## Runner.Root
+[Runner.Root]: #runnerroot
+```
+function Runner:Root(): Path
+```
+
+Returns the [Path][Path] of the root node. The path contains zero
+elements.
 
 ## Runner.Run
 [Runner.Run]: #runnerrun
@@ -487,9 +495,8 @@ runner is not running.
 function Runner:Value(path: Path): Result?
 ```
 
-Returns the current [result][Result] at *path*. Returns false if the
-result is not yet ready. Returns nil if *path* does not exist or does not
-have a result.
+Returns the current [result][Result] at *path*. Returns nil if *path*
+does not exist or does not have a result.
 
 ## Runner.Wait
 [Runner.Wait]: #runnerwait
@@ -553,6 +560,20 @@ type Closure = () -> ()
 ```
 
 A general function operating on upvalues.
+
+# Input
+[Input]: #input
+```
+type Input = Plan | ModuleScript | {[any]: Input}
+```
+
+Represents a [Plan][Plan], a valid spek ModuleScript, or a tree of such.
+Inputs produce nodes within a [Runner][Runner]:
+
+- A table produces a node for each entry.
+- A spek produces a node for the spek.
+- A plan does not produce a node, but its content usually does.
+- Other values produce a node indicating an error.
 
 # MetricObserver
 [MetricObserver]: #metricobserver
@@ -630,15 +651,6 @@ type Plan = (t: T) -> ()
 
 Receives a [T][T] to plan a testing suite.
 
-# Plans
-[Plans]: #plans
-```
-type Plans = Plan | ModuleScript | {[any]: Plans}
-```
-
-Represents a [Plan][Plan], a spek ModuleScript, or a tree of such. Other
-values cause an error, including ModuleScripts that do not qualify as speks.
-
 # Result
 [Result]: #result
 ```
@@ -671,17 +683,17 @@ Observes the result of *path*.
 # ResultType
 [ResultType]: #resulttype
 ```
-type ResultType = "test" | "benchmark" | "node" | "plan"
+type ResultType = "node" | "plan" | "test" | "benchmark"
 ```
 
 Indicates the type of a result tree node.
 
 Value     | Description
 ----------|------------
-test      | A test unit.
-benchmark | A benchmark unit.
 node      | A general node aggregating a number of units.
 plan      | A discrete node representing a plan.
+test      | A test unit.
+benchmark | A benchmark unit.
 
 # Unsubscribe
 [Unsubscribe]: #unsubscribe
