@@ -1354,7 +1354,7 @@ local function processInput(tree: Tree, parent: Node, input: Input)
 		end
 	elseif typeof(input) == "Instance" then
 		-- A spek always creates a node.
-		local key = input:GetFullName()
+		local key = input.Name
 		if not input:IsA("ModuleScript") then
 			tree:CreateErrorNode("node", parent, key, "unexpected spek class %q", input.ClassName)
 			return
