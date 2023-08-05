@@ -1168,7 +1168,7 @@ export type Runner = {
 	Root: (self: Runner) -> Path,
 	All: (self: Runner) -> {Path},
 	Paths: ((self: Runner, path: Path) -> {Path}?),
-	Value: (self: Runner, path: Path) -> Result?,
+	Result: (self: Runner, path: Path) -> Result?,
 	Metrics: (self: Runner, path: Path) -> Metrics?,
 	ObserveResult: (self: Runner, observer: ResultObserver) -> ()->(),
 	ObserveMetric: (self: Runner, observer: MetricObserver) -> ()->(),
@@ -1858,11 +1858,11 @@ function Runner.__index.Paths(self: _Runner, path: Path?): {Path}?
 	return nil
 end
 
---@sec: Runner.Value
---@def: function Runner:Value(path: Path): Result?
+--@sec: Runner.Result
+--@def: function Runner:Result(path: Path): Result?
 --@doc: Returns the current [result][Result] at *path*. Returns nil if *path*
 -- does not exist or does not have a result.
-function Runner.__index.Value(self: _Runner, path: Path): Result?
+function Runner.__index.Result(self: _Runner, path: Path): Result?
 	local node = self._tree.Nodes[path]
 	if not node then
 		return nil

@@ -66,12 +66,12 @@ end
 	4. [Runner.ObserveResult][Runner.ObserveResult]
 	5. [Runner.Paths][Runner.Paths]
 	6. [Runner.Reset][Runner.Reset]
-	7. [Runner.Root][Runner.Root]
-	8. [Runner.Run][Runner.Run]
-	9. [Runner.Running][Runner.Running]
-	10. [Runner.Start][Runner.Start]
-	11. [Runner.Stop][Runner.Stop]
-	12. [Runner.Value][Runner.Value]
+	7. [Runner.Result][Runner.Result]
+	8. [Runner.Root][Runner.Root]
+	9. [Runner.Run][Runner.Run]
+	10. [Runner.Running][Runner.Running]
+	11. [Runner.Start][Runner.Start]
+	12. [Runner.Stop][Runner.Stop]
 	13. [Runner.Wait][Runner.Wait]
 5. [Assertion][Assertion]
 6. [Benchmark][Benchmark]
@@ -445,6 +445,15 @@ function Runner:Reset()
 
 Clears all results.
 
+## Runner.Result
+[Runner.Result]: #runnerresult
+```
+function Runner:Result(path: Path): Result?
+```
+
+Returns the current [result][Result] at *path*. Returns nil if *path*
+does not exist or does not have a result.
+
 ## Runner.Root
 [Runner.Root]: #runnerroot
 ```
@@ -488,15 +497,6 @@ function Runner:Stop()
 
 Stops the runner, canceling all pending units. Does nothing if the
 runner is not running.
-
-## Runner.Value
-[Runner.Value]: #runnervalue
-```
-function Runner:Value(path: Path): Result?
-```
-
-Returns the current [result][Result] at *path*. Returns nil if *path*
-does not exist or does not have a result.
 
 ## Runner.Wait
 [Runner.Wait]: #runnerwait
