@@ -1352,6 +1352,11 @@ local function processInput(tree: Tree, parent: Node, input: Input)
 			tree:CreateErrorNode("plan", parent, "error while planning", err)
 			return
 		end
+		if #parent.Children == 0 then
+			-- Plan must produce structure.
+			tree:CreateErrorNode("plan", parent, "error while planning", "plan produced empty structure")
+			return
+		end
 	elseif typeof(input) == "Instance" then
 		-- A spek always creates a node.
 		local key = input.Name
