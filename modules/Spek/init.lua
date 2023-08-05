@@ -1948,7 +1948,7 @@ function export.find(root: Instance): {ModuleScript}
 	local speks: {ModuleScript} = {}
 	for _, desc in root:GetDescendants() do
 		if desc:IsA("ModuleScript") then
-			if not desc.Name:match("^%.spek$") then
+			if not desc.Name:match("%.spek$") then
 				continue
 			end
 			table.insert(speks, desc)
