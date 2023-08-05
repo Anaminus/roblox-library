@@ -46,19 +46,20 @@ end
 	2. [Spek.runner][Spek.runner]
 2. [UnitConfig][UnitConfig]
 3. [T][T]
-	1. [T.after_each][T.after_each]
-	2. [T.before_each][T.before_each]
-	3. [T.describe][T.describe]
-	4. [T.expect][T.expect]
-	5. [T.expect_error][T.expect_error]
-	6. [T.it][T.it]
-	7. [T.measure][T.measure]
-	8. [T.operation][T.operation]
-	9. [T.parameter][T.parameter]
-	10. [T.report][T.report]
-	11. [T.reset_timer][T.reset_timer]
-	12. [T.start_timer][T.start_timer]
-	13. [T.stop_timer][T.stop_timer]
+	1. [T.TODO][T.TODO]
+	2. [T.after_each][T.after_each]
+	3. [T.before_each][T.before_each]
+	4. [T.describe][T.describe]
+	5. [T.expect][T.expect]
+	6. [T.expect_error][T.expect_error]
+	7. [T.it][T.it]
+	8. [T.measure][T.measure]
+	9. [T.operation][T.operation]
+	10. [T.parameter][T.parameter]
+	11. [T.report][T.report]
+	12. [T.reset_timer][T.reset_timer]
+	13. [T.start_timer][T.start_timer]
+	14. [T.stop_timer][T.stop_timer]
 4. [Runner][Runner]
 	1. [Runner.All][Runner.All]
 	2. [Runner.Metrics][Runner.Metrics]
@@ -216,6 +217,16 @@ The following contexts are available:
 The [measure][T.measure] function defines a benchmark.
 
 TODO: finish T docs
+
+## T.TODO
+[T.TODO]: #ttodo
+```
+TODO: (format: string?, ...any) -> ()
+```
+
+Produces an okay result, but with a reason indicating that the plan
+or statement is not yet implemented. May optionally specify a formatted
+message as the reason.
 
 ## T.after_each
 [T.after_each]: #tafter_each

@@ -1015,6 +1015,13 @@ export type T = {
 	-- report "compares/s" (compares) -- Report value per second.
 	-- ```
 	report: Detailed<number>,
+
+	--@sec: T.TODO
+	--@def: TODO: (format: string?, ...any) -> ()
+	--@doc: Produces an okay result, but with a reason indicating that the plan
+	-- or statement is not yet implemented. May optionally specify a formatted
+	-- message as the reason.
+	TODO: (format: string?, ...any) -> (),
 }
 
 --@sec: Clause
@@ -1313,6 +1320,17 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				return
 			end
 		end
+
+		function t.TODO(format: string?, ...: any)
+			local todo
+			if format == nil then
+				todo = "TODO: not implemented"
+			else
+				todo = string.format("TODO: "..format, ...)
+			end
+			local node = state:PeekNode()
+			node.Data.Result = newResult(node.Type, true, todo)
+		end
 	end
 end
 
@@ -1336,7 +1354,9 @@ local function processInput(tree: Tree, parent: Node, input: Input)
 			"reset_timer",
 			"start_timer",
 			"stop_timer",
-			"report"
+			"report",
+
+			"TODO"
 		)
 		-- A plan does not produce a node, because there's no reasonable key to
 		-- use for it. Instead, the parent node is used. A consequence is that
@@ -1634,6 +1654,16 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				state.Metrics[unit] = value
 			end
 		end
+
+		function t.TODO(format: string?, ...: any)
+			local todo
+			if format == nil then
+				todo = "TODO: not implemented"
+			else
+				todo = string.format("TODO: "..format, ...)
+			end
+			state.Result = newResult(node.Type, true, todo)
+		end
 	end
 	ctxm:While("testing", context, function()
 		runUnit(node, state)
@@ -1727,6 +1757,16 @@ local function runBenchmark(node: Node, config: UnitConfig, ctxm: ContextManager
 				assert(type(value) == "number", "number expected")
 				state.Metrics[unit] = value
 			end
+		end
+
+		function t.TODO(format: string?, ...: any)
+			local todo
+			if format == nil then
+				todo = "TODO: not implemented"
+			else
+				todo = string.format("TODO: "..format, ...)
+			end
+			state.Result = newResult(node.Type, true, todo)
 		end
 	end
 	ctxm:While("benchmarking", context, function()
