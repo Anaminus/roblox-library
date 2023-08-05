@@ -1210,6 +1210,15 @@ export type Input = Plan | ModuleScript | {[any]: Input}
 --@doc: Receives a [T][T] to plan a testing suite.
 export type Plan = (t: T) -> ()
 
+-- If a statement description is a string, returns it prefixed with *prefix*.
+-- Otherwise, returns it unchanged.
+local function wrapDesc<T>(prefix: string, desc: T): T
+	if type(desc) == "string" then
+		desc = prefix .. " " .. desc
+	end
+	return desc
+end
+
 -- Sets a context for running a plan.
 local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (ContextObject) -> ()
 	local state = newPlanState(tree)
@@ -1602,9 +1611,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				elseif type(reason) ~= nil then
 					state.Result = newResult(node.Type, false, tostring(reason))
 				elseif description ~= nil then
-					state.Result = newResult(node.Type, false, string.format(
-						"expect %s", tostring(description)
-					))
+					state.Result = newResult(node.Type, false, wrapDesc("expect", description))
 				else
 					state.Result = newResult(node.Type, false, "expectation failed")
 				end
@@ -1619,7 +1626,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				if description == nil then
 					reason = "expect error"
 				else
-					reason = string.format("expect error %s", tostring(description))
+					reason = wrapDesc("expect error", description)
 				end
 				state.Result = newResult(node.Type, false, reason)
 			end
