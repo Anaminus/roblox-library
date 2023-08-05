@@ -250,12 +250,14 @@ end
 -- Recursively updates inheriting subscriptions to *key* with *value*.
 local function updateSubscriptions(scope: _Scope, key: any, value: any)
 	local state = scope._states[key]
-	if state and state._value ~= nil then
-		-- Shadowed.
-		return
-	end
-	for _, sub in state._subscriptions do
-		task.defer(sub, value)
+	if state then
+		if state._value ~= nil then
+			-- Shadowed.
+			return
+		end
+		for _, sub in state._subscriptions do
+			task.defer(sub, value)
+		end
 	end
 	for child in scope._children do
 		updateSubscriptions(child, key, value)
