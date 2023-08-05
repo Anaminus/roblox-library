@@ -1193,6 +1193,8 @@ type _Runner = Runner & {
 -- - A plan does not produce a node, but its content usually does.
 -- - Other values produce a node indicating an error.
 export type Input = Plan | ModuleScript | {[any]: Input}
+--TODO: Unioned table of union is not analyzed correctly (roblox/luau#664). To
+--workaround, cast tables to whatever input types they include.
 
 --@sec: Plan
 --@def: type Plan = (t: T) -> ()
