@@ -1037,8 +1037,10 @@ export type Closure = () -> ()
 
 --@sec: Assertion
 --@def: type Assertion = () -> any
---@doc: Like a [Closure][Closure], except the caller expects a result.
-export type Assertion = () -> any
+--@doc: Like a [Closure][Closure], except the caller expects a truthy or falsy
+-- result. If an optional second value is returned with a falsy result, then it
+-- will be used as the reason.
+export type Assertion = () -> (any, any?)
 
 --@sec: BenchmarkClause
 --@def: type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed
@@ -1573,15 +1575,18 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			if state.Result then
 				return
 			end
-			local ok, result = pcall(assertion)
+			local ok, result, reason = pcall(assertion)
 			if ok then
 				if result then
 					-- Nil indicates okay result.
-				elseif description == nil then
-					state.Result = newResult(node.Type, false, "expectation failed")
+				elseif type(reason) ~= nil then
+					state.Result = newResult(node.Type, false, tostring(reason))
+				elseif description ~= nil then
+					state.Result = newResult(node.Type, false, string.format(
+						"expect %s", tostring(description)
+					))
 				else
-					local reason = string.format("expect %s", tostring(description))
-					state.Result = newResult(node.Type, false, reason)
+					state.Result = newResult(node.Type, false, "expectation failed")
 				end
 			else
 				state.Result = newResult(node.Type, ok, result)

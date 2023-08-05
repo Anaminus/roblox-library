@@ -513,7 +513,9 @@ active.
 type Assertion = () -> any
 ```
 
-Like a [Closure][Closure], except the caller expects a result.
+Like a [Closure][Closure], except the caller expects a truthy or falsy
+result. If an optional second value is returned with a falsy result, then it
+will be used as the reason.
 
 # Benchmark
 [Benchmark]: #benchmark
