@@ -571,18 +571,20 @@ function Node.__index.UpdateBenchmark(self: Node, iterations: number, duration: 
 end
 
 -- If the node has child nodes, the Result of the node will be set to the
--- aggregation of the children's results.
+-- aggregation of the children's results. Returns whether there were changes.
 function Node.__index.ReconcileResults(self: Node): boolean
-	if #self.Children > 0 then
-		local changed = false
-		for _, node in self.Children do
-			changed = node:ReconcileResults() or changed
-		end
-		if not changed then
-			return false
-		end
-	elseif self.Pending.Result then
-		return true
+	if #self.Children == 0 then
+		-- Return whether leaf node has pending result.
+		return self.Pending.Result
+	end
+	-- Reconcile children.
+	local changed = false
+	for _, node in self.Children do
+		changed = node:ReconcileResults() or changed
+	end
+	if not changed then
+		-- No changes, no need to process.
+		return false
 	end
 	--TODO: aggregate reason/trace.
 	local okay = true
@@ -607,16 +609,18 @@ end
 -- If the node has child nodes, the Metrics of the node will be set to the
 -- aggregation of the children's metrics.
 function Node.__index.ReconcileMetrics(self: Node): boolean
-	if #self.Children > 0 then
-		local changed = false
-		for _, node in self.Children do
-			changed = node:ReconcileMetrics() or changed
-		end
-		if not changed then
-			return false
-		end
-	elseif self.Pending.Benchmark or next(self.Pending.Metrics) ~= nil then
-		return true
+	if #self.Children == 0 then
+		-- Return whether leaf node has pending metrics.
+		return self.Pending.Benchmark or next(self.Pending.Metrics) ~= nil
+	end
+	-- Reconcile children.
+	local changed = false
+	for _, node in self.Children do
+		changed = node:ReconcileMetrics() or changed
+	end
+	if not changed then
+		-- No changes, no need to process.
+		return false
 	end
 	local iterations = 0
 	local duration = 0
