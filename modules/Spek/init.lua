@@ -1625,7 +1625,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			if ok then
 				if result then
 					-- Nil indicates okay result.
-				elseif type(reason) ~= nil then
+				elseif reason ~= nil then
 					state.Result = newResult(node.Type, false, tostring(reason))
 				elseif description ~= nil then
 					state.Result = newResult(node.Type, false, wrapDesc("expect", description))
