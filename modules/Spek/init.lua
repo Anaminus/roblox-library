@@ -1355,7 +1355,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				todo = string.format("TODO: "..format, ...)
 			end
 			local node = state:PeekNode()
-			node.Data.Result = newResult(node.Type, true, todo)
+			node:UpdateResult(newResult(node.Type, true, todo))
 		end
 	end
 end
