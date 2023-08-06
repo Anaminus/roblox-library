@@ -896,8 +896,7 @@ end
 -- Certain functions may only be called within certain **contexts**. For
 -- example, [expect][T.expect] may only be called while testing, so it should
 -- only be called within an [it][T.it] closure. Each description of a function
--- lists which contexts the function is allowed to be called. Some functions are
--- allowed to be called anywhere.
+-- lists which contexts the function is allowed to be called.
 --
 -- The following contexts are available:
 --
@@ -983,7 +982,7 @@ export type T = {
 
 	--@sec: T.reset_timer
 	--@def: reset_timer: () -> ()
-	--@doc: **While:** (doing anything)
+	--@doc: **While:** testing, benchmarking
 	--
 	-- Resets the unit's elapsed time and all metrics. Does not affect whether
 	-- the timer is running.
@@ -991,21 +990,21 @@ export type T = {
 
 	--@sec: T.start_timer
 	--@def: start_timer: () -> ()
-	--@doc: **While:** (doing anything)
+	--@doc: **While:** testing, benchmarking
 	--
 	-- Starts or resumes the unit timer.
 	start_timer: () -> (),
 
 	--@sec: T.stop_timer
 	--@def: stop_timer: () -> ()
-	--@doc: **While:** (doing anything)
+	--@doc: **While:** testing, benchmarking
 	--
 	-- Stops the unit timer.
 	stop_timer: () -> (),
 
 	--@sec: T.report
 	--@def: report: Detailed<number>
-	--@doc: **While:** (doing anything)
+	--@doc: **While:** planning, testing, benchmarking
 	--
 	-- Reports a user-defined metric. Any previously reported value will be
 	-- overridden.

@@ -203,8 +203,7 @@ end
 Certain functions may only be called within certain **contexts**. For
 example, [expect][T.expect] may only be called while testing, so it should
 only be called within an [it][T.it] closure. Each description of a function
-lists which contexts the function is allowed to be called. Some functions are
-allowed to be called anywhere.
+lists which contexts the function is allowed to be called.
 
 The following contexts are available:
 
@@ -331,7 +330,7 @@ Defines a parameter symbol that can be passed to [measure][T.measure].
 report: Detailed<number>
 ```
 
-**While:** (doing anything)
+**While:** planning, testing, benchmarking
 
 Reports a user-defined metric. Any previously reported value will be
 overridden.
@@ -364,7 +363,7 @@ report "compares/s" (compares) -- Report value per second.
 reset_timer: () -> ()
 ```
 
-**While:** (doing anything)
+**While:** testing, benchmarking
 
 Resets the unit's elapsed time and all metrics. Does not affect whether
 the timer is running.
@@ -375,7 +374,7 @@ the timer is running.
 start_timer: () -> ()
 ```
 
-**While:** (doing anything)
+**While:** testing, benchmarking
 
 Starts or resumes the unit timer.
 
@@ -385,7 +384,7 @@ Starts or resumes the unit timer.
 stop_timer: () -> ()
 ```
 
-**While:** (doing anything)
+**While:** testing, benchmarking
 
 Stops the unit timer.
 
