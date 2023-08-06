@@ -269,9 +269,9 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
---@sec: UnitConfig
+--@sec: Config
 --@ord: -3
---@def: type UnitConfig = {
+--@def: type Config = {
 -- 	Iterations: number?,
 -- 	Duration: number?,
 -- }
@@ -279,20 +279,37 @@ end
 --
 -- Field      | Type    | Description
 -- -----------|---------|------------
--- Iterations | number? | Target iterations for each benchmark. If unspecified, Duration is used.
+-- Iterations | number? | Target iterations for each benchmark. If unspecified, or zero or less, Duration is used.
 -- Duration   | number? | Target duration for each benchmark, in seconds. Defaults to 1.
 --
-export type UnitConfig = {
+export type Config = {
 	Iterations: number?,
 	Duration: number?,
 }
 
--- Constructs an immutable UnitConfig.
-local function newUnitConfig(config: UnitConfig?): UnitConfig
-	local config: UnitConfig = config or {}
-	config.Iterations = config.Iterations or 1
-	config.Duration = config.Duration or 1
-	return table.freeze(config)
+-- Constructs an immutable Config.
+local function newConfig(config: Config?): Config
+	if type(config) == "table" then
+		local cfg: Config = {}
+		if type(config.Iterations) == "number" then
+			cfg.Iterations = config.Iterations
+		elseif config.Iterations ~= nil then
+			error(string.format("Config.Iterations: number expected, got %s", typeof(config.Iterations)), 3)
+		end
+		if type(config.Duration) == "number" then
+			cfg.Duration = config.Duration
+		elseif config.Duration ~= nil then
+			error(string.format("Config.Duration: number expected, got %s", typeof(config.Duration)), 3)
+		end
+		return table.freeze(cfg)
+	elseif config == nil then
+		return table.freeze{
+			Iterations = nil,
+			Duration = 1,
+		}
+	else
+		error(string.format("Config expected, got %s", typeof(config)), 3)
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -1186,7 +1203,7 @@ export type Runner = {
 type _Runner = Runner & {
 	_active: WaitGroup?,
 	_tree: Tree,
-	_config: UnitConfig,
+	_config: Config,
 	_resultObservers: {[Unsubscribe]: ResultObserver},
 	_metricObservers: {[Unsubscribe]: MetricObserver},
 	_start: (self: _Runner) -> WaitGroup,
@@ -1423,10 +1440,10 @@ local function processInput(tree: Tree, parent: Node, input: Input)
 end
 
 --@sec: Spek.runner
---@def: function Spek.runner(input: Input, config: UnitConfig?): Runner
+--@def: function Spek.runner(input: Input, config: Config?): Runner
 --@doc: Creates a new [Runner][Runner] that runs the given [Input][Input]. An
--- optional [UnitConfig][UnitConfig] configures how units are run.
-function export.runner(input: Input?, config: UnitConfig?): Runner
+-- optional [Config][Config] configures how units are run.
+function export.runner(input: Input?, config: Config?): Runner
 	local tree = newTree()
 	if input ~= nil then
 		processInput(tree, tree.Root, input)
@@ -1434,7 +1451,7 @@ function export.runner(input: Input?, config: UnitConfig?): Runner
 	local self: _Runner = setmetatable({
 		_active = nil,
 		_tree = tree,
-		_config = newUnitConfig(config),
+		_config = newConfig(config),
 		_resultObservers = {},
 		_metricObservers = {},
 	}, Runner) :: any
@@ -1679,7 +1696,7 @@ end
 
 -- Runs the closure of *node* as a benchmark unit using *ctxm* to provide
 -- context.
-local function runBenchmark(node: Node, config: UnitConfig, ctxm: ContextManager<T>)
+local function runBenchmark(node: Node, config: Config, ctxm: ContextManager<T>)
 	local state = newUnitState()
 	local operated = false
 	local function context(t: ContextObject)

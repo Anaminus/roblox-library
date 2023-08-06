@@ -44,7 +44,7 @@ end
 1. [Spek][Spek]
 	1. [Spek.find][Spek.find]
 	2. [Spek.runner][Spek.runner]
-2. [UnitConfig][UnitConfig]
+2. [Config][Config]
 3. [T][T]
 	1. [T.TODO][T.TODO]
 	2. [T.after_each][T.after_each]
@@ -107,16 +107,16 @@ Locates speks under a given instance.
 ## Spek.runner
 [Spek.runner]: #spekrunner
 ```
-function Spek.runner(input: Input, config: UnitConfig?): Runner
+function Spek.runner(input: Input, config: Config?): Runner
 ```
 
 Creates a new [Runner][Runner] that runs the given [Input][Input]. An
-optional [UnitConfig][UnitConfig] configures how units are run.
+optional [Config][Config] configures how units are run.
 
-# UnitConfig
-[UnitConfig]: #unitconfig
+# Config
+[Config]: #config
 ```
-type UnitConfig = {
+type Config = {
 	Iterations: number?,
 	Duration: number?,
 }
@@ -126,7 +126,7 @@ Configures options for running a unit.
 
 Field      | Type    | Description
 -----------|---------|------------
-Iterations | number? | Target iterations for each benchmark. If unspecified, Duration is used.
+Iterations | number? | Target iterations for each benchmark. If unspecified, or zero or less, Duration is used.
 Duration   | number? | Target duration for each benchmark, in seconds. Defaults to 1.
 
 # T
