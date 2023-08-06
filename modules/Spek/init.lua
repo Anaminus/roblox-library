@@ -1347,6 +1347,15 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			end
 		end
 
+		function t.report(unit: string)
+			assert(type(unit) == "string", "string expected")
+			return function(value: number)
+				assert(type(value) == "number", "number expected")
+				local node = state:PeekNode()
+				node:UpdateMetric(value, unit)
+			end
+		end
+
 		function t.TODO(format: string?, ...: any)
 			local todo
 			if format == nil then
