@@ -491,27 +491,23 @@ local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): N
 	return table.freeze(node)
 end
 
--- Returns true if *old* and *new* are different. If 8struct* is true, then
--- *old* and *new* are assumed to contain the same fields.
-local function compareTables(struct: boolean, old: {[string]: any}, new: {[string]: any}): boolean
+-- Returns true if *old* and *new* are equivalent.
+local function tablesEqual(old: {[string]: any}, new: {[string]: any}): boolean
 	for key, value in old do
 		if new[key] ~= value then
-			return true
+			return false
 		end
-	end
-	if struct then
-		return false
 	end
 	for key, value in new do
 		if old[key] ~= value then
-			return true
+			return false
 		end
 	end
-	return false
+	return true
 end
 
--- Returns true if *old* and *new* are different.
-local function compareResults(old: Result?, new: Result?): boolean
+-- Returns true if *old* and *new* are equivalent.
+local function resultsEqual(old: Result?, new: Result?): boolean
 	if old == nil then
 		if new == nil then
 			return true
@@ -522,7 +518,7 @@ local function compareResults(old: Result?, new: Result?): boolean
 		if new == nil then
 			return false
 		else
-			return compareTables(true, old, new)
+			return tablesEqual(old, new)
 		end
 	end
 end
@@ -533,7 +529,7 @@ function Node.__index.UpdateResult(self: Node, result: Result?): boolean
 	if table.isfrozen(self.Data) then
 		return false
 	end
-	if compareResults(self.Data.Result, result) then
+	if resultsEqual(self.Data.Result, result) then
 		return false
 	end
 	self.Data.Result = result
