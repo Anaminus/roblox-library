@@ -942,7 +942,8 @@ export type T = {
 	--@doc: **While:** testing
 	--
 	-- Expects the result of an assertion to be truthy. The closure is called
-	-- while testing.
+	-- while testing. This function cannot be called within another expect
+	-- function.
 	expect: Clause<Assertion>,
 
 	--@sec: T.expect_error
@@ -950,7 +951,7 @@ export type T = {
 	--@doc: **While:** testing
 	--
 	-- Expects the closure to throw an error. The closure is called while
-	-- testing.
+	-- testing. This function cannot be called within another expect function.
 	expect_error: Clause<Closure>,
 
 	--@sec: T.parameter
@@ -1620,12 +1621,24 @@ end
 local function runTest(node: Node, ctxm: ContextManager<T>)
 	local state = newUnitState()
 	state.Iterations = 1
+	local expecting = false
 	local function context(t: ContextObject)
 		t.expect = newClause(function(description: any?, assertion: Assertion)
+			if expecting then
+				state.Result = newResult(node.Type, false, "cannot expect within expect")
+				return
+			end
+			expecting = true
 			if state.Result then
+				expecting = false
 				return
 			end
 			local ok, result, reason = pcall(assertion)
+			if state.Result then
+				-- In case of inner expect.
+				expecting = false
+				return
+			end
 			if ok then
 				if result then
 					-- Nil indicates okay result.
@@ -1639,10 +1652,22 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			else
 				state.Result = newResult(node.Type, ok, result)
 			end
+			expecting = false
 		end)
 
 		t.expect_error = newClause(function(description: any?, closure: Closure)
-			if pcall(closure) then
+			if expecting then
+				state.Result = newResult(node.Type, false, "cannot expect within expect")
+				return
+			end
+			expecting = true
+			local ok = pcall(closure)
+			if state.Result then
+				-- In case of inner expect.
+				expecting = false
+				return
+			end
+			if ok then
 				local reason
 				if description == nil then
 					reason = "expect error"
@@ -1651,6 +1676,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				end
 				state.Result = newResult(node.Type, false, reason)
 			end
+			expecting = false
 		end)
 
 		function t.reset_timer()

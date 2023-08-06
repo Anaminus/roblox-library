@@ -269,7 +269,8 @@ expect: Clause<Assertion>
 **While:** testing
 
 Expects the result of an assertion to be truthy. The closure is called
-while testing.
+while testing. This function cannot be called within another expect
+function.
 
 ## T.expect_error
 [T.expect_error]: #texpect_error
@@ -280,7 +281,7 @@ expect_error: Clause<Closure>
 **While:** testing
 
 Expects the closure to throw an error. The closure is called while
-testing.
+testing. This function cannot be called within another expect function.
 
 ## T.it
 [T.it]: #tit
