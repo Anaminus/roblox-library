@@ -1830,6 +1830,7 @@ end
 
 -- Begins a new run, visiting each node and running its unit.
 function Runner.__index._start(self: _Runner): WaitGroup
+	self:Reset()
 	local wg = newWaitGroup()
 	self._active = wg
 	local function visit(node: Node, ctxm: ContextManager<T>?)
