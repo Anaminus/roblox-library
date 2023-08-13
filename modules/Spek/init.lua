@@ -724,8 +724,6 @@ type Tree = {
 	Nodes: {[Path]: Node},
 	-- The implicit root node.
 	Root: Node,
-	-- Whether the tree contains nodes with pending data.
-	IsDirty: boolean,
 
 	-- Observes the results of nodes in the tree.
 	ResultObserver: ResultObserver?,
@@ -748,13 +746,20 @@ type Tree = {
 		...any
 	) -> Node,
 
-	-- Mark tree as dirty. At a defer point, the tree will reconcile any dirty
-	-- nodes.
+
+	-- Active deferred maintenance thread. Indicates that the tree contains
+	-- pending data.
+	MaintenanceThread: thread?,
+	-- Reconciles any dirty nodes.
+	Maintenance: (self: Tree) -> (),
+	-- Mark tree as dirty. At a defer point, the tree will perform maintenance.
 	Dirty: (self: Tree) -> (),
 	-- Update derivative data.
 	ReconcileData: (self: Tree) -> (),
 	-- Inform observers of changes.
 	InformObservers: (self: Tree) -> (),
+	-- Resets node results to pending.
+	Reset: (self: Tree) -> (),
 }
 
 -- Creates a new Tree witht the given configuration.
@@ -762,9 +767,9 @@ local function newTree(): Tree
 	local self: Tree = setmetatable({
 		Nodes = {},
 		Root = nil,
-		IsDirty = false,
 		ResultObserver = nil,
 		MetricObserver = nil,
+		MaintenanceThread = nil,
 	}, Tree) :: any
 	newNode(self, "node", nil)
 	return self
@@ -796,20 +801,21 @@ function Tree.__index.CreateErrorNode(
 	return node
 end
 
+-- Reconciles data and informs the configured observers of changed data.
+function Tree.__index.Maintenance(self: Tree)
+	self:ReconcileData()
+	self:InformObservers()
+	self.MaintenanceThread = nil
+end
+
 -- If the tree is not dirty, marks the tree as dirty, and defers a task that
--- reconciles data and informs the configured observers of changed data.
+-- performs maintenance.
 function Tree.__index.Dirty(self: Tree)
-	if self.IsDirty then
+	if self.MaintenanceThread then
 		return
 	end
-	self.IsDirty = true
-	task.defer(function(self: Tree)
-		if not self.IsDirty then
-			return
-		end
-		self:ReconcileData()
-		self:InformObservers()
-		self.IsDirty = false
+	self.MaintenanceThread = task.defer(function(self: Tree)
+		self:Maintenance()
 	end, self)
 end
 
@@ -824,6 +830,24 @@ function Tree.__index.InformObservers(self: Tree)
 	local result = self.ResultObserver or function()end
 	local metric = self.MetricObserver or function()end
 	self.Root:Inform(result, metric)
+end
+
+-- Resets node results to pending. If any maintenance is needed, it is performed
+-- immediately.
+function Tree.__index.Reset(self: Tree)
+	for _, node in self.Nodes do
+		if not table.isfrozen(node.Data) then
+			node:UpdateResult(newResult(node.Type, nil, ""))
+			for unit, value in node.Data.Metrics do
+				node:UpdateMetric(value, unit)
+			end
+		end
+	end
+	-- Skip any deferred maintenance.
+	if self.MaintenanceThread then
+		task.cancel(self.MaintenanceThread)
+	end
+	self:Maintenance()
 end
 
 --------------------------------------------------------------------------------
@@ -1840,7 +1864,7 @@ end
 
 -- Begins a new run, visiting each node and running its unit.
 function Runner.__index._start(self: _Runner): WaitGroup
-	self:Reset()
+	self._tree:Reset()
 	local wg = newWaitGroup()
 	self._active = wg
 	local function visit(node: Node, ctxm: ContextManager<T>?)
@@ -1923,14 +1947,7 @@ end
 --@def: function Runner:Reset()
 --@doc: Clears all results.
 function Runner.__index.Reset(self: _Runner)
-	for _, node in self._tree.Nodes do
-		if not table.isfrozen(node.Data) then
-			node:UpdateResult(newResult(node.Type, nil, ""))
-			for unit, value in node.Data.Metrics do
-				node:UpdateMetric(value, unit)
-			end
-		end
-	end
+	self._tree:Reset()
 end
 
 --@sec: Runner.Root
