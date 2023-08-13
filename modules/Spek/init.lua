@@ -410,6 +410,9 @@ type Node = {
 		Benchmark: boolean,
 	},
 
+	-- Whether the node type indicates a leaf node.
+	IsLeaf: (self: Node) -> boolean,
+
 	-- Updates data of the node. Returns false if the node is frozen.
 	UpdateResult: (self: Node, result: Result) -> boolean,
 	UpdateMetric: (self: Node, value: number, unit: string) -> boolean,
@@ -498,6 +501,11 @@ local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): N
 	return table.freeze(node)
 end
 
+-- Returns whether Type indicates a leaf node.
+function Node.__index.IsLeaf(self: Node): boolean
+	return self.Type == "test" or self.Type == "benchmark"
+end
+
 -- Returns true if *old* and *new* are equivalent.
 local function tablesEqual(old: {[string]: any}, new: {[string]: any}): boolean
 	for key, value in old do
@@ -564,8 +572,12 @@ end
 -- aggregation of the children's results. Returns whether there were changes.
 function Node.__index.ReconcileResults(self: Node): boolean
 	if #self.Children == 0 then
-		-- Return whether leaf node has pending result.
-		return self.Pending.Result
+		if self:IsLeaf() then
+			-- Return whether leaf node has pending result.
+			return self.Pending.Result
+		end
+		-- Non-leaf node with no children; aggregate as okay.
+		return self:UpdateResult(newResult(self.Type, true, ""))
 	end
 	-- Reconcile children.
 	local changed = false
