@@ -792,6 +792,9 @@ function Tree.__index.Dirty(self: Tree)
 	end
 	self.IsDirty = true
 	task.defer(function(self: Tree)
+		if not self.IsDirty then
+			return
+		end
 		self:ReconcileData()
 		self:InformObservers()
 		self.IsDirty = false
