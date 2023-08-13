@@ -318,22 +318,29 @@ end
 --@sec: Result
 --@def: type Result = {
 -- 	Type: ResultType,
--- 	Okay: boolean,
+-- 	Status: boolean?,
 -- 	Reason: string,
 -- 	Trace: string?,
 -- }
 --@doc: Represents the result of a unit. Converting to a string displays a
 -- formatted result.
 --
--- Field  | Type                     | Description
--- -------|--------------------------|------------
--- Type   | [ResultType][ResultType] | Indicates the type of result.
--- Okay   | boolean                  | The status of the unit; whether the unit succeeded or failed. For benchmarks, this will be false if the benchmark errored. For nodes and plans, represents the conjunction of the status of all sub-units.
--- Reason | string                   | A message describing the reason for the status. Empty if the unit succeeded.
--- Trace  | string?                  | An optional stack trace to supplement the Reason.
+-- The **Type** field is a [ResultType][ResultType] that indicates the type of
+-- result.
+--
+-- The **Status** field indicates whether the unit succeeded or failed. A nil
+-- status indicates that the result is pending. For benchmarks, it will be false
+-- if the benchmark errored. For nodes and plans, represents the conjunction of
+-- the status of all sub-units. If any sub-unit has a pending result, then the
+-- status will also be pending.
+--
+-- The **Reason** field is a message describing the reason for the status.
+-- Usually empty if the unit succeeded.
+--
+-- The **Trace** field is an optional stack trace to supplement the Reason.
 export type Result = {
 	Type: ResultType,
-	Okay: boolean,
+	Status: boolean?,
 	Reason: string,
 	Trace: string?,
 }
@@ -341,14 +348,14 @@ export type Result = {
 -- Constructs a new immutable Result.
 local function newResult(
 	type: ResultType,
-	okay: boolean,
+	status: boolean?,
 	reason: string,
 	trace: string?
 ): Result
 	--TODO: Should be formattable.
 	return table.freeze{
 		Type = type,
-		Okay = okay,
+		Status = status,
 		Reason = reason,
 		Trace = trace,
 	}
@@ -385,7 +392,7 @@ type Node = {
 		After: {Closure},
 		-- Specific or aggregate result of the node. If the node was created as
 		-- an error, this will be filled in with the error.
-		Result: Result?,
+		Result: Result,
 		-- Specific or aggregate measurements about the node.
 		Metrics: Metrics,
 		-- Number of times the unit ran.
@@ -404,7 +411,7 @@ type Node = {
 	},
 
 	-- Updates data of the node. Returns false if the node is frozen.
-	UpdateResult: (self: Node, result: Result?) -> boolean,
+	UpdateResult: (self: Node, result: Result) -> boolean,
 	UpdateMetric: (self: Node, value: number, unit: string) -> boolean,
 	UpdateBenchmark: (self: Node, iterations: number, duration: number) -> boolean,
 
@@ -464,7 +471,7 @@ local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): N
 			Closure = nil,
 			Before = {},
 			After = {},
-			Result = nil,
+			Result = newResult(type, nil, ""),
 			Metrics = {},
 			Iterations = 0,
 			Duration = 0,
@@ -506,30 +513,13 @@ local function tablesEqual(old: {[string]: any}, new: {[string]: any}): boolean
 	return true
 end
 
--- Returns true if *old* and *new* are equivalent.
-local function resultsEqual(old: Result?, new: Result?): boolean
-	if old == nil then
-		if new == nil then
-			return true
-		else
-			return false
-		end
-	else
-		if new == nil then
-			return false
-		else
-			return tablesEqual(old, new)
-		end
-	end
-end
-
 -- Sets the result of the node to *result*. Marks the result as pending, and
 -- marks the tree as dirty. Returns whether the data changed.
-function Node.__index.UpdateResult(self: Node, result: Result?): boolean
+function Node.__index.UpdateResult(self: Node, result: Result): boolean
 	if table.isfrozen(self.Data) then
 		return false
 	end
-	if resultsEqual(self.Data.Result, result) then
+	if tablesEqual(self.Data.Result, result) then
 		return false
 	end
 	self.Data.Result = result
@@ -587,21 +577,20 @@ function Node.__index.ReconcileResults(self: Node): boolean
 		return false
 	end
 	--TODO: aggregate reason/trace.
-	local okay = true
+	local status: boolean? = true
 	for _, node in self.Children do
-		local result = node.Data.Result
-		if result then
-			okay = okay and result.Okay
-			if not okay then
-				break
-			end
+		-- Have result status as first operand to ensure that nil status is
+		-- propagated as nil.
+		status = node.Data.Result.Status and status
+		if not status then
+			break
 		end
 	end
 	local result
-	if okay then
-		result = newResult(self.Type, true, "")
-	else
+	if status == false then
 		result = newResult(self.Type, false, "one or more results failed")
+	else
+		result = newResult(self.Type, status, "")
 	end
 	return self:UpdateResult(result)
 end
@@ -1464,7 +1453,7 @@ function export.runner(input: Input?, config: Config?): Runner
 		_resultObservers = {},
 		_metricObservers = {},
 	}, Runner) :: any
-	tree.ResultObserver = function(path: Path, result: Result?)
+	tree.ResultObserver = function(path: Path, result: Result)
 		for _, observer in self._resultObservers do
 			observer(path, result)
 		end
@@ -1512,14 +1501,14 @@ function Runner.__tostring(self: _Runner): string
 	local out = {""}
 	for _, node in nodes do
 		local result = node.node.Data.Result
-		local okay = if result then result.Okay else true
-		local reason = if result then result.Reason else ""
+		local status = result.Status
+		local reason = result.Reason
 		table.insert(out,
 			node.name
 			.. " "
 			.. string.rep("…", max-(utf8.len(node.name) or #node.name))
 			.. " | "
-			.. (if okay then " ok " else "FAIL")
+			.. (if status then " ok " elseif status == nil then "pend" else "FAIL")
 			.. " | "
 			.. reason
 		)
@@ -1590,9 +1579,10 @@ local function runUnit(node: Node, state: UnitState)
 		result = state.Result
 	end
 	if result == nil then
-		result = newResult(node.Type, true, "")
+		node:UpdateResult(newResult(node.Type, true, ""))
+	else
+		node:UpdateResult(result)
 	end
-	node:UpdateResult(result)
 	node:UpdateBenchmark(state.Iterations, state.Duration)
 	for unit, value in state.Metrics do
 		node:UpdateMetric(value, unit)
@@ -1919,7 +1909,7 @@ end
 function Runner.__index.Reset(self: _Runner)
 	for _, node in self._tree.Nodes do
 		if not table.isfrozen(node.Data) then
-			node:UpdateResult(nil)
+			node:UpdateResult(newResult(node.Type, nil, ""))
 			for unit, value in node.Data.Metrics do
 				node:UpdateMetric(value, unit)
 			end
@@ -1996,9 +1986,9 @@ function Runner.__index.Metrics(self: _Runner, path: Path): Metrics?
 end
 
 --@sec: ResultObserver
---@def: type ResultObserver = (path: Path, result: Result?) -> ()
+--@def: type ResultObserver = (path: Path, result: Result) -> ()
 --@doc: Observes the result of *path*.
-export type ResultObserver = (path: Path, result: Result?) -> ()
+export type ResultObserver = (path: Path, result: Result) -> ()
 
 --@sec: MetricObserver
 --@def: type MetricObserver = (path: Path, unit: string, value: number) -> ()
