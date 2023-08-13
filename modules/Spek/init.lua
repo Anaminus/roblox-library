@@ -1357,6 +1357,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			end
 			local node = state:PeekNode()
 			node:UpdateResult(newResult(node.Type, true, todo))
+			table.freeze(node.Data)
 		end
 	end
 end
