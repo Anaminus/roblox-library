@@ -399,6 +399,9 @@ type Node = {
 	Data: {
 		-- Context associated with a plan.
 		ContextManager: ContextManager<T>?,
+		-- By default, siblings nodes are run serially. If true, this node
+		-- should be run concurrently in separate thread.
+		Concurrent: boolean?,
 		-- Deferred closure associated with the node.
 		Closure: Closure?,
 		--  Closures to run before Closure.
@@ -1877,35 +1880,68 @@ local function runBenchmark(node: Node, config: Config, ctxm: ContextManager<T>)
 	end)
 end
 
+-- Runs each unit in *node*. *outer* is an outer WaitGroup to which an inner
+-- WaitGroup may be added. *ctxm* is passed down to children nodes.
+local function runUnits(self: _Runner, node: Node, outer: WaitGroup, ctxm: ContextManager<T>?)
+	-- Leaf units can be called directly. We may be inside a serial unit, where
+	-- an error in one unit would prevent subsequent units from running, but the
+	-- only potential errors are non-userspace.
+	if node.Type == "test" then
+		runTest(node, (assert(ctxm, "missing thread context")))
+		return
+	elseif node.Type == "benchmark" then
+		runBenchmark(node, self._config, (assert(ctxm, "missing thread context")))
+		return
+	end
+
+	-- Branch unit.
+
+	-- Pass context manager to children, if available.
+	if node.Data.ContextManager and ctxm then
+		error("nested context managers")
+	end
+	ctxm = node.Data.ContextManager or ctxm
+
+	-- Divide children into serial and concurrent units.
+	local serial = {}
+	local concurrent = {}
+	for _, child in node.Children do
+		if child.Data.Concurrent then
+			table.insert(concurrent, child)
+		else
+			table.insert(serial, child)
+		end
+	end
+
+	-- Represents lifetime of children units.
+	local inner = newWaitGroup()
+
+	-- Add serial units as one dependency.
+	inner:Add(function(serial: {Node}, ctxm: ContextManager<T>?)
+		for _, child in serial do
+			runUnits(self, child, inner, ctxm)
+		end
+	end, serial, ctxm)
+
+	-- Add each concurrent unit individually.
+	for _, child in concurrent do
+		inner:Add(runUnits, self, child, inner, ctxm)
+	end
+
+	-- Add inner as dependency of outer.
+	outer:AddWaitGroup(inner)
+end
+
 -- Begins a new run, visiting each node and running its unit.
 function Runner.__index._start(self: _Runner): WaitGroup
 	self._tree:Reset()
+
+	-- Represents lifetime of entire run.
 	local wg = newWaitGroup()
 	self._active = wg
-	local function visit(node: Node, ctxm: ContextManager<T>?)
-		if node.Type == "test" then
-			wg:Add(
-				runTest,
-				node,
-				(assert(ctxm, "missing thread context"))
-			)
-		elseif node.Type == "benchmark" then
-			wg:Add(
-				runBenchmark,
-				node,
-				self._config,
-				(assert(ctxm, "missing thread context"))
-			)
-		else
-			for _, child in node.Children do
-				if node.Data.ContextManager and ctxm then
-					error("nested context managers")
-				end
-				visit(child, node.Data.ContextManager or ctxm)
-			end
-		end
-	end
-	visit(self._tree.Root)
+
+	runUnits(self, self._tree.Root, wg)
+
 	return wg
 end
 
