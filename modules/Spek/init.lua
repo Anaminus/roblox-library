@@ -118,7 +118,9 @@ type WaitGroup = {
 	-- Threads waiting on the group.
 	_dependents: {thread},
 
+	Finish: (self: WaitGroup) -> (),
 	Add: <X...>(self: WaitGroup, func: (X...)->(), X...) -> (),
+	AddWaitGroup: (self: WaitGroup, wg: WaitGroup) -> (),
 	Wait: (self: WaitGroup) -> (),
 	Cancel: (self: WaitGroup) -> (),
 }
@@ -132,6 +134,18 @@ local function newWaitGroup(): WaitGroup
 	return table.freeze(self)
 end
 
+-- Called by a dependency to indicate that it is finished.
+function WaitGroup.__index.Finish(self: WaitGroup)
+	self._dependencies[coroutine.running()] = nil
+	if next(self._dependencies) then
+		return
+	end
+	for _, thread in self._dependents do
+		task.defer(thread)
+	end
+	table.clear(self._dependents)
+end
+
 -- Adds a function call as a dependency thread to wait on.
 function WaitGroup.__index.Add<X...>(self: WaitGroup, func: (X...)->(), ...: X...)
 	local function doFunc<X...>(func: (X...)->(), ...: X...)
@@ -139,17 +153,18 @@ function WaitGroup.__index.Add<X...>(self: WaitGroup, func: (X...)->(), ...: X..
 		if not ok then
 			error(string.format("waitgroup dependency errored: %s", err))
 		end
-
-		self._dependencies[coroutine.running()] = nil
-		if next(self._dependencies) then
-			return
-		end
-		for _, thread in self._dependents do
-			task.defer(thread)
-		end
-		table.clear(self._dependents)
+		self:Finish()
 	end
 	local thread = task.defer(doFunc, func, ...)
+	self._dependencies[thread] = true
+end
+
+-- Adds a WaitGroup as a dependency.
+function WaitGroup.__index.AddWaitGroup<X...>(self: WaitGroup, wg: WaitGroup)
+	local thread = task.defer(function()
+		wg:Wait()
+		self:Finish()
+	end)
 	self._dependencies[thread] = true
 end
 
