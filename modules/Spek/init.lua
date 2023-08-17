@@ -402,6 +402,10 @@ type Node = {
 		-- By default, siblings nodes are run serially. If true, this node
 		-- should be run concurrently in separate thread.
 		Concurrent: boolean?,
+		-- If true, this node should be among the only nodes run.
+		Only: boolean?,
+		-- If true, this node should not run.
+		Skip: boolean?,
 		-- Deferred closure associated with the node.
 		Closure: Closure?,
 		--  Closures to run before Closure.
@@ -2082,15 +2086,32 @@ local function runBenchmark(node: Node, config: Config, ctxm: ContextManager<T>)
 end
 
 -- Runs each unit in *node*. *outer* is an outer WaitGroup to which an inner
--- WaitGroup may be added. *ctxm* is passed down to children nodes.
-local function runUnits(self: _Runner, node: Node, outer: WaitGroup, ctxm: ContextManager<T>?)
+-- WaitGroup may be added. *ctxm* is passed down to children nodes. If
+-- *onlyMode* is true, then leaf units do not run by default.
+local function runUnits(self: _Runner, node: Node, outer: WaitGroup, onlyMode: boolean, ctxm: ContextManager<T>?)
+	if node.Data.Skip then
+		return
+	end
+
+	-- Whether to skip leaf unit. Also used for branch units: if branch unit has
+	-- Only flag set while onlyMode is on, then it will run as though onlyMode
+	-- is off, causing all descendant leaf units to run. Otherwise, it will run
+	-- while passing state of onlyMode.
+	local skip = onlyMode and not node.Data.Only
+
 	-- Leaf units can be called directly. We may be inside a serial unit, where
 	-- an error in one unit would prevent subsequent units from running, but the
 	-- only potential errors are non-userspace.
 	if node.Type == "test" then
+		if skip then
+			return
+		end
 		runTest(node, (assert(ctxm, "missing thread context")))
 		return
 	elseif node.Type == "benchmark" then
+		if skip then
+			return
+		end
 		runBenchmark(node, self._config, (assert(ctxm, "missing thread context")))
 		return
 	end
@@ -2120,13 +2141,13 @@ local function runUnits(self: _Runner, node: Node, outer: WaitGroup, ctxm: Conte
 	-- Add serial units as one dependency.
 	inner:Add(function(serial: {Node}, ctxm: ContextManager<T>?)
 		for _, child in serial do
-			runUnits(self, child, inner, ctxm)
+			runUnits(self, child, inner, skip, ctxm)
 		end
 	end, serial, ctxm)
 
 	-- Add each concurrent unit individually.
 	for _, child in concurrent do
-		inner:Add(runUnits, self, child, inner, ctxm)
+		inner:Add(runUnits, self, child, inner, skip, ctxm)
 	end
 
 	-- Add inner as dependency of outer.
@@ -2141,7 +2162,15 @@ function Runner.__index._start(self: _Runner): WaitGroup
 	local wg = newWaitGroup()
 	self._active = wg
 
-	runUnits(self, self._tree.Root, wg)
+	-- Determine whether there are any nodes that have Only flag set.
+	local only = false
+	for _, node in self._tree.Nodes do
+		if node:IsLeaf() then
+			only = only or (not not node.Data.Only and not node.Data.Skip)
+		end
+	end
+
+	runUnits(self, self._tree.Root, wg, only)
 
 	return wg
 end
