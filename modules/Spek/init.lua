@@ -1034,6 +1034,12 @@ end
 -- end
 -- ```
 export type T = {
+	--@sec: T.concurrently
+	--@def: concurrently: Flag
+	--@doc: When passed to a [FlagClause][FlagClause], causes the created unit
+	-- to run concurrently with sibling units.
+	concurrently: Flag,
+
 	--@sec: T.describe
 	--@def: describe: FlagClause<Closure>
 	--@doc: **While:** planning
@@ -1284,20 +1290,28 @@ end
 
 -- Contains flags that have been set on a clause.
 type Flags = {
+	Concurrent: boolean,
 }
 
+-- Constants representing flags passed to a FlagClause.
+local CONCURRENT: Flag = table.freeze{type="flag", kind="concurrently"} :: any
 -- Returns whether a value is a valid flag.
 local function isFlag(flag: any): boolean
-	return false
+	return flag == CONCURRENT
 end
 
 -- Converts a list of arguments into a Flags.
 local function parseFlags(...: unknown): Flags
 	local flags = {
+		Concurrent = false,
 	}
 	for i = 1, select("#", ...) do
 		local arg = select(i, ...)
-		error("unknown flag", 3)
+		if arg == CONCURRENT then
+			flags.Concurrent = true
+		else
+			error("unknown flag", 3)
+		end
 	end
 	return table.freeze(flags)
 end
@@ -1307,6 +1321,7 @@ local function setFlags(node: Node, flags: Flags)
 	if table.isfrozen(node.Data) then
 		return
 	end
+	node.Data.Concurrent = flags.Concurrent
 end
 
 -- Returns a FlagClause function, where flags can optionally be passed after the
@@ -1633,6 +1648,10 @@ local function processInput(tree: Tree, parent: Node, input: Input)
 	if type(input) == "function" then
 		-- Assumed to be a plan function.
 		local ctxm = newContextManager(
+			{
+				concurrently = CONCURRENT,
+			},
+
 			"describe",
 			"before_each",
 			"after_each",

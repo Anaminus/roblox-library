@@ -49,17 +49,18 @@ end
 	1. [T.TODO][T.TODO]
 	2. [T.after_each][T.after_each]
 	3. [T.before_each][T.before_each]
-	4. [T.describe][T.describe]
-	5. [T.expect][T.expect]
-	6. [T.expect_error][T.expect_error]
-	7. [T.it][T.it]
-	8. [T.measure][T.measure]
-	9. [T.operation][T.operation]
-	10. [T.parameter][T.parameter]
-	11. [T.report][T.report]
-	12. [T.reset_timer][T.reset_timer]
-	13. [T.start_timer][T.start_timer]
-	14. [T.stop_timer][T.stop_timer]
+	4. [T.concurrently][T.concurrently]
+	5. [T.describe][T.describe]
+	6. [T.expect][T.expect]
+	7. [T.expect_error][T.expect_error]
+	8. [T.it][T.it]
+	9. [T.measure][T.measure]
+	10. [T.operation][T.operation]
+	11. [T.parameter][T.parameter]
+	12. [T.report][T.report]
+	13. [T.reset_timer][T.reset_timer]
+	14. [T.start_timer][T.start_timer]
+	15. [T.stop_timer][T.stop_timer]
 4. [Runner][Runner]
 	1. [Runner.All][Runner.All]
 	2. [Runner.Metrics][Runner.Metrics]
@@ -317,6 +318,15 @@ before_each: Statement<Closure>
 
 Defines function to call before each unit within the scope. The closure
 is called while testing or benchmarking.
+
+## T.concurrently
+[T.concurrently]: #tconcurrently
+```
+concurrently: Flag
+```
+
+When passed to a [FlagClause][FlagClause], causes the created unit
+to run concurrently with sibling units.
 
 ## T.describe
 [T.describe]: #tdescribe
