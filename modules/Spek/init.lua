@@ -1318,17 +1318,17 @@ export type Parameter = unknown
 --
 -- If called with the non-description form, the description will be nil. If
 -- called with the description form, errors if nil is passed as the description.
-local function newClause<X>(process: (description: any?, closure: X)->()): Clause<X>
+local function newClause<X>(process: (description: string?, closure: X)->()): Clause<X>
 	return function(description: any | X): any
-		if description == nil then
-			error("description cannot be nil", 2)
-		elseif type(description) == "function" then
+		if type(description) == "function" then
 			process(nil, description)
 			return
-		else
+		elseif type(description) == "string" then
 			return function(closure: X)
 				process(description, closure)
 			end
+		else
+			error(string.format("description must be a string, got %s", typeof(description)), 2)
 		end
 	end
 end
@@ -1394,22 +1394,9 @@ end
 --
 -- If called with the non-description form, the description will be nil. If
 -- called with the description form, errors if nil is passed as the description.
-local function newFlagClause<X>(process: (description: any?, flags: Flags, closure: X)->()): FlagClause<X>
+local function newFlagClause<X>(process: (description: string?, flags: Flags, closure: X)->()): FlagClause<X>
 	return function(...: any): any
-		if ... == nil then
-			error("description cannot be nil", 2)
-		elseif type(...) == "function" then
-			-- clause (closure)
-			local closure = ...
-			process(nil, parseFlags(), closure)
-			return
-		elseif isFlag(...) then
-			-- clause (flags...) (closure)
-			local flags = parseFlags(...)
-			return function(closure: X)
-				process(nil, flags, closure)
-			end
-		else
+		if type((...)) == "string" then
 			-- clause (description) ...
 			local description = ...
 			return function(...: any): Statement<X>?
@@ -1428,6 +1415,19 @@ local function newFlagClause<X>(process: (description: any?, flags: Flags, closu
 					error("closure must be a function", 2)
 				end
 			end
+		elseif type((...)) == "function" then
+			-- clause (closure)
+			local closure = ...
+			process(nil, parseFlags(), closure)
+			return
+		elseif isFlag(...) then
+			-- clause (flags...) (closure)
+			local flags = parseFlags(...)
+			return function(closure: X)
+				process(nil, flags, closure)
+			end
+		else
+			error(string.format("description must be a string, got %s", typeof((...))), 2)
 		end
 	end
 end
@@ -1556,7 +1556,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 	table.insert(state.Stack, parent)
 
 	return function(t: ContextObject)
-		t.describe = newFlagClause(function(desc: any?, flags: Flags, closure: Closure)
+		t.describe = newFlagClause(function(desc: string?, flags: Flags, closure: Closure)
 			-- Run closure using created node as context.
 			state:CreateNode("node", desc, flags)
 			closure()
@@ -1573,7 +1573,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			table.insert(node.Data.After, closure)
 		end
 
-		t.it = newFlagClause(function(desc: any?, flags: Flags, closure: Closure)
+		t.it = newFlagClause(function(desc: string?, flags: Flags, closure: Closure)
 			state:CreateNode("test", desc, flags, closure)
 			state:PopNode()
 		end)
@@ -1611,7 +1611,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 		-- Generates a benchmark unit for each permutation of the given parameters.
 		-- If the given description cannot be formatted according to the given
 		-- parameters, then only one benchmark is generated.
-		local function generateBenchmarks(key: any, flags: Flags, benchmark: Benchmark, ...: Parameter)
+		local function generateBenchmarks(key: string?, flags: Flags, benchmark: Benchmark, ...: Parameter)
 			-- List of first variation of each parameter.
 			local firsts: {n: number, [number]: any} = table.pack(...)
 			for i, param in ipairs(firsts) do
@@ -1621,13 +1621,13 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 
 			-- Verify that key can be used to format parameters.
 			local ok = pcall(function(...: Parameter)
-				string.format(key, table.unpack(firsts, 1, firsts.n))
+				string.format(key::any, table.unpack(firsts, 1, firsts.n))
 			end, ...)
 
 			if ok then
 				local parameters = table.freeze(table.pack(...))
 				permuteParameters(parameters::any, function(...)
-					local formatted = string.format(key, ...)
+					local formatted = string.format(assert(key, "key expected"), ...)
 					local values = table.freeze(table.pack(...))
 					state:CreateNode("benchmark", formatted, flags, function()
 						benchmark(table.unpack(values, 1, values.n))
@@ -1645,20 +1645,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 		end
 
 		function t.measure<X...>(...: any): BenchmarkStatement?
-			if ... == nil then
-				error("description cannot be nil", 2)
-			elseif type(...) == "function" then
-				-- clause (benchmark, parameters...)
-				local benchmark = ...
-				generateBenchmarks(nil, parseFlags(), benchmark, select(2, ...))
-				return
-			elseif isFlag(...) then
-				-- clause (flags...) (benchmark, parameters...)
-				local flags = parseFlags(...)
-				return function(benchmark: Benchmark, ...: Parameter)
-					generateBenchmarks(nil, flags, benchmark, ...)
-				end
-			else
+			if type((...)) == "string" then
 				-- clause (description) ...
 				local description = ...
 				return function(...: any)
@@ -1677,6 +1664,19 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 						error("closure must be a function", 2)
 					end
 				end
+			elseif type((...)) == "function" then
+				-- clause (benchmark, parameters...)
+				local benchmark = ...
+				generateBenchmarks(nil, parseFlags(), benchmark, select(2, ...))
+				return
+			elseif isFlag(...) then
+				-- clause (flags...) (benchmark, parameters...)
+				local flags = parseFlags(...)
+				return function(benchmark: Benchmark, ...: Parameter)
+					generateBenchmarks(nil, flags, benchmark, ...)
+				end
+			else
+				error(string.format("description must be a string, got %s", typeof((...))), 2)
 			end
 		end
 
@@ -1969,7 +1969,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 	state.Iterations = 1
 	local expecting = false
 	local function context(t: ContextObject)
-		t.expect = newClause(function(description: any?, assertion: Assertion)
+		t.expect = newClause(function(description: string?, assertion: Assertion)
 			if expecting then
 				state.Result = newResult(node.Type, false, "cannot expect within expect")
 				return
@@ -2001,7 +2001,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			expecting = false
 		end)
 
-		t.expect_error = newClause(function(description: any?, closure: Closure)
+		t.expect_error = newClause(function(description: string?, closure: Closure)
 			if expecting then
 				state.Result = newResult(node.Type, false, "cannot expect within expect")
 				return
