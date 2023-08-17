@@ -79,19 +79,21 @@ end
 7. [BenchmarkClause][BenchmarkClause]
 8. [Clause][Clause]
 9. [Closure][Closure]
-10. [Input][Input]
-11. [MetricObserver][MetricObserver]
-12. [Metrics][Metrics]
-13. [Parameter][Parameter]
-14. [ParameterClause][ParameterClause]
-15. [Path][Path]
+10. [Flag][Flag]
+11. [FlagClause][FlagClause]
+12. [Input][Input]
+13. [MetricObserver][MetricObserver]
+14. [Metrics][Metrics]
+15. [Parameter][Parameter]
+16. [ParameterClause][ParameterClause]
+17. [Path][Path]
 	1. [Path.Base][Path.Base]
 	2. [Path.Elements][Path.Elements]
-16. [Plan][Plan]
-17. [Result][Result]
-18. [ResultObserver][ResultObserver]
-19. [ResultType][ResultType]
-20. [Unsubscribe][Unsubscribe]
+18. [Plan][Plan]
+19. [Result][Result]
+20. [ResultObserver][ResultObserver]
+21. [ResultType][ResultType]
+22. [Unsubscribe][Unsubscribe]
 
 </td></tr></tbody>
 </table>
@@ -149,7 +151,7 @@ return function(t: Spek.T)
 end
 ```
 
-## Test functions
+## Statement functions
 
 Some functions are "Statements". A statement is a function that receives a
 value of some specified type.
@@ -215,7 +217,74 @@ The following contexts are available:
 
 The [measure][T.measure] function defines a benchmark.
 
-TODO: finish T docs
+## Units
+
+While planning, certain functions will produce a **unit**.
+
+- The [it][T.it] function produces a test unit.
+- The [measure][T.measure] function produces a benchmark unit.
+- The [describe][T.describe] function produces an aggregate unit. This runs
+  each sub-unit it contains.
+
+By default, aggregate units run their sub-units serially. This means that, in
+turn, all units run serially. This is to ensure that upvalues aren't accessed
+by more than one unit at the same time.
+
+The above functions allow the "concurrently" flag to be specified. Doing so
+will cause the unit to run concurrently with sibling units. This allows a
+series of independent units to run at the same time rather than sequentially,
+but care must be taken to ensure that no upvalues are shared with other
+concurrent units.
+
+An aggregate unit will wait for all sub-units to complete, whether they're
+serial or concurrent.
+
+```lua
+return function(t: Spek.T)
+	-- This context will run concurrently, but its contents still run serially.
+	t.describe "unit that takes 6 seconds to complete" (concurrently) (function()
+		t.it "takes 1 second to complete" (function()
+			task.wait(1)
+			t.assert(function()
+				return true
+			end)
+		end)
+		t.it "takes 2 seconds to complete" (function()
+			task.wait(2)
+			t.assert(function()
+				return true
+			end)
+		end)
+		t.it "takes 3 seconds to complete" (function()
+			task.wait(3)
+			t.assert(function()
+				return true
+			end)
+		end)
+	end)
+	-- This context will run serially, though it has no serial siblings.
+	t.describe "unit that takes 3 seconds to complete" (function()
+		t.it "takes 1 second to complete" (concurrently) (function()
+			task.wait(1)
+			t.assert(function()
+				return true
+			end)
+		end)
+		t.it "takes 2 seconds to complete" (concurrently) (function()
+			task.wait(2)
+			t.assert(function()
+				return true
+			end)
+		end)
+		t.it "takes 3 seconds to complete" (concurrently) (function()
+			task.wait(3)
+			t.assert(function()
+				return true
+			end)
+		end)
+	end)
+end
+```
 
 ## T.TODO
 [T.TODO]: #ttodo
@@ -252,7 +321,7 @@ is called while testing or benchmarking.
 ## T.describe
 [T.describe]: #tdescribe
 ```
-describe: Clause<Closure>
+describe: FlagClause<Closure>
 ```
 
 **While:** planning
@@ -286,7 +355,7 @@ testing. This function cannot be called within another expect function.
 ## T.it
 [T.it]: #tit
 ```
-it: Clause<Closure>
+it: FlagClause<Closure>
 ```
 
 **While:** planning
@@ -540,16 +609,18 @@ Like a [Closure][Closure], but receives values corresponding to the
 # BenchmarkClause
 [BenchmarkClause]: #benchmarkclause
 ```
-type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed
+type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed & BenchmarkFlagged
 ```
 
-Variation of clause and statement for benchmarks, which receives a
+Variation of [FlagClause][FlagClause] for benchmarks, which receives a
 [Benchmark][Benchmark] and a variable number of specific
 [Parameter][Parameter] values.
 
 ```lua
 clause(benchmark, ...Parameter)
-clause "description" (benchmark, ...Parameter)
+clause (flags...) (benchmark, ...Parameter)
+clause (description) (benchmark, ...Parameter)
+clause (description) (flags...) (benchmark, ...Parameter)
 ```
 
 # Clause
@@ -558,13 +629,16 @@ clause "description" (benchmark, ...Parameter)
 type Clause<X> = Statement<X> & Detailed<X>
 ```
 
-Receives X or a string. When a string, it returns a function that
-receives X, enabling the following syntax sugar:
+Returns a chain of functions based on received argument type, enabling
+the following syntax sugars:
 
 ```lua
-clause(x)
-clause "description" (x)
+clause(a)                -- statement
+clause (description) (x) -- detailed
 ```
+
+The statement form is used when the function receives a function. The
+detailed form is used otherwise. The function cannot receive nil.
 
 # Closure
 [Closure]: #closure
@@ -573,6 +647,41 @@ type Closure = () -> ()
 ```
 
 A general function operating on upvalues.
+
+# Flag
+[Flag]: #flag
+```
+type Flag = {type: "flag"}
+```
+
+Refers to one of a specific set of values. These values are passed
+through a [T][T] to be used by a [FlagClause][FlagClause].
+
+- concurrent: Causes a unit to run concurrently.
+- only: Causes a unit to be among the only units that run.
+- skip: Causes a unit to be skipped.
+
+# FlagClause
+[FlagClause]: #flagclause
+```
+type FlagClause<X> = Statement<X> & FlagDetailed<X> & Flagged<X>
+```
+
+Returns a chain of functions based on received argument type, enabling
+the following syntax sugars:
+
+```lua
+clause(x)                           -- statement
+clause (flags...) (x)               -- flagged
+clause (description) (x)            -- detailed
+clause (description) (flags...) (x) -- detailed flagged
+```
+
+The statement form is used when the function receives a function. The flagged
+form is used when the function receives a flag. The function cannot receive
+nil. Otherwise, the detailed form is used when the second function receives a
+function. The detailed flagged form is used when the second function receives
+a flag.
 
 # Input
 [Input]: #input
@@ -669,7 +778,7 @@ Receives a [T][T] to plan a testing suite.
 ```
 type Result = {
 	Type: ResultType,
-	Okay: boolean,
+	Status: boolean?,
 	Reason: string,
 	Trace: string?,
 }
@@ -678,17 +787,24 @@ type Result = {
 Represents the result of a unit. Converting to a string displays a
 formatted result.
 
-Field  | Type                     | Description
--------|--------------------------|------------
-Type   | [ResultType][ResultType] | Indicates the type of result.
-Okay   | boolean                  | The status of the unit; whether the unit succeeded or failed. For benchmarks, this will be false if the benchmark errored. For nodes and plans, represents the conjunction of the status of all sub-units.
-Reason | string                   | A message describing the reason for the status. Empty if the unit succeeded.
-Trace  | string?                  | An optional stack trace to supplement the Reason.
+The **Type** field is a [ResultType][ResultType] that indicates the type of
+result.
+
+The **Status** field indicates whether the unit succeeded or failed. A nil
+status indicates that the result is pending. For benchmarks, it will be false
+if the benchmark errored. For nodes and plans, represents the conjunction of
+the status of all sub-units. If any sub-unit has a pending result, then the
+status will also be pending.
+
+The **Reason** field is a message describing the reason for the status.
+Usually empty if the unit succeeded.
+
+The **Trace** field is an optional stack trace to supplement the Reason.
 
 # ResultObserver
 [ResultObserver]: #resultobserver
 ```
-type ResultObserver = (path: Path, result: Result?) -> ()
+type ResultObserver = (path: Path, result: Result) -> ()
 ```
 
 Observes the result of *path*.

@@ -888,7 +888,7 @@ end
 -- end
 -- ```
 --
--- ## Test functions
+-- ## Statement functions
 --
 -- Some functions are "Statements". A statement is a function that receives a
 -- value of some specified type.
@@ -954,15 +954,82 @@ end
 --
 -- The [measure][T.measure] function defines a benchmark.
 --
---TODO: finish T docs
+-- ## Units
+--
+-- While planning, certain functions will produce a **unit**.
+--
+-- - The [it][T.it] function produces a test unit.
+-- - The [measure][T.measure] function produces a benchmark unit.
+-- - The [describe][T.describe] function produces an aggregate unit. This runs
+--   each sub-unit it contains.
+--
+-- By default, aggregate units run their sub-units serially. This means that, in
+-- turn, all units run serially. This is to ensure that upvalues aren't accessed
+-- by more than one unit at the same time.
+--
+-- The above functions allow the "concurrently" flag to be specified. Doing so
+-- will cause the unit to run concurrently with sibling units. This allows a
+-- series of independent units to run at the same time rather than sequentially,
+-- but care must be taken to ensure that no upvalues are shared with other
+-- concurrent units.
+--
+-- An aggregate unit will wait for all sub-units to complete, whether they're
+-- serial or concurrent.
+--
+-- ```lua
+-- return function(t: Spek.T)
+-- 	-- This context will run concurrently, but its contents still run serially.
+-- 	t.describe "unit that takes 6 seconds to complete" (concurrently) (function()
+-- 		t.it "takes 1 second to complete" (function()
+-- 			task.wait(1)
+-- 			t.assert(function()
+-- 				return true
+-- 			end)
+-- 		end)
+-- 		t.it "takes 2 seconds to complete" (function()
+-- 			task.wait(2)
+-- 			t.assert(function()
+-- 				return true
+-- 			end)
+-- 		end)
+-- 		t.it "takes 3 seconds to complete" (function()
+-- 			task.wait(3)
+-- 			t.assert(function()
+-- 				return true
+-- 			end)
+-- 		end)
+-- 	end)
+-- 	-- This context will run serially, though it has no serial siblings.
+-- 	t.describe "unit that takes 3 seconds to complete" (function()
+-- 		t.it "takes 1 second to complete" (concurrently) (function()
+-- 			task.wait(1)
+-- 			t.assert(function()
+-- 				return true
+-- 			end)
+-- 		end)
+-- 		t.it "takes 2 seconds to complete" (concurrently) (function()
+-- 			task.wait(2)
+-- 			t.assert(function()
+-- 				return true
+-- 			end)
+-- 		end)
+-- 		t.it "takes 3 seconds to complete" (concurrently) (function()
+-- 			task.wait(3)
+-- 			t.assert(function()
+-- 				return true
+-- 			end)
+-- 		end)
+-- 	end)
+-- end
+-- ```
 export type T = {
 	--@sec: T.describe
-	--@def: describe: Clause<Closure>
+	--@def: describe: FlagClause<Closure>
 	--@doc: **While:** planning
 	--
 	-- Defines a new scope for a test or benchmark. The closure is called
 	-- immediately, while planning.
-	describe: Clause<Closure>,
+	describe: FlagClause<Closure>,
 
 	--@sec: T.before_each
 	--@def: before_each: Statement<Closure>
@@ -981,11 +1048,11 @@ export type T = {
 	after_each: Statement<Closure>,
 
 	--@sec: T.it
-	--@def: it: Clause<Closure>
+	--@def: it: FlagClause<Closure>
 	--@doc: **While:** planning
 	--
 	-- Defines a new test unit. The closure is called while testing.
-	it: Clause<Closure>,
+	it: FlagClause<Closure>,
 
 	--@sec: T.expect
 	--@def: expect: Clause<Assertion>
@@ -1089,16 +1156,50 @@ export type T = {
 
 --@sec: Clause
 --@def: type Clause<X> = Statement<X> & Detailed<X>
---@doc: Receives X or a string. When a string, it returns a function that
--- receives X, enabling the following syntax sugar:
+--@doc: Returns a chain of functions based on received argument type, enabling
+-- the following syntax sugars:
 --
 -- ```lua
--- clause(x)
--- clause "description" (x)
+-- clause(a)                -- statement
+-- clause (description) (x) -- detailed
 -- ```
+--
+-- The statement form is used when the function receives a function. The
+-- detailed form is used otherwise. The function cannot receive nil.
 export type Clause<X> = Statement<X> & Detailed<X>
 export type Statement<X> = (X) -> ()
-export type Detailed<X> = (description: any) -> Statement<X>
+export type Detailed<X> = (description: string) -> Statement<X>
+
+--@sec: FlagClause
+--@def: type FlagClause<X> = Statement<X> & FlagDetailed<X> & Flagged<X>
+--@doc: Returns a chain of functions based on received argument type, enabling
+-- the following syntax sugars:
+--
+-- ```lua
+-- clause(x)                           -- statement
+-- clause (flags...) (x)               -- flagged
+-- clause (description) (x)            -- detailed
+-- clause (description) (flags...) (x) -- detailed flagged
+-- ```
+--
+-- The statement form is used when the function receives a function. The flagged
+-- form is used when the function receives a flag. The function cannot receive
+-- nil. Otherwise, the detailed form is used when the second function receives a
+-- function. The detailed flagged form is used when the second function receives
+-- a flag.
+export type FlagClause<X> = Statement<X> & FlagDetailed<X> & Flagged<X>
+export type FlagDetailed<X> = (description: string) -> (Statement<X> & Flagged<X>)
+export type Flagged<X> = (...Flag) -> Statement<X>
+
+--@sec: Flag
+--@def: type Flag = {type: "flag"}
+--@doc: Refers to one of a specific set of values. These values are passed
+-- through a [T][T] to be used by a [FlagClause][FlagClause].
+--
+-- - concurrent: Causes a unit to run concurrently.
+-- - only: Causes a unit to be among the only units that run.
+-- - skip: Causes a unit to be skipped.
+export type Flag = {type: "flag"}
 
 --@sec: Closure
 --@def: type Closure = () -> ()
@@ -1113,18 +1214,21 @@ export type Closure = () -> ()
 export type Assertion = () -> (any, any?)
 
 --@sec: BenchmarkClause
---@def: type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed
---@doc: Variation of clause and statement for benchmarks, which receives a
+--@def: type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed & BenchmarkFlagged
+--@doc: Variation of [FlagClause][FlagClause] for benchmarks, which receives a
 -- [Benchmark][Benchmark] and a variable number of specific
 -- [Parameter][Parameter] values.
 --
 -- ```lua
 -- clause(benchmark, ...Parameter)
--- clause "description" (benchmark, ...Parameter)
+-- clause (flags...) (benchmark, ...Parameter)
+-- clause (description) (benchmark, ...Parameter)
+-- clause (description) (flags...) (benchmark, ...Parameter)
 -- ```
-export type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed
+export type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed & BenchmarkFlagged
 export type BenchmarkStatement = (Benchmark, ...Parameter) -> ()
-export type BenchmarkDetailed = (description: any) -> BenchmarkStatement
+export type BenchmarkDetailed = (description: string) -> (BenchmarkStatement & BenchmarkFlagged)
+export type BenchmarkFlagged = (...Flag) -> BenchmarkStatement
 
 --@sec: Benchmark
 --@def: type Benchmark = (...any) -> ()
@@ -1167,6 +1271,81 @@ local function newClause<X>(process: (description: any?, closure: X)->()): Claus
 	end
 end
 
+-- Contains flags that have been set on a clause.
+type Flags = {
+}
+
+-- Returns whether a value is a valid flag.
+local function isFlag(flag: any): boolean
+	return false
+end
+
+-- Converts a list of arguments into a Flags.
+local function parseFlags(...: unknown): Flags
+	local flags = {
+	}
+	for i = 1, select("#", ...) do
+		local arg = select(i, ...)
+		error("unknown flag", 3)
+	end
+	return table.freeze(flags)
+end
+
+-- Sets flags on the given node.
+local function setFlags(node: Node, flags: Flags)
+	if table.isfrozen(node.Data) then
+		return
+	end
+end
+
+-- Returns a FlagClause function, where flags can optionally be passed after the
+-- description.
+--
+--     clause (closure)
+--     clause (description) (closure)
+--     clause (flags...) (closure)
+--     clause (description) (flags...) (closure)
+--
+-- If called with the non-description form, the description will be nil. If
+-- called with the description form, errors if nil is passed as the description.
+local function newFlagClause<X>(process: (description: any?, flags: Flags, closure: X)->()): FlagClause<X>
+	return function(...: any): any
+		if ... == nil then
+			error("description cannot be nil", 2)
+		elseif type(...) == "function" then
+			-- clause (closure)
+			local closure = ...
+			process(nil, parseFlags(), closure)
+			return
+		elseif isFlag(...) then
+			-- clause (flags...) (closure)
+			local flags = parseFlags(...)
+			return function(closure: X)
+				process(nil, flags, closure)
+			end
+		else
+			-- clause (description) ...
+			local description = ...
+			return function(...: any): Statement<X>?
+				if type(...) == "function" then
+					-- clause (description) (closure)
+					local closure = ... :: X
+					process(description, parseFlags(), closure)
+					return
+				elseif isFlag(...) then
+					-- clause (description) (flags...) (closure)
+					local flags = parseFlags(...)
+					return function(closure: X)
+						process(description, flags, closure)
+					end
+				else
+					error("closure must be a function", 2)
+				end
+			end
+		end
+	end
+end
+
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
@@ -1179,7 +1358,7 @@ type PlanState = {
 	-- referred to using *key*. If *key* is equal to *compare* then the node's
 	-- child location is used instead. A Unit of type *type* is set to the
 	-- node's data.
-	CreateNode: (self: PlanState, node: ResultType, key: any?, closure: Closure?) -> (),
+	CreateNode: (self: PlanState, node: ResultType, key: any?, flags: Flags, closure: Closure?) -> (),
 	-- Returns the node at the top of the stack.
 	PeekNode: (self: PlanState) -> Node,
 	-- Pop the top node from the stack.
@@ -1192,7 +1371,7 @@ local function newPlanState(tree: Tree): PlanState
 		Stack = {},
 	}
 
-	function self.CreateNode(self: PlanState, node: ResultType, key: any?, closure: Closure?)
+	function self.CreateNode(self: PlanState, node: ResultType, key: any?, flags: Flags, closure: Closure?)
 		local parent = self:PeekNode()
 		if key == nil then
 			-- Unlabeled statement. Use node's predicted location in
@@ -1201,6 +1380,7 @@ local function newPlanState(tree: Tree): PlanState
 		end
 		local node = tree:CreateNode(node, parent, key)
 		node.Data.Closure = closure
+		setFlags(node, flags)
 		table.insert(self.Stack, node)
 	end
 
@@ -1290,9 +1470,9 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 	table.insert(state.Stack, parent)
 
 	return function(t: ContextObject)
-		t.describe = newClause(function(desc: any?, closure: Closure)
+		t.describe = newFlagClause(function(desc: any?, flags: Flags, closure: Closure)
 			-- Run closure using created node as context.
-			state:CreateNode("node", desc)
+			state:CreateNode("node", desc, flags)
 			closure()
 			state:PopNode()
 		end)
@@ -1307,8 +1487,8 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			table.insert(node.Data.After, closure)
 		end
 
-		t.it = newClause(function(desc: any?, closure: Closure)
-			state:CreateNode("test", desc, closure)
+		t.it = newFlagClause(function(desc: any?, flags: Flags, closure: Closure)
+			state:CreateNode("test", desc, flags, closure)
 			state:PopNode()
 		end)
 
@@ -1345,7 +1525,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 		-- Generates a benchmark unit for each permutation of the given parameters.
 		-- If the given description cannot be formatted according to the given
 		-- parameters, then only one benchmark is generated.
-		local function generateBenchmarks(key: any, benchmark: Benchmark, ...: Parameter)
+		local function generateBenchmarks(key: any, flags: Flags, benchmark: Benchmark, ...: Parameter)
 			-- List of first variation of each parameter.
 			local firsts: {n: number, [number]: any} = table.pack(...)
 			for i, param in ipairs(firsts) do
@@ -1363,7 +1543,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				permuteParameters(parameters::any, function(...)
 					local formatted = string.format(key, ...)
 					local values = table.freeze(table.pack(...))
-					state:CreateNode("benchmark", formatted, function()
+					state:CreateNode("benchmark", formatted, flags, function()
 						benchmark(table.unpack(values, 1, values.n))
 					end)
 					state:PopNode()
@@ -1371,25 +1551,46 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			else
 				-- Cannot produce variations of key. Generate only one benchmark
 				-- using the first variation of each parameter.
-				state:CreateNode("benchmark", key, function()
+				state:CreateNode("benchmark", key, flags, function()
 					benchmark(table.unpack(firsts, 1, firsts.n))
 				end)
 				state:PopNode()
 			end
 		end
 
-		function t.measure<X...>(description: string | Benchmark, ...: Parameter): BenchmarkStatement?
-			local function process(benchmark: Benchmark, ...: Parameter)
-				assert(type(benchmark) == "function", "function expected")
-				generateBenchmarks(description, benchmark, ...)
-			end
-			if type(description) == "string" then
-				return process
-			elseif description == nil then
+		function t.measure<X...>(...: any): BenchmarkStatement?
+			if ... == nil then
 				error("description cannot be nil", 2)
-			else
-				process(description, ...)
+			elseif type(...) == "function" then
+				-- clause (benchmark, parameters...)
+				local benchmark = ...
+				generateBenchmarks(nil, parseFlags(), benchmark, select(2, ...))
 				return
+			elseif isFlag(...) then
+				-- clause (flags...) (benchmark, parameters...)
+				local flags = parseFlags(...)
+				return function(benchmark: Benchmark, ...: Parameter)
+					generateBenchmarks(nil, flags, benchmark, ...)
+				end
+			else
+				-- clause (description) ...
+				local description = ...
+				return function(...: any)
+					if type(...) == "function" then
+						-- clause (description) (benchmark, parameters...)
+						local benchmark = ...
+						generateBenchmarks(description, parseFlags(), benchmark, select(2, ...))
+					elseif isFlag(...) then
+						-- clause (description) (flags...) (benchmark, parameters...)
+						local flags = parseFlags(...)
+						return function(benchmark: Benchmark, ...: Parameter)
+							assert(type(benchmark) == "function", "function expected")
+							generateBenchmarks(description, flags, benchmark, ...)
+						end
+					else
+						error("closure must be a function", 2)
+					end
+				end
 			end
 		end
 
