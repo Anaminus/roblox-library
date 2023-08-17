@@ -116,47 +116,27 @@ type WaitGroup = {
 	-- Threads the group is waiting on.
 	_dependencies: {[thread]: true?},
 	-- Threads waiting on the group.
-	_dependents: {OrderedValue<thread>},
+	_dependents: {thread},
+	-- Optional function to call before resuming dependents.
+	_beforeFinish: (wg: WaitGroup) -> ()?,
 
 	Finish: (self: WaitGroup) -> (),
 	--TODO: Add: <X...>(self: WaitGroup, func: (X...)->(), X...) -> (),
 	Add: (self: WaitGroup, func: (...any)->(), ...any) -> (),
 	AddThread: (self: WaitGroup, thread: thread) -> (),
 	AddWaitGroup: (self: WaitGroup, wg: WaitGroup) -> (),
-	Wait: (self: WaitGroup, priority: number?) -> (),
+	Wait: (self: WaitGroup) -> (),
 	Cancel: (self: WaitGroup) -> (),
 }
 
-type OrderedValue<T> = {
-	priority: number,
-	value: T,
-}
 
--- Extract values with highest priority.
-local function extractHighest<T>(values: {OrderedValue<T>}): ({OrderedValue<T>}, {OrderedValue<T>})
-	local max = -math.huge
-	for _, value in values do
-		if value.priority > max then
-			max = value.priority
-		end
-	end
-	local highest = {}
-	local other = {}
-	for _, value in values do
-		if value.priority == max then
-			table.insert(highest, value)
-		else
-			table.insert(other, value)
-		end
-	end
-	return highest, other
-end
-
--- Creates a new WaitGroup.
-local function newWaitGroup(): WaitGroup
+-- Creates a new WaitGroup. Receives an optional function to run before each
+-- time the WaitGroup finishes.
+local function newWaitGroup(beforeFinish: (wg: WaitGroup)->()?): WaitGroup
 	local self: WaitGroup = setmetatable({
 		_dependencies = {},
 		_dependents = {},
+		_beforeFinish = beforeFinish,
 	}, WaitGroup) :: any
 	return table.freeze(self)
 end
@@ -173,10 +153,11 @@ function WaitGroup.__index.Finish(self: WaitGroup)
 		-- Still waiting on dependencies.
 		return
 	end
-	-- Deferred threads are supposedly added to a queue, so iterating sorted
-	-- threads should schedule them in the expected order.
-	for _, value in self._dependents do
-		task.defer(value.value)
+	if self._beforeFinish then
+		self._beforeFinish(self)
+	end
+	for _, thread in self._dependents do
+		task.defer(thread)
 	end
 	table.clear(self._dependents)
 end
@@ -209,20 +190,12 @@ function WaitGroup.__index.AddWaitGroup<X...>(self: WaitGroup, wg: WaitGroup)
 	self._dependencies[thread] = true
 end
 
--- Called by a dependent thread to block until the WaitGroup is done. *priority*
--- specifies when the thread should be resumed in relation to other dependent
--- threads. Defaults to 0.
-function WaitGroup.__index.Wait(self: WaitGroup, priority: number?)
+-- Called by a dependent thread to block until the WaitGroup is done.
+function WaitGroup.__index.Wait(self: WaitGroup)
 	if not next(self._dependencies) then
 		return
 	end
-	table.insert(self._dependents, {
-		priority = priority or 0,
-		value = coroutine.running(),
-	})
-	table.sort(self._dependents, function(a, b)
-		return a.priority > b.priority
-	end)
+	table.insert(self._dependents, coroutine.running())
 	coroutine.yield()
 end
 
@@ -233,8 +206,8 @@ function WaitGroup.__index.Cancel(self: WaitGroup)
 		task.cancel(thread)
 	end
 	table.clear(self._dependencies)
-	for _, value in self._dependents do
-		task.defer(value.value)
+	for _, thread in self._dependents do
+		task.defer(thread)
 	end
 	table.clear(self._dependents)
 end
@@ -2275,17 +2248,15 @@ function Runner.__index._start(self: _Runner): WaitGroup
 	self._tree:Reset()
 
 	-- Represents lifetime of entire run.
-	local wg = newWaitGroup()
+	local wg = newWaitGroup(function(wg)
+		if self._active == wg then
+			self._active = nil
+		end
+	end)
 	self._active = wg
 	if self._tree.MaintenanceThread then
 		wg:AddThread(self._tree.MaintenanceThread)
 	end
-	task.defer(function(wg: WaitGroup)
-		-- Prioritize over other dependents so that active state is unset before
-		-- anything else.
-		wg:Wait(1)
-		self._active = nil
-	end, wg)
 
 	-- Determine whether there are any nodes that have Only flag set.
 	local only = false
