@@ -119,7 +119,9 @@ type WaitGroup = {
 	_dependents: {thread},
 
 	Finish: (self: WaitGroup) -> (),
-	Add: <X...>(self: WaitGroup, func: (X...)->(), X...) -> (),
+	--TODO: Add: <X...>(self: WaitGroup, func: (X...)->(), X...) -> (),
+	Add: (self: WaitGroup, func: (...any)->(), ...any) -> (),
+	AddThread: (self: WaitGroup, thread: thread) -> (),
 	AddWaitGroup: (self: WaitGroup, wg: WaitGroup) -> (),
 	Wait: (self: WaitGroup) -> (),
 	Cancel: (self: WaitGroup) -> (),
@@ -136,10 +138,17 @@ end
 
 -- Called by a dependency to indicate that it is finished.
 function WaitGroup.__index.Finish(self: WaitGroup)
-	self._dependencies[coroutine.running()] = nil
-	if next(self._dependencies) then
+	local thread = coroutine.running()
+	if not self._dependencies[thread] then
+		-- Ignore if thread is not a dependency.
 		return
 	end
+	self._dependencies[thread] = nil
+	if next(self._dependencies) then
+		-- Still waiting on dependencies.
+		return
+	end
+	-- Resume dependents.
 	for _, thread in self._dependents do
 		task.defer(thread)
 	end
@@ -156,6 +165,12 @@ function WaitGroup.__index.Add<X...>(self: WaitGroup, func: (X...)->(), ...: X..
 		self:Finish()
 	end
 	local thread = task.defer(doFunc, func, ...)
+	self._dependencies[thread] = true
+end
+
+-- Adds a thread as a dependency. The thread is expected to call Finish before
+-- it dies.
+function WaitGroup.__index.AddThread<X...>(self: WaitGroup, thread: thread)
 	self._dependencies[thread] = true
 end
 
@@ -752,6 +767,8 @@ end
 local Tree = {__index={}}
 
 type Tree = {
+	-- Encapsulates active state of a Runner.
+	Active: {_active: WaitGroup?},
 	-- Flat map of paths to nodes.
 	Nodes: {[Path]: Node},
 	-- The implicit root node.
@@ -797,6 +814,7 @@ type Tree = {
 -- Creates a new Tree witht the given configuration.
 local function newTree(): Tree
 	local self: Tree = setmetatable({
+		Active = nil,
 		Nodes = {},
 		Root = nil,
 		ResultObserver = nil,
@@ -846,9 +864,16 @@ function Tree.__index.Dirty(self: Tree)
 	if self.MaintenanceThread then
 		return
 	end
-	self.MaintenanceThread = task.defer(function(self: Tree)
+	local thread = task.defer(function(self: Tree)
 		self:Maintenance()
+		if self.Active._active then
+			self.Active._active:Finish()
+		end
 	end, self)
+	self.MaintenanceThread = thread
+	if self.Active._active then
+		self.Active._active:AddThread(thread)
+	end
 end
 
 -- Reconciles derivative data.
@@ -1762,9 +1787,6 @@ end
 -- optional [Config][Config] configures how units are run.
 function export.runner(input: Input?, config: Config?): Runner
 	local tree = newTree()
-	if input ~= nil then
-		processInput(tree, tree.Root, input)
-	end
 	local self: _Runner = setmetatable({
 		_active = nil,
 		_tree = tree,
@@ -1772,6 +1794,10 @@ function export.runner(input: Input?, config: Config?): Runner
 		_resultObservers = {},
 		_metricObservers = {},
 	}, Runner) :: any
+	tree.Active = self
+	if input ~= nil then
+		processInput(tree, tree.Root, input)
+	end
 	tree.ResultObserver = function(path: Path, result: Result)
 		for _, observer in self._resultObservers do
 			observer(path, result)
@@ -2217,6 +2243,14 @@ function Runner.__index._start(self: _Runner): WaitGroup
 	-- Represents lifetime of entire run.
 	local wg = newWaitGroup()
 	self._active = wg
+	if self._tree.MaintenanceThread then
+		wg:AddThread(self._tree.MaintenanceThread)
+	end
+	task.defer(function(wg: WaitGroup)
+		wg:Wait()
+		self._active = nil
+		--TODO: This thread needs to have priority over over dependents.
+	end, wg)
 
 	-- Determine whether there are any nodes that have Only flag set.
 	local only = false
