@@ -1,5 +1,7 @@
 --!strict
 
+local VERSION = "0.0.0"
+
 --@sec: Spek
 --@ord: -10
 --@doc: All-in-one module for testing and benchmarking.
@@ -1513,6 +1515,7 @@ export type Runner = {
 }
 
 type _Runner = Runner & {
+	_startTime: DateTime,
 	_active: WaitGroup?,
 	_tree: Tree,
 	_config: Config,
@@ -1795,6 +1798,7 @@ end
 function export.runner(input: Input?, config: Config?): Runner
 	local tree = newTree()
 	local self: _Runner = setmetatable({
+		_startTime = DateTime.now(),
 		_active = nil,
 		_tree = tree,
 		_config = newConfig(config),
@@ -1851,6 +1855,11 @@ function Runner.__tostring(self: _Runner): string
 		end
 	end)
 	local out = {""}
+	table.insert(out, `roblox version: {version()}`)
+	table.insert(out, `lua version: {_VERSION}`)
+	table.insert(out, `framework version: {VERSION}`)
+	table.insert(out, `start time: {self._startTime:ToIsoDate()}`)
+	table.insert(out, `results:`)
 	for _, node in nodes do
 		local result = node.node.Data.Result
 		local status = result.Status
@@ -2245,6 +2254,7 @@ end
 
 -- Begins a new run, visiting each node and running its unit.
 function Runner.__index._start(self: _Runner): WaitGroup
+	self._startTime = DateTime.now()
 	self._tree:Reset()
 
 	-- Represents lifetime of entire run.
