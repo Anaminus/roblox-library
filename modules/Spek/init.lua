@@ -2039,7 +2039,7 @@ end
 
 -- Runs the closure of *node* as a benchmark unit using *ctxm* to provide
 -- context.
-local function runBenchmark(node: Node, config: Config, ctxm: ContextManager<T>)
+local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 	local state = newUnitState()
 	local operated = false
 	local function context(t: ContextObject)
@@ -2168,7 +2168,7 @@ local function runUnits(self: _Runner, node: Node, outer: WaitGroup, onlyMode: b
 		if skip then
 			return
 		end
-		runBenchmark(node, self._config, (assert(ctxm, "missing thread context")))
+		runBenchmark(node, (assert(ctxm, "missing thread context")), self._config)
 		return
 	end
 
