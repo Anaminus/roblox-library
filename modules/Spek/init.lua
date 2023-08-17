@@ -444,7 +444,7 @@ type Node = {
 
 	-- Updates data of the node. Returns false if the node is frozen.
 	UpdateResult: (self: Node, result: Result) -> boolean,
-	UpdateMetric: (self: Node, value: number, unit: string) -> boolean,
+	UpdateMetric: (self: Node, unit: string, value: number) -> boolean,
 	UpdateBenchmark: (self: Node, iterations: number, duration: number) -> boolean,
 
 	-- Reconciles derivative results and metrics.
@@ -570,7 +570,7 @@ end
 
 -- Sets a metric of the node. Marks the metric as pending, and marks the tree as
 -- dirty. Returns whether the data changed.
-function Node.__index.UpdateMetric(self: Node, value: number, unit: string): boolean
+function Node.__index.UpdateMetric(self: Node, unit: string, value: number): boolean
 	if table.isfrozen(self.Data) then
 		return false
 	end
@@ -674,7 +674,7 @@ function Node.__index.ReconcileMetrics(self: Node): boolean
 		end
 	end
 	for unit, value in metrics do
-		changed = self:UpdateMetric(value, unit) or changed
+		changed = self:UpdateMetric(unit, value) or changed
 	end
 	return changed
 end
@@ -871,7 +871,7 @@ function Tree.__index.Reset(self: Tree)
 		if not table.isfrozen(node.Data) then
 			node:UpdateResult(newResult(node.Type, nil, ""))
 			for unit, value in node.Data.Metrics do
-				node:UpdateMetric(value, unit)
+				node:UpdateMetric(unit, value)
 			end
 		end
 	end
@@ -1653,7 +1653,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			return function(value: number)
 				assert(type(value) == "number", "number expected")
 				local node = state:PeekNode()
-				node:UpdateMetric(value, unit)
+				node:UpdateMetric(unit, value)
 			end
 		end
 
@@ -1904,7 +1904,7 @@ local function runUnit(node: Node, state: UnitState)
 	end
 	node:UpdateBenchmark(state.Iterations, state.Duration)
 	for unit, value in state.Metrics do
-		node:UpdateMetric(value, unit)
+		node:UpdateMetric(unit, value)
 	end
 end
 
