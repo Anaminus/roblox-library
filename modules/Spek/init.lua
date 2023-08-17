@@ -265,7 +265,7 @@ local function newContextManager<X>(...: string | {[any]:any}): ContextManager<X
 		end
 	end
 	-- Assume that given fields implement X.
-	self.Object = object :: any
+	self.Object = table.freeze(object) :: any
 
 	function self.While(
 		self: ContextManager<X>,
