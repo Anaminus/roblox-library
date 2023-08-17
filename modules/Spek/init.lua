@@ -116,16 +116,41 @@ type WaitGroup = {
 	-- Threads the group is waiting on.
 	_dependencies: {[thread]: true?},
 	-- Threads waiting on the group.
-	_dependents: {thread},
+	_dependents: {OrderedValue<thread>},
 
 	Finish: (self: WaitGroup) -> (),
 	--TODO: Add: <X...>(self: WaitGroup, func: (X...)->(), X...) -> (),
 	Add: (self: WaitGroup, func: (...any)->(), ...any) -> (),
 	AddThread: (self: WaitGroup, thread: thread) -> (),
 	AddWaitGroup: (self: WaitGroup, wg: WaitGroup) -> (),
-	Wait: (self: WaitGroup) -> (),
+	Wait: (self: WaitGroup, priority: number?) -> (),
 	Cancel: (self: WaitGroup) -> (),
 }
+
+type OrderedValue<T> = {
+	priority: number,
+	value: T,
+}
+
+-- Extract values with highest priority.
+local function extractHighest<T>(values: {OrderedValue<T>}): ({OrderedValue<T>}, {OrderedValue<T>})
+	local max = -math.huge
+	for _, value in values do
+		if value.priority > max then
+			max = value.priority
+		end
+	end
+	local highest = {}
+	local other = {}
+	for _, value in values do
+		if value.priority == max then
+			table.insert(highest, value)
+		else
+			table.insert(other, value)
+		end
+	end
+	return highest, other
+end
 
 -- Creates a new WaitGroup.
 local function newWaitGroup(): WaitGroup
@@ -148,9 +173,10 @@ function WaitGroup.__index.Finish(self: WaitGroup)
 		-- Still waiting on dependencies.
 		return
 	end
-	-- Resume dependents.
-	for _, thread in self._dependents do
-		task.defer(thread)
+	-- Deferred threads are supposedly added to a queue, so iterating sorted
+	-- threads should schedule them in the expected order.
+	for _, value in self._dependents do
+		task.defer(value.value)
 	end
 	table.clear(self._dependents)
 end
@@ -183,12 +209,20 @@ function WaitGroup.__index.AddWaitGroup<X...>(self: WaitGroup, wg: WaitGroup)
 	self._dependencies[thread] = true
 end
 
--- Called by a dependent thread to block until the WaitGroup is done.
-function WaitGroup.__index.Wait(self: WaitGroup)
+-- Called by a dependent thread to block until the WaitGroup is done. *priority*
+-- specifies when the thread should be resumed in relation to other dependent
+-- threads. Defaults to 0.
+function WaitGroup.__index.Wait(self: WaitGroup, priority: number?)
 	if not next(self._dependencies) then
 		return
 	end
-	table.insert(self._dependents, coroutine.running())
+	table.insert(self._dependents, {
+		priority = priority or 0,
+		value = coroutine.running(),
+	})
+	table.sort(self._dependents, function(a, b)
+		return a.priority > b.priority
+	end)
 	coroutine.yield()
 end
 
@@ -199,8 +233,8 @@ function WaitGroup.__index.Cancel(self: WaitGroup)
 		task.cancel(thread)
 	end
 	table.clear(self._dependencies)
-	for _, thread in self._dependents do
-		task.defer(thread)
+	for _, value in self._dependents do
+		task.defer(value.value)
 	end
 	table.clear(self._dependents)
 end
@@ -2247,9 +2281,10 @@ function Runner.__index._start(self: _Runner): WaitGroup
 		wg:AddThread(self._tree.MaintenanceThread)
 	end
 	task.defer(function(wg: WaitGroup)
-		wg:Wait()
+		-- Prioritize over other dependents so that active state is unset before
+		-- anything else.
+		wg:Wait(1)
 		self._active = nil
-		--TODO: This thread needs to have priority over over dependents.
 	end, wg)
 
 	-- Determine whether there are any nodes that have Only flag set.
