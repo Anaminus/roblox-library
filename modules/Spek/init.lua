@@ -226,9 +226,10 @@ type ContextManager<X> = {
 
 type ContextObject = {[string]: any}
 
--- Creates a new ContextManager. Each argument is the name of a function expected
--- to be in object X.
-local function newContextManager<X>(...: string): ContextManager<X>
+-- Creates a new ContextManager. Each argument is the name of a function
+-- expected to be in object X. If an argument is a table, then it's fields are
+-- mapped directly to X.
+local function newContextManager<X>(...: string | {[any]:any}): ContextManager<X>
 	local self = {}
 
 	type ThreadState = {
@@ -242,6 +243,12 @@ local function newContextManager<X>(...: string): ContextManager<X>
 	local object: ContextObject = {}
 	for i = 1, select("#", ...) do
 		local field = select(i, ...)
+		if type(field) == "table" then
+			for key, value in field do
+				object[key] = value
+			end
+			continue
+		end
 		object[field] = function(...)
 			local state = threadStates[coroutine.running()]
 			if not state then
@@ -250,7 +257,7 @@ local function newContextManager<X>(...: string): ContextManager<X>
 				error(string.format("cannot call %s in new thread", field), 2)
 			end
 			local implementation = state.Object[field]
-			if not implementation then
+			if implementation == nil then
 				-- Not implemented by this context.
 				error(string.format("cannot call %q while %s", field, state.Verb), 2)
 			end
