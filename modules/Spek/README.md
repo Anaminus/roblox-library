@@ -55,12 +55,14 @@ end
 	7. [T.expect_error][T.expect_error]
 	8. [T.it][T.it]
 	9. [T.measure][T.measure]
-	10. [T.operation][T.operation]
-	11. [T.parameter][T.parameter]
-	12. [T.report][T.report]
-	13. [T.reset_timer][T.reset_timer]
-	14. [T.start_timer][T.start_timer]
-	15. [T.stop_timer][T.stop_timer]
+	10. [T.only][T.only]
+	11. [T.operation][T.operation]
+	12. [T.parameter][T.parameter]
+	13. [T.report][T.report]
+	14. [T.reset_timer][T.reset_timer]
+	15. [T.skip][T.skip]
+	16. [T.start_timer][T.start_timer]
+	17. [T.stop_timer][T.stop_timer]
 4. [Runner][Runner]
 	1. [Runner.All][Runner.All]
 	2. [Runner.Metrics][Runner.Metrics]
@@ -382,6 +384,15 @@ measure: BenchmarkClause
 
 Defines a new benchmark unit. The closure is called while benchmarking.
 
+## T.only
+[T.only]: #tonly
+```
+only: Flag
+```
+
+When passed to a [FlagClause][FlagClause], causes the created unit
+to be among the only units that run.
+
 ## T.operation
 [T.operation]: #toperation
 ```
@@ -447,6 +458,15 @@ reset_timer: () -> ()
 
 Resets the unit's elapsed time and all metrics. Does not affect whether
 the timer is running.
+
+## T.skip
+[T.skip]: #tskip
+```
+skip: Flag
+```
+
+When passed to a [FlagClause][FlagClause], causes the created unit
+to be skipped.
 
 ## T.start_timer
 [T.start_timer]: #tstart_timer

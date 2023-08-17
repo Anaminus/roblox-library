@@ -500,6 +500,9 @@ local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): N
 		Children = {},
 		Data = {
 			ContextManager = nil,
+			Concurrent = false,
+			Only = false,
+			Skip = false,
 			Closure = nil,
 			Before = {},
 			After = {},
@@ -1039,6 +1042,16 @@ export type T = {
 	--@doc: When passed to a [FlagClause][FlagClause], causes the created unit
 	-- to run concurrently with sibling units.
 	concurrently: Flag,
+	--@sec: T.only
+	--@def: only: Flag
+	--@doc: When passed to a [FlagClause][FlagClause], causes the created unit
+	-- to be among the only units that run.
+	only: Flag,
+	--@sec: T.skip
+	--@def: skip: Flag
+	--@doc: When passed to a [FlagClause][FlagClause], causes the created unit
+	-- to be skipped.
+	skip: Flag,
 
 	--@sec: T.describe
 	--@def: describe: FlagClause<Closure>
@@ -1291,24 +1304,37 @@ end
 -- Contains flags that have been set on a clause.
 type Flags = {
 	Concurrent: boolean,
+	Only: boolean,
+	Skip: boolean,
 }
 
 -- Constants representing flags passed to a FlagClause.
 local CONCURRENT: Flag = table.freeze{type="flag", kind="concurrently"} :: any
+local ONLY: Flag = table.freeze{type="flag", kind="only"} :: any
+local SKIP: Flag = table.freeze{type="flag", kind="skip"} :: any
+
 -- Returns whether a value is a valid flag.
 local function isFlag(flag: any): boolean
 	return flag == CONCURRENT
+	or flag == ONLY
+	or flag == SKIP
 end
 
 -- Converts a list of arguments into a Flags.
 local function parseFlags(...: unknown): Flags
 	local flags = {
 		Concurrent = false,
+		Only = false,
+		Skip = false,
 	}
 	for i = 1, select("#", ...) do
 		local arg = select(i, ...)
 		if arg == CONCURRENT then
 			flags.Concurrent = true
+		elseif arg == ONLY then
+			flags.Only = true
+		elseif arg == SKIP then
+			flags.Skip = true
 		else
 			error("unknown flag", 3)
 		end
@@ -1322,6 +1348,8 @@ local function setFlags(node: Node, flags: Flags)
 		return
 	end
 	node.Data.Concurrent = flags.Concurrent
+	node.Data.Only = flags.Only
+	node.Data.Skip = flags.Skip
 end
 
 -- Returns a FlagClause function, where flags can optionally be passed after the
@@ -1650,6 +1678,8 @@ local function processInput(tree: Tree, parent: Node, input: Input)
 		local ctxm = newContextManager(
 			{
 				concurrently = CONCURRENT,
+				only = ONLY,
+				skip = SKIP,
 			},
 
 			"describe",
