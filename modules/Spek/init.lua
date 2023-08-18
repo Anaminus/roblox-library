@@ -1150,13 +1150,13 @@ export type T = {
 	measure: BenchmarkClause,
 
 	--@sec: T.operation
-	--@def: operation: Clause<Closure>
+	--@def: operation: Statement<Closure>
 	--@doc: **While:** benchmarking (only once)
 	--
 	-- Defines the operation of a benchmark unit that is being measured. This
 	-- operation is run repeatedly. The operation is called while benchmarking.
 	-- This function must only be called once per benchmark.
-	operation: Clause<Closure>,
+	operation: Statement<Closure>,
 
 	--@sec: T.reset_timer
 	--@def: reset_timer: () -> ()
