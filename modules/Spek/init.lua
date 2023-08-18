@@ -246,6 +246,9 @@ type ContextManager<X> = {
 	) -> (),
 	-- Returns the object containing the public-facing context functions.
 	Object: X,
+	-- Returns whether an error in the running thread originated from the
+	-- context manager.
+	Errored: (self: ContextManager<X>) -> boolean,
 }
 
 type ContextObject = {[string]: any}
@@ -257,8 +260,13 @@ local function newContextManager<X>(...: string | {[any]:any}): ContextManager<X
 	local self = {}
 
 	type ThreadState = {
+		-- Name used for context.
 		Verb: string,
+		-- Represents current state of context.
 		Object: ContextObject,
+		-- Stores whether an error produced by the caller originated from the
+		-- context manager.
+		Errored: boolean,
 	}
 
 	-- Must cast as any because type T is not implemented by T+metatable.
@@ -280,9 +288,11 @@ local function newContextManager<X>(...: string | {[any]:any}): ContextManager<X
 				-- called this function from a different thread.
 				error(string.format("cannot call %s in new thread", field), 2)
 			end
+			state.Errored = false
 			local implementation = state.Object[field]
 			if implementation == nil then
 				-- Not implemented by this context.
+				state.Errored = true
 				error(string.format("cannot call %q while %s", field, state.Verb), 2)
 			end
 			return implementation(...)
@@ -299,7 +309,7 @@ local function newContextManager<X>(...: string | {[any]:any}): ContextManager<X
 	)
 		local t: ContextObject = {}
 		context(t)
-		local state = {Verb = verb, Object = t}
+		local state = {Verb = verb, Object = t, Errored = false}
 		local thread = coroutine.running()
 		threadStates[thread] = state
 		local ok, err = pcall(body::PCALLABLE)
@@ -307,6 +317,11 @@ local function newContextManager<X>(...: string | {[any]:any}): ContextManager<X
 		if not ok then
 			error(string.format("body errored: %s", err))
 		end
+	end
+
+	function self.Errored(self: ContextManager<X>): boolean
+		local state = threadStates[coroutine.running()]
+		return state and state.Errored
 	end
 
 	return table.freeze(self)
@@ -2060,13 +2075,17 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				return
 			end
 			expecting = true
-			local ok = pcall(closure)
+			local ok, err = pcall(closure::PCALLABLE)
 			if state.Result then
 				-- In case of inner expect.
 				expecting = false
 				return
 			end
-			if ok then
+			if ctxm:Errored() then
+				-- If expect_error calls an invalid function, that counts as an
+				-- unexpected error.
+				state.Result = newResult(node.Type, false, err)
+			elseif ok then
 				local reason
 				if description == nil then
 					reason = "expect error"
