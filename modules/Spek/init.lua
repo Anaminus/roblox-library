@@ -1492,7 +1492,7 @@ end
 --@doc: Used to run speks. The results are represented as a tree. Each node in
 -- the tree has a key, and can be visited using a path.
 --
--- Converting to a string displays formatted results of the last run. Metrics
+-- Converting to a string displays formatted results of the latest run. Metrics
 -- are tabulated per plan.
 --
 -- Note that the runner requires spek modules as-is.
@@ -1515,7 +1515,7 @@ export type Runner = {
 }
 
 type _Runner = Runner & {
-	_startTime: DateTime,
+	_metadata: Metadata,
 	_active: WaitGroup?,
 	_tree: Tree,
 	_config: Config,
@@ -1541,6 +1541,42 @@ export type Input = Plan | ModuleScript | {[any]: Input}
 --@def: type Plan = (t: T) -> ()
 --@doc: Receives a [T][T] to plan a testing suite.
 export type Plan = (t: T) -> ()
+
+--@sec: Metadata
+--@def: type Metadata = {
+--	RobloxVersion: string,
+--	LuaVersion: string,
+--	SpekVersion: string,
+--	StartTime: DateTime,
+--}
+--@doc: Contains metadata for the latest run of a [Runner][Runner].
+--
+-- The **RobloxVersion** field is the version of Roblox used for the run,
+-- according to the `version` global function.
+--
+-- The **LuaVersion** field is the version of Lua used for the run, according
+-- the `_VERSION` global variable.
+--
+-- The **SpekVersion** field is the version of the Spek framework used for the
+-- run.
+--
+-- The **StartTime** field is the starting time of the run.
+export type Metadata = {
+	RobloxVersion: string,
+	LuaVersion: string,
+	SpekVersion: string,
+	StartTime: DateTime,
+}
+
+-- Produces Metadata filled with data relevant to the start of a run.
+local function startMetadata(): Metadata
+	return {
+		RobloxVersion = version(),
+		LuaVersion = _VERSION,
+		SpekVersion = VERSION,
+		StartTime = DateTime.now(),
+	}
+end
 
 -- If a statement description is a string, returns it prefixed with *prefix*.
 -- Otherwise, returns it unchanged.
@@ -1798,7 +1834,7 @@ end
 function export.runner(input: Input?, config: Config?): Runner
 	local tree = newTree()
 	local self: _Runner = setmetatable({
-		_startTime = DateTime.now(),
+		_metadata = startMetadata(),
 		_active = nil,
 		_tree = tree,
 		_config = newConfig(config),
@@ -1855,10 +1891,11 @@ function Runner.__tostring(self: _Runner): string
 		end
 	end)
 	local out = {""}
-	table.insert(out, `roblox version: {version()}`)
-	table.insert(out, `lua version: {_VERSION}`)
-	table.insert(out, `framework version: {VERSION}`)
-	table.insert(out, `start time: {self._startTime:ToIsoDate()}`)
+	local meta = self._metadata
+	table.insert(out, `roblox version: {meta.RobloxVersion}`)
+	table.insert(out, `lua version: {meta.LuaVersion}`)
+	table.insert(out, `framework version: {meta.SpekVersion}`)
+	table.insert(out, `start time: {meta.StartTime:ToIsoDate()}`)
 	table.insert(out, `results:`)
 	for _, node in nodes do
 		local result = node.node.Data.Result
@@ -1875,6 +1912,13 @@ function Runner.__tostring(self: _Runner): string
 		)
 	end
 	return table.concat(out, "\n")
+end
+
+--@sec: Runner.Metadata
+--@def: function Runner:Metadata(): Metadata
+--@doc: Returns [Metadata][Metadata] for the latest run.
+function Runner.__index.Metadata(self: _Runner): Metadata
+	return table.freeze(table.clone(self._metadata))
 end
 
 -- Accumulate all before and after functions to run around the test.
@@ -2254,7 +2298,7 @@ end
 
 -- Begins a new run, visiting each node and running its unit.
 function Runner.__index._start(self: _Runner): WaitGroup
-	self._startTime = DateTime.now()
+	self._metadata = startMetadata()
 	self._tree:Reset()
 
 	-- Represents lifetime of entire run.
