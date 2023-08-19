@@ -131,7 +131,6 @@ type WaitGroup = {
 	Cancel: (self: WaitGroup) -> (),
 }
 
-
 -- Creates a new WaitGroup. Receives an optional function to run before each
 -- time the WaitGroup finishes.
 local function newWaitGroup(beforeFinish: (wg: WaitGroup)->()?): WaitGroup
@@ -1562,34 +1561,52 @@ export type Plan = (t: T) -> ()
 --	RobloxVersion: string,
 --	LuaVersion: string,
 --	SpekVersion: string,
---	StartTime: DateTime,
+--	StartTime: string,
 --}
 --@doc: Contains metadata for the latest run of a [Runner][Runner].
---
--- The **RobloxVersion** field is the version of Roblox used for the run,
--- according to the `version` global function.
 --
 -- The **LuaVersion** field is the version of Lua used for the run, according
 -- the `_VERSION` global variable.
 --
+-- The **RobloxVersion** field is the version of Roblox used for the run,
+-- according to the `version` global function. Set to "nil" if the version is
+-- not available.
+--
 -- The **SpekVersion** field is the version of the Spek framework used for the
 -- run.
 --
--- The **StartTime** field is the starting time of the run.
+-- The **StartTime** field is an ISO 8601 formatted string indicating the
+-- starting time of the run in universal time. Note that, if Roblox's DateTime
+-- is not available, then local time will be used instead.
 export type Metadata = {
 	RobloxVersion: string,
 	LuaVersion: string,
 	SpekVersion: string,
-	StartTime: DateTime,
+	StartTime: string,
 }
 
 -- Produces Metadata filled with data relevant to the start of a run.
 local function startMetadata(): Metadata
+	local function try(f, ...): string
+		local ok, result = pcall(f, ...)
+		if not ok then
+			return "nil"
+		end
+		return result
+	end
 	return {
-		RobloxVersion = version(),
-		LuaVersion = _VERSION,
+		RobloxVersion = try(version),
+		LuaVersion = tostring(_VERSION),
 		SpekVersion = VERSION,
-		StartTime = DateTime.now(),
+		StartTime = try(function()
+			if DateTime then
+				local time = try(function() return DateTime.now():ToIsoDate() end)
+				if time then
+					return time
+				end
+			end
+			return os.date("%Y-%m-%dT%H:%M:%S")
+		end),
 	}
 end
 
@@ -1907,10 +1924,10 @@ function Runner.__tostring(self: _Runner): string
 	end)
 	local out = {""}
 	local meta = self._metadata
-	table.insert(out, `roblox version: {meta.RobloxVersion}`)
 	table.insert(out, `lua version: {meta.LuaVersion}`)
+	table.insert(out, `roblox version: {meta.RobloxVersion}`)
 	table.insert(out, `framework version: {meta.SpekVersion}`)
-	table.insert(out, `start time: {meta.StartTime:ToIsoDate()}`)
+	table.insert(out, `start time: {meta.StartTime}`)
 	table.insert(out, `results:`)
 	for _, node in nodes do
 		local result = node.node.Data.Result
