@@ -65,18 +65,19 @@ end
 	17. [T.stop_timer][T.stop_timer]
 4. [Runner][Runner]
 	1. [Runner.All][Runner.All]
-	2. [Runner.Metrics][Runner.Metrics]
-	3. [Runner.ObserveMetric][Runner.ObserveMetric]
-	4. [Runner.ObserveResult][Runner.ObserveResult]
-	5. [Runner.Paths][Runner.Paths]
-	6. [Runner.Reset][Runner.Reset]
-	7. [Runner.Result][Runner.Result]
-	8. [Runner.Root][Runner.Root]
-	9. [Runner.Run][Runner.Run]
-	10. [Runner.Running][Runner.Running]
-	11. [Runner.Start][Runner.Start]
-	12. [Runner.Stop][Runner.Stop]
-	13. [Runner.Wait][Runner.Wait]
+	2. [Runner.Metadata][Runner.Metadata]
+	3. [Runner.Metrics][Runner.Metrics]
+	4. [Runner.ObserveMetric][Runner.ObserveMetric]
+	5. [Runner.ObserveResult][Runner.ObserveResult]
+	6. [Runner.Paths][Runner.Paths]
+	7. [Runner.Reset][Runner.Reset]
+	8. [Runner.Result][Runner.Result]
+	9. [Runner.Root][Runner.Root]
+	10. [Runner.Run][Runner.Run]
+	11. [Runner.Running][Runner.Running]
+	12. [Runner.Start][Runner.Start]
+	13. [Runner.Stop][Runner.Stop]
+	14. [Runner.Wait][Runner.Wait]
 5. [Assertion][Assertion]
 6. [Benchmark][Benchmark]
 7. [BenchmarkClause][BenchmarkClause]
@@ -85,18 +86,19 @@ end
 10. [Flag][Flag]
 11. [FlagClause][FlagClause]
 12. [Input][Input]
-13. [MetricObserver][MetricObserver]
-14. [Metrics][Metrics]
-15. [Parameter][Parameter]
-16. [ParameterClause][ParameterClause]
-17. [Path][Path]
+13. [Metadata][Metadata]
+14. [MetricObserver][MetricObserver]
+15. [Metrics][Metrics]
+16. [Parameter][Parameter]
+17. [ParameterClause][ParameterClause]
+18. [Path][Path]
 	1. [Path.Base][Path.Base]
 	2. [Path.Elements][Path.Elements]
-18. [Plan][Plan]
-19. [Result][Result]
-20. [ResultObserver][ResultObserver]
-21. [ResultType][ResultType]
-22. [Unsubscribe][Unsubscribe]
+19. [Plan][Plan]
+20. [Result][Result]
+21. [ResultObserver][ResultObserver]
+22. [ResultType][ResultType]
+23. [Unsubscribe][Unsubscribe]
 
 </td></tr></tbody>
 </table>
@@ -396,7 +398,7 @@ to be among the only units that run.
 ## T.operation
 [T.operation]: #toperation
 ```
-operation: Clause<Closure>
+operation: Statement<Closure>
 ```
 
 **While:** benchmarking (only once)
@@ -497,7 +499,7 @@ type Runner
 Used to run speks. The results are represented as a tree. Each node in
 the tree has a key, and can be visited using a path.
 
-Converting to a string displays formatted results of the last run. Metrics
+Converting to a string displays formatted results of the latest run. Metrics
 are tabulated per plan.
 
 Note that the runner requires spek modules as-is.
@@ -510,6 +512,14 @@ function Runner:All(): {Path}
 
 Returns a list of all paths in the runner. Paths are sorted by their
 string representation.
+
+## Runner.Metadata
+[Runner.Metadata]: #runnermetadata
+```
+function Runner:Metadata(): Metadata
+```
+
+Returns [Metadata][Metadata] for the latest run.
 
 ## Runner.Metrics
 [Runner.Metrics]: #runnermetrics
@@ -726,6 +736,33 @@ Inputs produce nodes within a [Runner][Runner]:
 - A spek produces a node for the spek.
 - A plan does not produce a node, but its content usually does.
 - Other values produce a node indicating an error.
+
+# Metadata
+[Metadata]: #metadata
+```
+type Metadata = {
+	RobloxVersion: string,
+	LuaVersion: string,
+	SpekVersion: string,
+	StartTime: string,
+}
+```
+
+Contains metadata for the latest run of a [Runner][Runner].
+
+The **LuaVersion** field is the version of Lua used for the run, according
+the `_VERSION` global variable.
+
+The **RobloxVersion** field is the version of Roblox used for the run,
+according to the `version` global function. Set to "nil" if the version is
+not available.
+
+The **SpekVersion** field is the version of the Spek framework used for the
+run.
+
+The **StartTime** field is an ISO 8601 formatted string indicating the
+starting time of the run in universal time. Note that, if Roblox's DateTime
+is not available, then local time will be used instead.
 
 # MetricObserver
 [MetricObserver]: #metricobserver
