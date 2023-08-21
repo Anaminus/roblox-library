@@ -2603,11 +2603,20 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 	end)
 end
 
+-- Set result status of all descendants to skipped.
+local function skipNodes(node: Node)
+	node:UpdateResult(newResult(node.Type, "skipped", ""))
+	for _, child in node.Children do
+		skipNodes(child)
+	end
+end
+
 -- Runs each unit in *node*. *outer* is an outer WaitGroup to which an inner
 -- WaitGroup may be added. *ctxm* is passed down to children nodes. If
 -- *onlyMode* is true, then leaf units do not run by default.
 local function runUnits(self: _Runner, node: Node, outer: WaitGroup, onlyMode: boolean, ctxm: ContextManager<T>?)
 	if node.Data.Skip then
+		skipNodes(node)
 		return
 	end
 
@@ -2622,12 +2631,14 @@ local function runUnits(self: _Runner, node: Node, outer: WaitGroup, onlyMode: b
 	-- only potential errors are non-userspace.
 	if node.Type == "test" then
 		if skip then
+			node:UpdateResult(newResult(node.Type, "skipped", ""))
 			return
 		end
 		runTest(node, (assert(ctxm, "missing thread context")))
 		return
 	elseif node.Type == "benchmark" then
 		if skip then
+			node:UpdateResult(newResult(node.Type, "skipped", ""))
 			return
 		end
 		runBenchmark(node, (assert(ctxm, "missing thread context")), self._config)
