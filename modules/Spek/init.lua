@@ -944,13 +944,8 @@ function Node.__index.ReconcileResults(self: Node): boolean
 		return self:UpdateResult(newResult(self.Type, "okay", ""))
 	end
 	-- Reconcile children.
-	local changed = false
 	for _, node in self.Children do
-		changed = node:ReconcileResults() or changed
-	end
-	if not changed then
-		-- No changes, no need to process.
-		return false
+		node:ReconcileResults()
 	end
 
 	-- Aggregate results.
