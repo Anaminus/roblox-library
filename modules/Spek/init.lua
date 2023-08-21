@@ -2328,6 +2328,13 @@ local function runUnit(node: Node, state: UnitState)
 		result = state.Result
 	end
 	if result == nil then
+		if node.Type == "test" and not state.Expected then
+			result = newResult(node.Type, "failed", "test must have at least one expectation")
+		elseif node.Type == "benchmark" and not state.Operated then
+			result = newResult(node.Type, "failed", "benchmark must have one operation")
+		end
+	end
+	if result == nil then
 		node:UpdateResult(newResult(node.Type, "okay", ""))
 	else
 		node:UpdateResult(result)
@@ -2346,6 +2353,9 @@ type UnitState = {
 	Result: Result?, -- Nil indicates okay, or no error.
 	Iterations: number, -- Number of iterations of the unit.
 	Metrics: Metrics, -- Reported metrics.
+
+	Expected: boolean, -- Whether a test called an expectation.
+	Operated: boolean, -- Whether a benchmark called an operation.
 }
 
 -- Creates a new UnitState.
@@ -2357,6 +2367,8 @@ local function newUnitState(): UnitState
 		Result = nil,
 		Iterations = 0,
 		Metrics = {},
+		Expected = false,
+		Operated = false,
 	}
 end
 
@@ -2367,6 +2379,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 	local expecting = false
 	local function context(t: ContextObject)
 		t.expect = newClause(function(description: string?, assertion: Assertion)
+			state.Expected = true
 			if expecting then
 				state.Result = newResult(node.Type, "failed", "cannot expect within expect")
 				return
@@ -2399,6 +2412,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 		end)
 
 		t.expect_error = newClause(function(description: string?, closure: Closure)
+			state.Expected = true
 			if expecting then
 				state.Result = newResult(node.Type, "failed", "cannot expect within expect")
 				return
@@ -2475,14 +2489,13 @@ end
 -- context.
 local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 	local state = newUnitState()
-	local operated = false
 	local function context(t: ContextObject)
 		function t.operation(closure: Closure)
-			if operated then
+			if state.Operated then
 				state.Result = newResult(node.Type, "failed", "multiple operations per measure")
 				return
 			end
-			operated = true
+			state.Operated = true
 			-- Do all work within pcall so that slow pcall is called once per
 			-- benchmark instead of once per operation.
 			local ok, err = pcall(function() --TODO: use xpcall to acquire trace
