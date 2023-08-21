@@ -1183,7 +1183,7 @@ function Tree.__index.Dirty(self: Tree)
 	if self.MaintenanceThread then
 		return
 	end
-	local thread = task.defer(function(self: Tree)
+	local thread = task.delay(0, function(self: Tree)
 		self:Maintenance()
 		if self.Active._active then
 			self.Active._active:Finish()
