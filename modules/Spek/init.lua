@@ -2691,8 +2691,9 @@ function Runner.__index._start(self: _Runner): WaitGroup
 	-- Determine whether there are any nodes that have Only flag set.
 	local only = false
 	for _, node in self._tree.Nodes do
-		if node:IsLeaf() then
-			only = only or (not not node.Data.Only and not node.Data.Skip)
+		only = only or (not not node.Data.Only and not node.Data.Skip)
+		if only then
+			break
 		end
 	end
 
