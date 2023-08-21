@@ -633,6 +633,7 @@ end
 --@sec: Result
 --@def: type Result = {
 -- 	Type: ResultType,
+-- 	Path: Path,
 -- 	Status: ResultStatus,
 -- 	Reason: string,
 -- 	Trace: string?,
@@ -642,6 +643,8 @@ end
 --
 -- The **Type** field is a [ResultType][ResultType] that indicates the type of
 -- result.
+--
+-- The **Path** field is a [Path][Path] indicating the origin of the result.
 --
 -- The **Status** field is a [ResultStatus][ResultStatus] indicating whether the
 -- unit succeeded or failed. For nodes and plans, represents the conjunction of
@@ -654,6 +657,7 @@ end
 -- The **Trace** field is an optional stack trace to supplement the Reason.
 export type Result = {
 	Type: ResultType,
+	Path: Path,
 	Status: ResultStatus,
 	Reason: string,
 	Trace: string?,
@@ -661,14 +665,15 @@ export type Result = {
 
 -- Constructs a new immutable Result.
 local function newResult(
-	type: ResultType,
+	node: Node,
 	status: ResultStatus,
 	reason: string,
 	trace: string?
 ): Result
 	--TODO: Should be formattable.
 	return table.freeze{
-		Type = type,
+		Type = node.Type,
+		Path = node.Path,
 		Status = status,
 		Reason = reason,
 		Trace = trace,
@@ -818,7 +823,6 @@ local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): N
 			Closure = nil,
 			Before = {},
 			After = {},
-			Result = newResult(type, "pending", ""),
 			Metrics = {},
 			Iterations = 0,
 			Duration = 0,
@@ -833,15 +837,15 @@ local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): N
 		-- Root node.
 		node.Path = newPath()
 		tree.Root = node
-		tree.Nodes[node.Path] = node
 	elseif parent ~= nil then
 		assert(key ~= nil, "key cannot be nil")
 		local elements = parent.Path:Elements()
 		table.insert(elements, key)
 		node.Path = newPath(table.unpack(elements))
 		table.insert(parent.Children, node)
-		tree.Nodes[node.Path] = node
 	end
+	tree.Nodes[node.Path] = node
+	node.Data.Result = newResult(node, "pending", "")
 	return table.freeze(node)
 end
 
@@ -941,7 +945,7 @@ function Node.__index.ReconcileResults(self: Node): boolean
 			return self.Pending.Result
 		end
 		-- Non-leaf node with no children; aggregate as okay.
-		return self:UpdateResult(newResult(self.Type, "okay", ""))
+		return self:UpdateResult(newResult(self, "okay", ""))
 	end
 	-- Reconcile children.
 	for _, node in self.Children do
@@ -967,10 +971,10 @@ function Node.__index.ReconcileResults(self: Node): boolean
 	end
 	-- Otherwise, if all children were skipped, set to skipped.
 	if allStatus(self, "skipped") then
-		return self:UpdateResult(newResult(self.Type, "skipped", ""))
+		return self:UpdateResult(newResult(self, "skipped", ""))
 	end
 	-- Otherwise, set to okay.
-	return self:UpdateResult(newResult(self.Type, "okay", ""))
+	return self:UpdateResult(newResult(self, "okay", ""))
 end
 
 -- If the node has child nodes, the Metrics of the node will be set to the
@@ -1165,7 +1169,7 @@ function Tree.__index.CreateErrorNode(
 	...: any
 ): Node
 	local node = self:CreateNode(type, parent, key)
-	node:UpdateResult(newResult(type, "errored", string.format(format, ...)))
+	node:UpdateResult(newResult(node, "errored", string.format(format, ...)))
 	table.freeze(node.Data)
 	return node
 end
@@ -1213,7 +1217,7 @@ end
 function Tree.__index.Reset(self: Tree)
 	for _, node in self.Nodes do
 		if not table.isfrozen(node.Data) then
-			node:UpdateResult(newResult(node.Type, "pending", ""))
+			node:UpdateResult(newResult(node, "pending", ""))
 			for unit, value in node.Data.Metrics do
 				node:UpdateMetric(unit, value)
 			end
@@ -2069,7 +2073,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				todo = string.format(format, ...)
 			end
 			local node = state:PeekNode()
-			node:UpdateResult(newResult(node.Type, "TODO", todo))
+			node:UpdateResult(newResult(node, "TODO", todo))
 			table.freeze(node.Data)
 		end
 	end
@@ -2238,10 +2242,14 @@ function Runner.__tostring(self: _Runner): string
 	table.insert(out, `framework version: {meta.SpekVersion}`)
 	table.insert(out, `start time: {meta.StartTime}`)
 	local root = self._tree.Root.Data.Result
-	if root.Reason == "" then
-		table.insert(out, `results: {root.Status}`)
+	if root.Status == "pending" then
+		table.insert(out, `results: {root.Status}: {tostring(root.Path)}`)
+	elseif root.Status == "failed"
+	or root.Status == "errored"
+	or (root.Status == "TODO" and root.Reason ~= "") then
+		table.insert(out, `results: {root.Status}: {tostring(root.Path)}: {root.Reason}`)
 	else
-		table.insert(out, `results: {root.Status}: {root.Reason}`)
+		table.insert(out, `results: {root.Status}`)
 	end
 	for _, node in nodes do
 		local result = node.node.Data.Result
@@ -2290,7 +2298,7 @@ local function runUnit(node: Node, state: UnitState)
 			local ok, err = pcall(before::PCALLABLE)
 			if not ok then
 				--TODO: add context to error
-				result = newResult(node.Type, "failed", err)
+				result = newResult(node, "failed", err)
 				-- Exit early; errors occurring before are considered fatal.
 				return
 			end
@@ -2304,7 +2312,7 @@ local function runUnit(node: Node, state: UnitState)
 			-- failed expectation, and the error is the result of being in an
 			-- unexpected state.
 			if not result then
-				result = newResult(node.Type, "failed", err)
+				result = newResult(node, "failed", err)
 			end
 			-- Run afters even if test fails.
 		end
@@ -2314,7 +2322,7 @@ local function runUnit(node: Node, state: UnitState)
 			if not ok then
 				--TODO: add context to error
 				if not result then
-					result = newResult(node.Type, "failed", err)
+					result = newResult(node, "failed", err)
 				end
 				-- Override and exit early; errors occurring after are considered
 				-- fatal and more significant, given that they are a problem with
@@ -2329,13 +2337,13 @@ local function runUnit(node: Node, state: UnitState)
 	end
 	if result == nil then
 		if node.Type == "test" and not state.Expected then
-			result = newResult(node.Type, "failed", "test must have at least one expectation")
+			result = newResult(node, "failed", "test must have at least one expectation")
 		elseif node.Type == "benchmark" and not state.Operated then
-			result = newResult(node.Type, "failed", "benchmark must have one operation")
+			result = newResult(node, "failed", "benchmark must have one operation")
 		end
 	end
 	if result == nil then
-		node:UpdateResult(newResult(node.Type, "okay", ""))
+		node:UpdateResult(newResult(node, "okay", ""))
 	else
 		node:UpdateResult(result)
 	end
@@ -2381,7 +2389,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 		t.expect = newClause(function(description: string?, assertion: Assertion)
 			state.Expected = true
 			if expecting then
-				state.Result = newResult(node.Type, "failed", "cannot expect within expect")
+				state.Result = newResult(node, "failed", "cannot expect within expect")
 				return
 			end
 			expecting = true
@@ -2399,14 +2407,14 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				if result then
 					-- Nil indicates okay result.
 				elseif reason ~= nil then
-					state.Result = newResult(node.Type, "failed", tostring(reason))
+					state.Result = newResult(node, "failed", tostring(reason))
 				elseif description ~= nil then
-					state.Result = newResult(node.Type, "failed", wrapDesc("expect", description))
+					state.Result = newResult(node, "failed", wrapDesc("expect", description))
 				else
-					state.Result = newResult(node.Type, "failed", "expectation failed")
+					state.Result = newResult(node, "failed", "expectation failed")
 				end
 			else
-				state.Result = newResult(node.Type, "failed", result)
+				state.Result = newResult(node, "failed", result)
 			end
 			expecting = false
 		end)
@@ -2414,7 +2422,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 		t.expect_error = newClause(function(description: string?, closure: Closure)
 			state.Expected = true
 			if expecting then
-				state.Result = newResult(node.Type, "failed", "cannot expect within expect")
+				state.Result = newResult(node, "failed", "cannot expect within expect")
 				return
 			end
 			expecting = true
@@ -2427,7 +2435,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			if ctxm:Errored() then
 				-- If expect_error calls an invalid function, that counts as an
 				-- unexpected error.
-				state.Result = newResult(node.Type, "failed", err)
+				state.Result = newResult(node, "failed", err)
 			elseif ok then
 				local reason
 				if description == nil then
@@ -2435,7 +2443,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				else
 					reason = wrapDesc("expect error", description)
 				end
-				state.Result = newResult(node.Type, "failed", reason)
+				state.Result = newResult(node, "failed", reason)
 			end
 			expecting = false
 		end)
@@ -2477,7 +2485,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			else
 				todo = string.format(format, ...)
 			end
-			state.Result = newResult(node.Type, "TODO", todo)
+			state.Result = newResult(node, "TODO", todo)
 		end
 	end
 	ctxm:While("testing", context, function()
@@ -2492,7 +2500,7 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 	local function context(t: ContextObject)
 		function t.operation(closure: Closure)
 			if state.Operated then
-				state.Result = newResult(node.Type, "failed", "multiple operations per measure")
+				state.Result = newResult(node, "failed", "multiple operations per measure")
 				return
 			end
 			state.Operated = true
@@ -2539,7 +2547,7 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 				end
 			end)
 			if not ok then
-				state.Result = newResult(node.Type, "failed", err)
+				state.Result = newResult(node, "failed", err)
 			end
 		end
 
@@ -2580,7 +2588,7 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 			else
 				todo = string.format(format, ...)
 			end
-			state.Result = newResult(node.Type, "TODO", todo)
+			state.Result = newResult(node, "TODO", todo)
 		end
 	end
 	ctxm:While("benchmarking", context, function()
@@ -2590,7 +2598,7 @@ end
 
 -- Set result status of all descendants to skipped.
 local function skipNodes(node: Node)
-	node:UpdateResult(newResult(node.Type, "skipped", ""))
+	node:UpdateResult(newResult(node, "skipped", ""))
 	for _, child in node.Children do
 		skipNodes(child)
 	end
@@ -2616,14 +2624,14 @@ local function runUnits(self: _Runner, node: Node, outer: WaitGroup, onlyMode: b
 	-- only potential errors are non-userspace.
 	if node.Type == "test" then
 		if skip then
-			node:UpdateResult(newResult(node.Type, "skipped", ""))
+			node:UpdateResult(newResult(node, "skipped", ""))
 			return
 		end
 		runTest(node, (assert(ctxm, "missing thread context")))
 		return
 	elseif node.Type == "benchmark" then
 		if skip then
-			node:UpdateResult(newResult(node.Type, "skipped", ""))
+			node:UpdateResult(newResult(node, "skipped", ""))
 			return
 		end
 		runBenchmark(node, (assert(ctxm, "missing thread context")), self._config)

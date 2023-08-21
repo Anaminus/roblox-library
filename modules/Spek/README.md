@@ -851,6 +851,7 @@ Receives a [T][T] to plan a testing suite.
 ```
 type Result = {
 	Type: ResultType,
+	Path: Path,
 	Status: ResultStatus,
 	Reason: string,
 	Trace: string?,
@@ -862,6 +863,8 @@ formatted result.
 
 The **Type** field is a [ResultType][ResultType] that indicates the type of
 result.
+
+The **Path** field is a [Path][Path] indicating the origin of the result.
 
 The **Status** field is a [ResultStatus][ResultStatus] indicating whether the
 unit succeeded or failed. For nodes and plans, represents the conjunction of
