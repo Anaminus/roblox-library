@@ -633,7 +633,7 @@ end
 --@sec: Result
 --@def: type Result = {
 -- 	Type: ResultType,
--- 	Status: boolean?,
+-- 	Status: ResultStatus,
 -- 	Reason: string,
 -- 	Trace: string?,
 -- }
@@ -643,9 +643,8 @@ end
 -- The **Type** field is a [ResultType][ResultType] that indicates the type of
 -- result.
 --
--- The **Status** field indicates whether the unit succeeded or failed. A nil
--- status indicates that the result is pending. For benchmarks, it will be false
--- if the benchmark errored. For nodes and plans, represents the conjunction of
+-- The **Status** field is a [ResultStatus][ResultStatus] indicating whether the
+-- unit succeeded or failed. For nodes and plans, represents the conjunction of
 -- the status of all sub-units. If any sub-unit has a pending result, then the
 -- status will also be pending.
 --
@@ -655,7 +654,7 @@ end
 -- The **Trace** field is an optional stack trace to supplement the Reason.
 export type Result = {
 	Type: ResultType,
-	Status: boolean?,
+	Status: ResultStatus,
 	Reason: string,
 	Trace: string?,
 }
@@ -663,7 +662,7 @@ export type Result = {
 -- Constructs a new immutable Result.
 local function newResult(
 	type: ResultType,
-	status: boolean?,
+	status: ResultStatus,
 	reason: string,
 	trace: string?
 ): Result
@@ -769,6 +768,93 @@ export type ResultType
 	| "test"
 	| "benchmark"
 
+--@sec: ResultStatus
+--@def: type ResultStatus = "pending" | "okay" | "failed" | "skipped" | "errored" | "TODO"
+--@doc: Indicates the status of a result tree node.
+--
+-- Value   | Description
+-- --------|------------
+-- pending | The result has not been computed.
+-- okay    | The unit succeeded.
+-- failed  | The unit failed.
+-- skipped | The unit was skipped and not run.
+-- errored | An error was produced during planning.
+-- TODO    | The unit is not fully implemented.
+export type ResultStatus
+	= "pending"
+	| "okay"
+	| "failed"
+	| "skipped"
+	| "errored"
+	| "TODO"
+
+-- Defines how results are unioned. If select is false, the left side reason is
+-- selected. If true, the right side reason is selected. Otherwise, the reason
+-- will be empty.
+local resultTable: {[ResultStatus]: {[ResultStatus]: {status: ResultStatus, select: boolean?}}} = {
+	pending = {
+		pending = {status="pending" , select=nil},
+		okay    = {status="pending" , select=nil},
+		failed  = {status="pending" , select=nil},
+		skipped = {status="pending" , select=nil},
+		errored = {status="pending" , select=nil},
+		TODO    = {status="pending" , select=nil},
+	},
+	okay = {
+		pending = {status="pending" , select=nil},
+		okay    = {status="okay"    , select=nil},
+		failed  = {status="failed"  , select=true},
+		skipped = {status="okay"    , select=nil},
+		errored = {status="errored" , select=true},
+		TODO    = {status="okay"    , select=nil},
+	},
+	failed = {
+		pending = {status="pending" , select=nil},
+		okay    = {status="failed"  , select=false},
+		failed  = {status="failed"  , select=false},
+		skipped = {status="failed"  , select=false},
+		errored = {status="failed"  , select=false},
+		TODO    = {status="failed"  , select=false},
+	},
+	skipped = {
+		pending = {status="pending" , select=nil},
+		okay    = {status="okay"    , select=nil},
+		failed  = {status="failed"  , select=true},
+		skipped = {status="okay"    , select=nil},
+		errored = {status="errored" , select=true},
+		TODO    = {status="okay"    , select=nil},
+	},
+	errored = {
+		pending = {status="failed"  , select=false},
+		okay    = {status="failed"  , select=false},
+		failed  = {status="failed"  , select=false},
+		skipped = {status="failed"  , select=false},
+		errored = {status="failed"  , select=false},
+		TODO    = {status="failed"  , select=false},
+	},
+	TODO = {
+		pending = {status="pending" , select=nil},
+		okay    = {status="okay"    , select=nil},
+		failed  = {status="failed"  , select=true},
+		skipped = {status="okay"    , select=nil},
+		errored = {status="errored" , select=true},
+		TODO    = {status="okay"    , select=nil},
+	},
+}
+
+-- Return a Result that is the union of Results *a* and *b*. Uses type of *a* to
+-- determine result type.
+local function unionResults(a: Result, b: Result): Result
+	local result = assert(resultTable[a.Status][b.Status], "incomplete result table")
+	if result.select == false then
+		return newResult(a.Type, result.status, a.Reason)
+	elseif result.select == true then
+		return newResult(a.Type, result.status, b.Reason)
+	else
+		return newResult(a.Type, result.status, "")
+	end
+end
+
 --@sec: Metrics
 --@def: type Metrics = {[string]: number}
 --@doc: Metrics contains measurements made during a test or benchmark. It maps
@@ -799,7 +885,7 @@ local function newNode(tree: Tree, type: ResultType, parent: Node?, key: any): N
 			Closure = nil,
 			Before = {},
 			After = {},
-			Result = newResult(type, nil, ""),
+			Result = newResult(type, "pending", ""),
 			Metrics = {},
 			Iterations = 0,
 			Duration = 0,
@@ -902,7 +988,7 @@ function Node.__index.ReconcileResults(self: Node): boolean
 			return self.Pending.Result
 		end
 		-- Non-leaf node with no children; aggregate as okay.
-		return self:UpdateResult(newResult(self.Type, true, ""))
+		return self:UpdateResult(newResult(self.Type, "okay", ""))
 	end
 	-- Reconcile children.
 	local changed = false
@@ -913,21 +999,9 @@ function Node.__index.ReconcileResults(self: Node): boolean
 		-- No changes, no need to process.
 		return false
 	end
-	--TODO: aggregate reason/trace.
-	local status: boolean? = true
+	local result = newResult(self.Type, "okay", "")
 	for _, node in self.Children do
-		-- Have result status as first operand to ensure that nil status is
-		-- propagated as nil.
-		status = node.Data.Result.Status and status
-		if not status then
-			break
-		end
-	end
-	local result
-	if status == false then
-		result = newResult(self.Type, false, "one or more results failed")
-	else
-		result = newResult(self.Type, status, "")
+		result = unionResults(result, node.Data.Result)
 	end
 	return self:UpdateResult(result)
 end
@@ -1124,7 +1198,7 @@ function Tree.__index.CreateErrorNode(
 	...: any
 ): Node
 	local node = self:CreateNode(type, parent, key)
-	node:UpdateResult(newResult(type, false, string.format(format, ...)))
+	node:UpdateResult(newResult(type, "errored", string.format(format, ...)))
 	table.freeze(node.Data)
 	return node
 end
@@ -1172,7 +1246,7 @@ end
 function Tree.__index.Reset(self: Tree)
 	for _, node in self.Nodes do
 		if not table.isfrozen(node.Data) then
-			node:UpdateResult(newResult(node.Type, nil, ""))
+			node:UpdateResult(newResult(node.Type, "pending", ""))
 			for unit, value in node.Data.Metrics do
 				node:UpdateMetric(unit, value)
 			end
@@ -2023,12 +2097,12 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 		function t.TODO(format: string?, ...: any)
 			local todo
 			if format == nil then
-				todo = "TODO: not implemented"
+				todo = "not implemented"
 			else
-				todo = string.format("TODO: "..format, ...)
+				todo = string.format(format, ...)
 			end
 			local node = state:PeekNode()
-			node:UpdateResult(newResult(node.Type, true, todo))
+			node:UpdateResult(newResult(node.Type, "TODO", todo))
 			table.freeze(node.Data)
 		end
 	end
@@ -2182,6 +2256,14 @@ function Runner.__tostring(self: _Runner): string
 			max = l
 		end
 	end)
+	local stat: {[ResultStatus]: string} = {
+		pending = "pend",
+		okay    = " ok ",
+		failed  = "FAIL",
+		errored = "ERR ",
+		skipped = "skip",
+		TODO    = "TODO",
+	}
 	local out = {""}
 	local meta = self._metadata
 	table.insert(out, `lua version: {meta.LuaVersion}`)
@@ -2191,16 +2273,14 @@ function Runner.__tostring(self: _Runner): string
 	table.insert(out, `results:`)
 	for _, node in nodes do
 		local result = node.node.Data.Result
-		local status = result.Status
-		local reason = result.Reason
 		table.insert(out,
 			node.name
 			.. " "
 			.. string.rep("…", max-(utf8.len(node.name) or #node.name))
 			.. " | "
-			.. (if status then " ok " elseif status == nil then "pend" else "FAIL")
+			.. stat[result.Status]
 			.. " | "
-			.. reason
+			.. result.Reason
 		)
 	end
 	return table.concat(out, "\n")
@@ -2238,7 +2318,7 @@ local function runUnit(node: Node, state: UnitState)
 			local ok, err = pcall(before::PCALLABLE)
 			if not ok then
 				--TODO: add context to error
-				result = newResult(node.Type, false, err)
+				result = newResult(node.Type, "failed", err)
 				-- Exit early; errors occurring before are considered fatal.
 				return
 			end
@@ -2252,7 +2332,7 @@ local function runUnit(node: Node, state: UnitState)
 			-- failed expectation, and the error is the result of being in an
 			-- unexpected state.
 			if not result then
-				result = newResult(node.Type, false, err)
+				result = newResult(node.Type, "failed", err)
 			end
 			-- Run afters even if test fails.
 		end
@@ -2262,7 +2342,7 @@ local function runUnit(node: Node, state: UnitState)
 			if not ok then
 				--TODO: add context to error
 				if not result then
-					result = newResult(node.Type, false, err)
+					result = newResult(node.Type, "failed", err)
 				end
 				-- Override and exit early; errors occurring after are considered
 				-- fatal and more significant, given that they are a problem with
@@ -2276,7 +2356,7 @@ local function runUnit(node: Node, state: UnitState)
 		result = state.Result
 	end
 	if result == nil then
-		node:UpdateResult(newResult(node.Type, true, ""))
+		node:UpdateResult(newResult(node.Type, "okay", ""))
 	else
 		node:UpdateResult(result)
 	end
@@ -2316,7 +2396,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 	local function context(t: ContextObject)
 		t.expect = newClause(function(description: string?, assertion: Assertion)
 			if expecting then
-				state.Result = newResult(node.Type, false, "cannot expect within expect")
+				state.Result = newResult(node.Type, "failed", "cannot expect within expect")
 				return
 			end
 			expecting = true
@@ -2334,21 +2414,21 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				if result then
 					-- Nil indicates okay result.
 				elseif reason ~= nil then
-					state.Result = newResult(node.Type, false, tostring(reason))
+					state.Result = newResult(node.Type, "failed", tostring(reason))
 				elseif description ~= nil then
-					state.Result = newResult(node.Type, false, wrapDesc("expect", description))
+					state.Result = newResult(node.Type, "failed", wrapDesc("expect", description))
 				else
-					state.Result = newResult(node.Type, false, "expectation failed")
+					state.Result = newResult(node.Type, "failed", "expectation failed")
 				end
 			else
-				state.Result = newResult(node.Type, ok, result)
+				state.Result = newResult(node.Type, "failed", result)
 			end
 			expecting = false
 		end)
 
 		t.expect_error = newClause(function(description: string?, closure: Closure)
 			if expecting then
-				state.Result = newResult(node.Type, false, "cannot expect within expect")
+				state.Result = newResult(node.Type, "failed", "cannot expect within expect")
 				return
 			end
 			expecting = true
@@ -2361,7 +2441,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			if ctxm:Errored() then
 				-- If expect_error calls an invalid function, that counts as an
 				-- unexpected error.
-				state.Result = newResult(node.Type, false, err)
+				state.Result = newResult(node.Type, "failed", err)
 			elseif ok then
 				local reason
 				if description == nil then
@@ -2369,7 +2449,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 				else
 					reason = wrapDesc("expect error", description)
 				end
-				state.Result = newResult(node.Type, false, reason)
+				state.Result = newResult(node.Type, "failed", reason)
 			end
 			expecting = false
 		end)
@@ -2407,11 +2487,11 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 		function t.TODO(format: string?, ...: any)
 			local todo
 			if format == nil then
-				todo = "TODO: not implemented"
+				todo = "not implemented"
 			else
-				todo = string.format("TODO: "..format, ...)
+				todo = string.format(format, ...)
 			end
-			state.Result = newResult(node.Type, true, todo)
+			state.Result = newResult(node.Type, "TODO", todo)
 		end
 	end
 	ctxm:While("testing", context, function()
@@ -2427,7 +2507,7 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 	local function context(t: ContextObject)
 		function t.operation(closure: Closure)
 			if operated then
-				state.Result = newResult(node.Type, false, "multiple operations per measure")
+				state.Result = newResult(node.Type, "failed", "multiple operations per measure")
 				return
 			end
 			operated = true
@@ -2474,7 +2554,7 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 				end
 			end)
 			if not ok then
-				state.Result = newResult(node.Type, false, err)
+				state.Result = newResult(node.Type, "failed", err)
 			end
 		end
 
@@ -2511,11 +2591,11 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 		function t.TODO(format: string?, ...: any)
 			local todo
 			if format == nil then
-				todo = "TODO: not implemented"
+				todo = "not implemented"
 			else
-				todo = string.format("TODO: "..format, ...)
+				todo = string.format(format, ...)
 			end
-			state.Result = newResult(node.Type, true, todo)
+			state.Result = newResult(node.Type, "TODO", todo)
 		end
 	end
 	ctxm:While("benchmarking", context, function()

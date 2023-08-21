@@ -97,8 +97,9 @@ end
 19. [Plan][Plan]
 20. [Result][Result]
 21. [ResultObserver][ResultObserver]
-22. [ResultType][ResultType]
-23. [Unsubscribe][Unsubscribe]
+22. [ResultStatus][ResultStatus]
+23. [ResultType][ResultType]
+24. [Unsubscribe][Unsubscribe]
 
 </td></tr></tbody>
 </table>
@@ -850,7 +851,7 @@ Receives a [T][T] to plan a testing suite.
 ```
 type Result = {
 	Type: ResultType,
-	Status: boolean?,
+	Status: ResultStatus,
 	Reason: string,
 	Trace: string?,
 }
@@ -862,9 +863,8 @@ formatted result.
 The **Type** field is a [ResultType][ResultType] that indicates the type of
 result.
 
-The **Status** field indicates whether the unit succeeded or failed. A nil
-status indicates that the result is pending. For benchmarks, it will be false
-if the benchmark errored. For nodes and plans, represents the conjunction of
+The **Status** field is a [ResultStatus][ResultStatus] indicating whether the
+unit succeeded or failed. For nodes and plans, represents the conjunction of
 the status of all sub-units. If any sub-unit has a pending result, then the
 status will also be pending.
 
@@ -880,6 +880,23 @@ type ResultObserver = (path: Path, result: Result) -> ()
 ```
 
 Observes the result of *path*.
+
+# ResultStatus
+[ResultStatus]: #resultstatus
+```
+type ResultStatus = "pending" | "okay" | "failed" | "skipped" | "errored" | "TODO"
+```
+
+Indicates the status of a result tree node.
+
+Value   | Description
+--------|------------
+pending | The result has not been computed.
+okay    | The unit succeeded.
+failed  | The unit failed.
+skipped | The unit was skipped and not run.
+errored | An error was produced during planning.
+TODO    | The unit is not fully implemented.
 
 # ResultType
 [ResultType]: #resulttype
