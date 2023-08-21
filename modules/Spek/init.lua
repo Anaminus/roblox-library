@@ -2237,7 +2237,12 @@ function Runner.__tostring(self: _Runner): string
 	table.insert(out, `roblox version: {meta.RobloxVersion}`)
 	table.insert(out, `framework version: {meta.SpekVersion}`)
 	table.insert(out, `start time: {meta.StartTime}`)
-	table.insert(out, `results:`)
+	local root = self._tree.Root.Data.Result
+	if root.Reason == "" then
+		table.insert(out, `results: {root.Status}`)
+	else
+		table.insert(out, `results: {root.Status}: {root.Reason}`)
+	end
 	for _, node in nodes do
 		local result = node.node.Data.Result
 		table.insert(out,
