@@ -788,73 +788,6 @@ export type ResultStatus
 	| "errored"
 	| "TODO"
 
--- Defines how results are unioned. If select is false, the left side reason is
--- selected. If true, the right side reason is selected. Otherwise, the reason
--- will be empty.
-local resultTable: {[ResultStatus]: {[ResultStatus]: {status: ResultStatus, select: boolean?}}} = {
-	pending = {
-		pending = {status="pending" , select=nil},
-		okay    = {status="pending" , select=nil},
-		failed  = {status="pending" , select=nil},
-		skipped = {status="pending" , select=nil},
-		errored = {status="pending" , select=nil},
-		TODO    = {status="pending" , select=nil},
-	},
-	okay = {
-		pending = {status="pending" , select=nil},
-		okay    = {status="okay"    , select=nil},
-		failed  = {status="failed"  , select=true},
-		skipped = {status="okay"    , select=nil},
-		errored = {status="errored" , select=true},
-		TODO    = {status="okay"    , select=nil},
-	},
-	failed = {
-		pending = {status="pending" , select=nil},
-		okay    = {status="failed"  , select=false},
-		failed  = {status="failed"  , select=false},
-		skipped = {status="failed"  , select=false},
-		errored = {status="failed"  , select=false},
-		TODO    = {status="failed"  , select=false},
-	},
-	skipped = {
-		pending = {status="pending" , select=nil},
-		okay    = {status="okay"    , select=nil},
-		failed  = {status="failed"  , select=true},
-		skipped = {status="okay"    , select=nil},
-		errored = {status="errored" , select=true},
-		TODO    = {status="okay"    , select=nil},
-	},
-	errored = {
-		pending = {status="failed"  , select=false},
-		okay    = {status="failed"  , select=false},
-		failed  = {status="failed"  , select=false},
-		skipped = {status="failed"  , select=false},
-		errored = {status="failed"  , select=false},
-		TODO    = {status="failed"  , select=false},
-	},
-	TODO = {
-		pending = {status="pending" , select=nil},
-		okay    = {status="okay"    , select=nil},
-		failed  = {status="failed"  , select=true},
-		skipped = {status="okay"    , select=nil},
-		errored = {status="errored" , select=true},
-		TODO    = {status="okay"    , select=nil},
-	},
-}
-
--- Return a Result that is the union of Results *a* and *b*. Uses type of *a* to
--- determine result type.
-local function unionResults(a: Result, b: Result): Result
-	local result = assert(resultTable[a.Status][b.Status], "incomplete result table")
-	if result.select == false then
-		return newResult(a.Type, result.status, a.Reason)
-	elseif result.select == true then
-		return newResult(a.Type, result.status, b.Reason)
-	else
-		return newResult(a.Type, result.status, "")
-	end
-end
-
 --@sec: Metrics
 --@def: type Metrics = {[string]: number}
 --@doc: Metrics contains measurements made during a test or benchmark. It maps
@@ -979,6 +912,26 @@ function Node.__index.UpdateBenchmark(self: Node, iterations: number, duration: 
 	return true
 end
 
+-- Returns first child with *status*, or nil.
+local function anyStatus(node: Node, status: ResultStatus): Result?
+	for _, child in node.Children do
+		if child.Data.Result.Status == status then
+			return child.Data.Result
+		end
+	end
+	return nil
+end
+
+-- Returns true of all children have *status*.
+local function allStatus(node: Node, status: ResultStatus): boolean
+	for _, child in node.Children do
+		if child.Data.Result.Status ~= status then
+			return false
+		end
+	end
+	return true
+end
+
 -- If the node has child nodes, the Result of the node will be set to the
 -- aggregation of the children's results. Returns whether there were changes.
 function Node.__index.ReconcileResults(self: Node): boolean
@@ -999,11 +952,30 @@ function Node.__index.ReconcileResults(self: Node): boolean
 		-- No changes, no need to process.
 		return false
 	end
-	local result = newResult(self.Type, "okay", "")
-	for _, node in self.Children do
-		result = unionResults(result, node.Data.Result)
+
+	-- Aggregate results.
+
+	-- If any child errored, set to the first errored result.
+	local result = anyStatus(self, "errored")
+	if result then
+		return self:UpdateResult(result)
 	end
-	return self:UpdateResult(result)
+	-- Otherwise, if any child is pending, set to pending.
+	result = anyStatus(self, "pending")
+	if result then
+		return self:UpdateResult(result)
+	end
+	-- Otherwise, if any child failed, set to the first failed result.
+	result = anyStatus(self, "failed")
+	if result then
+		return self:UpdateResult(result)
+	end
+	-- Otherwise, if all children were skipped, set to skipped.
+	if allStatus(self, "skipped") then
+		return self:UpdateResult(newResult(self.Type, "skipped", ""))
+	end
+	-- Otherwise, set to okay.
+	return self:UpdateResult(newResult(self.Type, "okay", ""))
 end
 
 -- If the node has child nodes, the Metrics of the node will be set to the
