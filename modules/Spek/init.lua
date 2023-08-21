@@ -2657,6 +2657,7 @@ function Runner.__index._start(self: _Runner): WaitGroup
 
 	-- Represents lifetime of entire run.
 	local wg = newWaitGroup(function(wg)
+		self._tree:Maintenance()
 		if self._active == wg then
 			self._active = nil
 		end
