@@ -1295,44 +1295,49 @@ end
 --
 -- ```lua
 -- return function(t: Spek.T)
+-- 	local describe = t.describe
+-- 	local it = t.it
+-- 	local expect = t.expect
+-- 	local concurrently = t.concurrently
+--
 -- 	-- This context will run concurrently, but its contents still run serially.
--- 	t.describe "unit that takes 6 seconds to complete" (concurrently) (function()
--- 		t.it "takes 1 second to complete" (function()
+-- 	describe "unit that takes 6 seconds to complete" (concurrently) (function()
+-- 		it "takes 1 second to complete" (function()
 -- 			task.wait(1)
--- 			t.assert(function()
+-- 			expect(function()
 -- 				return true
 -- 			end)
 -- 		end)
--- 		t.it "takes 2 seconds to complete" (function()
+-- 		it "takes 2 seconds to complete" (function()
 -- 			task.wait(2)
--- 			t.assert(function()
+-- 			expect(function()
 -- 				return true
 -- 			end)
 -- 		end)
--- 		t.it "takes 3 seconds to complete" (function()
+-- 		it "takes 3 seconds to complete" (function()
 -- 			task.wait(3)
--- 			t.assert(function()
+-- 			expect(function()
 -- 				return true
 -- 			end)
 -- 		end)
 -- 	end)
 -- 	-- This context will run serially, though it has no serial siblings.
--- 	t.describe "unit that takes 3 seconds to complete" (function()
--- 		t.it "takes 1 second to complete" (concurrently) (function()
+-- 	describe "unit that takes 3 seconds to complete" (function()
+-- 		it "takes 1 second to complete" (concurrently) (function()
 -- 			task.wait(1)
--- 			t.assert(function()
+-- 			expect(function()
 -- 				return true
 -- 			end)
 -- 		end)
--- 		t.it "takes 2 seconds to complete" (concurrently) (function()
+-- 		it "takes 2 seconds to complete" (concurrently) (function()
 -- 			task.wait(2)
--- 			t.assert(function()
+-- 			expect(function()
 -- 				return true
 -- 			end)
 -- 		end)
--- 		t.it "takes 3 seconds to complete" (concurrently) (function()
+-- 		it "takes 3 seconds to complete" (concurrently) (function()
 -- 			task.wait(3)
--- 			t.assert(function()
+-- 			expect(function()
 -- 				return true
 -- 			end)
 -- 		end)
