@@ -1829,6 +1829,7 @@ export type Runner = {
 	Wait: (self: Runner) -> (),
 	Stop: (self: Runner) -> (),
 	Reset: (self: Runner) -> (),
+	Metadata: (self: Runner) -> Metadata,
 	Root: (self: Runner) -> Path,
 	All: (self: Runner) -> {Path},
 	Paths: ((self: Runner, path: Path) -> {Path}?),
