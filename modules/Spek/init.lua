@@ -2208,7 +2208,14 @@ end
 
 -- Walks a tree to produce formatted results.
 local function walkTree(parent: Node, visit: ({node:Node,name:string})->(), level: string?)
-	local sorted: {any} = table.clone(parent.Children)
+	local children = table.clone(parent.Children)
+	local sorted: {any} = table.create(#children)
+	for _, node in children do
+		if node.Data.Result.Status == "skipped" then
+			continue
+		end
+		table.insert(sorted, node)
+	end
 	for i, node in sorted do
 		sorted[i] = {
 			name = tostring(node.Path:Base()),
@@ -2256,14 +2263,16 @@ function Runner.__tostring(self: _Runner): string
 	table.insert(out, `start time: {meta.StartTime}`)
 
 	local stat = {}
+	local total = 0
 	for status, count in self:StatusCount() do
 		if count <= 0 then
 			continue
 		end
+		total += count
 		table.insert(stat, `{count} {status}`)
 	end
 	table.sort(stat)
-	table.insert(out, `overall results: of {#nodes+1} total, {table.concat(stat, ", ")}`)
+	table.insert(out, `overall results: of {total} total, {table.concat(stat, ", ")}`)
 
 	local root = self._tree.Root.Data.Result
 	if root.Status == "pending" then
