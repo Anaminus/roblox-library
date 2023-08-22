@@ -969,6 +969,11 @@ function Node.__index.ReconcileResults(self: Node): boolean
 	if result then
 		return self:UpdateResult(result)
 	end
+	-- Otherwise, if any child has TODO, set to the first TODO result.
+	result = anyStatus(self, "TODO")
+	if result then
+		return self:UpdateResult(result)
+	end
 	-- Otherwise, if all children were skipped, set to skipped.
 	if allStatus(self, "skipped") then
 		return self:UpdateResult(newResult(self, "skipped", ""))
