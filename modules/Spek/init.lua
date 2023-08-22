@@ -944,8 +944,12 @@ function Node.__index.ReconcileResults(self: Node): boolean
 			-- Return whether leaf node has pending result.
 			return self.Pending.Result
 		end
-		-- Non-leaf node with no children; aggregate as passed.
-		return self:UpdateResult(newResult(self, "passed", ""))
+		-- Non-leaf node with no children; aggregate as passed. May have skipped
+		-- status at this point, so set only if it is pending.
+		if self.Data.Result.Status == "pending" then
+			return self:UpdateResult(newResult(self, "passed", ""))
+		end
+		return false
 	end
 	-- Reconcile children.
 	for _, node in self.Children do
