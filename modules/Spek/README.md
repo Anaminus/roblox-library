@@ -314,9 +314,9 @@ end
 TODO: (format: string?, ...any) -> ()
 ```
 
-Produces an okay result, but with a reason indicating that the plan
-or statement is not yet implemented. May optionally specify a formatted
-message as the reason.
+Produces a passing result, but with a reason indicating that the
+plan or statement is not yet implemented. May optionally specify a
+formatted message as the reason.
 
 ## T.after_each
 [T.after_each]: #tafter_each
@@ -898,7 +898,7 @@ Observes the result of *path*.
 # ResultStatus
 [ResultStatus]: #resultstatus
 ```
-type ResultStatus = "pending" | "okay" | "failed" | "skipped" | "errored" | "TODO"
+type ResultStatus = "pending" | "passed" | "failed" | "skipped" | "errored" | "TODO"
 ```
 
 Indicates the status of a result tree node.
@@ -906,7 +906,7 @@ Indicates the status of a result tree node.
 Value   | Description
 --------|------------
 pending | The result has not been computed.
-okay    | The unit succeeded.
+passed  | The unit succeeded.
 failed  | The unit failed.
 skipped | The unit was skipped and not run.
 errored | An error was produced during planning.

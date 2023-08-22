@@ -774,20 +774,20 @@ export type ResultType
 	| "benchmark"
 
 --@sec: ResultStatus
---@def: type ResultStatus = "pending" | "okay" | "failed" | "skipped" | "errored" | "TODO"
+--@def: type ResultStatus = "pending" | "passed" | "failed" | "skipped" | "errored" | "TODO"
 --@doc: Indicates the status of a result tree node.
 --
 -- Value   | Description
 -- --------|------------
 -- pending | The result has not been computed.
--- okay    | The unit succeeded.
+-- passed  | The unit succeeded.
 -- failed  | The unit failed.
 -- skipped | The unit was skipped and not run.
 -- errored | An error was produced during planning.
 -- TODO    | The unit is not fully implemented.
 export type ResultStatus
 	= "pending"
-	| "okay"
+	| "passed"
 	| "failed"
 	| "skipped"
 	| "errored"
@@ -944,8 +944,8 @@ function Node.__index.ReconcileResults(self: Node): boolean
 			-- Return whether leaf node has pending result.
 			return self.Pending.Result
 		end
-		-- Non-leaf node with no children; aggregate as okay.
-		return self:UpdateResult(newResult(self, "okay", ""))
+		-- Non-leaf node with no children; aggregate as passed.
+		return self:UpdateResult(newResult(self, "passed", ""))
 	end
 	-- Reconcile children.
 	for _, node in self.Children do
@@ -978,8 +978,8 @@ function Node.__index.ReconcileResults(self: Node): boolean
 	if allStatus(self, "skipped") then
 		return self:UpdateResult(newResult(self, "skipped", ""))
 	end
-	-- Otherwise, set to okay.
-	return self:UpdateResult(newResult(self, "okay", ""))
+	-- Otherwise, set to passed.
+	return self:UpdateResult(newResult(self, "passed", ""))
 end
 
 -- If the node has child nodes, the Metrics of the node will be set to the
@@ -1536,9 +1536,9 @@ export type T = {
 
 	--@sec: T.TODO
 	--@def: TODO: (format: string?, ...any) -> ()
-	--@doc: Produces an okay result, but with a reason indicating that the plan
-	-- or statement is not yet implemented. May optionally specify a formatted
-	-- message as the reason.
+	--@doc: Produces a passing result, but with a reason indicating that the
+	-- plan or statement is not yet implemented. May optionally specify a
+	-- formatted message as the reason.
 	TODO: (format: string?, ...any) -> (),
 }
 
@@ -2235,7 +2235,7 @@ function Runner.__tostring(self: _Runner): string
 	end)
 	local stat: {[ResultStatus]: string} = {
 		pending = "pend",
-		okay    = " ok ",
+		passed  = "pass",
 		failed  = "FAIL",
 		errored = "ERR ",
 		skipped = "skip",
@@ -2349,7 +2349,7 @@ local function runUnit(node: Node, state: UnitState)
 		end
 	end
 	if result == nil then
-		node:UpdateResult(newResult(node, "okay", ""))
+		node:UpdateResult(newResult(node, "passed", ""))
 	else
 		node:UpdateResult(result)
 	end
@@ -2364,7 +2364,7 @@ type UnitState = {
 	Timing: boolean, -- Whether time measurement is active.
 	Duration: number, -- Accumulated time measurement.
 	StartTime: number, -- Last time the clock was updated.
-	Result: Result?, -- Nil indicates okay, or no error.
+	Result: Result?, -- Nil indicates passing, or no error.
 	Iterations: number, -- Number of iterations of the unit.
 	Metrics: Metrics, -- Reported metrics.
 
@@ -2411,7 +2411,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			end
 			if ok then
 				if result then
-					-- Nil state result indicates okay result.
+					-- Nil state result indicates passing result.
 				elseif reason ~= nil then
 					state.Result = newResult(node, "failed", tostring(reason))
 				elseif description ~= nil then
