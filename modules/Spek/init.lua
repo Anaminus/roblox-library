@@ -2410,7 +2410,7 @@ local function runTest(node: Node, ctxm: ContextManager<T>)
 			end
 			if ok then
 				if result then
-					-- Nil indicates okay result.
+					-- Nil state result indicates okay result.
 				elseif reason ~= nil then
 					state.Result = newResult(node, "failed", tostring(reason))
 				elseif description ~= nil then
