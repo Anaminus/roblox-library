@@ -2234,7 +2234,7 @@ function Runner.__tostring(self: _Runner): string
 			max = l
 		end
 	end)
-	local stat: {[ResultStatus]: string} = {
+	local statusString: {[ResultStatus]: string} = {
 		pending = "pend",
 		passed  = "pass",
 		failed  = "FAIL",
@@ -2242,22 +2242,36 @@ function Runner.__tostring(self: _Runner): string
 		skipped = "skip",
 		TODO    = "TODO",
 	}
+
 	local out = {""}
+
 	local meta = self._metadata
 	table.insert(out, `lua version: {meta.LuaVersion}`)
 	table.insert(out, `roblox version: {meta.RobloxVersion}`)
 	table.insert(out, `framework version: {meta.SpekVersion}`)
 	table.insert(out, `start time: {meta.StartTime}`)
+
+	local stat = {}
+	for status, count in self:StatusCount() do
+		if count <= 0 then
+			continue
+		end
+		table.insert(stat, `{count} {status}`)
+	end
+	table.sort(stat)
+	table.insert(out, `overall results: of {#nodes+1} total, {table.concat(stat, ", ")}`)
+
 	local root = self._tree.Root.Data.Result
 	if root.Status == "pending" then
-		table.insert(out, `results: {root.Status}: {tostring(root.Path)}`)
+		table.insert(out, `test results: {root.Status}: {tostring(root.Path)}`)
 	elseif root.Status == "failed"
 	or root.Status == "errored"
 	or (root.Status == "TODO" and root.Reason ~= "") then
-		table.insert(out, `results: {root.Status}: {tostring(root.Path)}: {root.Reason}`)
+		table.insert(out, `test results: {root.Status}: {tostring(root.Path)}: {root.Reason}`)
 	else
-		table.insert(out, `results: {root.Status}`)
+		table.insert(out, `test results: {root.Status}`)
 	end
+
 	for _, node in nodes do
 		local result = node.node.Data.Result
 		table.insert(out,
@@ -2265,7 +2279,7 @@ function Runner.__tostring(self: _Runner): string
 			.. " "
 			.. string.rep("…", max-(utf8.len(node.name) or #node.name))
 			.. " | "
-			.. stat[result.Status]
+			.. statusString[result.Status]
 			.. " | "
 			.. result.Reason
 		)
