@@ -2906,4 +2906,11 @@ end
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 
+--@sec: Spek.version
+--@def: Spek.version: string
+--@doc: A [semver](https://semver.org/)-formatted string indicating the version
+-- of the Spek module. [Runners][Runner] include the version when displaying
+-- results to encourage the fair comparison of benchmarks.
+export.version = VERSION
+
 return table.freeze(export)

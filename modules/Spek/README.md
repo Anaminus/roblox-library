@@ -44,6 +44,7 @@ end
 1. [Spek][Spek]
 	1. [Spek.find][Spek.find]
 	2. [Spek.runner][Spek.runner]
+	3. [Spek.version][Spek.version]
 2. [Config][Config]
 3. [T][T]
 	1. [T.TODO][T.TODO]
@@ -120,6 +121,16 @@ function Spek.runner(input: Input, config: Config?): Runner
 
 Creates a new [Runner][Runner] that runs the given [Input][Input]. An
 optional [Config][Config] configures how units are run.
+
+## Spek.version
+[Spek.version]: #spekversion
+```
+Spek.version: string
+```
+
+A [semver](https://semver.org/)-formatted string indicating the version
+of the Spek module. [Runners][Runner] include the version when displaying
+results to encourage the fair comparison of benchmarks.
 
 # Config
 [Config]: #config
@@ -747,8 +758,8 @@ Inputs produce nodes within a [Runner][Runner]:
 [Metadata]: #metadata
 ```
 type Metadata = {
-	RobloxVersion: string,
 	LuaVersion: string,
+	RobloxVersion: string,
 	SpekVersion: string,
 	StartTime: string,
 }
