@@ -1869,8 +1869,8 @@ export type Plan = (t: T) -> ()
 
 --@sec: Metadata
 --@def: type Metadata = {
---	RobloxVersion: string,
 --	LuaVersion: string,
+--	RobloxVersion: string,
 --	SpekVersion: string,
 --	StartTime: string,
 --}
@@ -1890,8 +1890,8 @@ export type Plan = (t: T) -> ()
 -- starting time of the run in universal time. Note that, if Roblox's DateTime
 -- is not available, then local time will be used instead.
 export type Metadata = {
-	RobloxVersion: string,
 	LuaVersion: string,
+	RobloxVersion: string,
 	SpekVersion: string,
 	StartTime: string,
 }
@@ -1906,8 +1906,8 @@ local function startMetadata(): Metadata
 		return result
 	end
 	return {
-		RobloxVersion = try(version),
 		LuaVersion = tostring(_VERSION),
+		RobloxVersion = try(version),
 		SpekVersion = VERSION,
 		StartTime = try(function()
 			if DateTime then
