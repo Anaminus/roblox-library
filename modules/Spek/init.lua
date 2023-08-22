@@ -1830,6 +1830,7 @@ export type Runner = {
 	Stop: (self: Runner) -> (),
 	Reset: (self: Runner) -> (),
 	Metadata: (self: Runner) -> Metadata,
+	StatusCount: (self: Runner) -> {[ResultStatus]: number},
 	Root: (self: Runner) -> Path,
 	All: (self: Runner) -> {Path},
 	Paths: ((self: Runner, path: Path) -> {Path}?),
@@ -2277,6 +2278,24 @@ end
 --@doc: Returns [Metadata][Metadata] for the latest run.
 function Runner.__index.Metadata(self: _Runner): Metadata
 	return table.freeze(table.clone(self._metadata))
+end
+
+--@sec: Runner.StatusCount
+--@def: function Runner:StatusCount(): {[ResultStatus]: number}
+--@doc: Returns a table containing the number of times each
+-- [ResultStatus][ResultStatus] appears.
+function Runner.__index.StatusCount(self: _Runner): {[ResultStatus]: number}
+	local statuses: {[ResultStatus]: number} = {}
+	for _, node in self._tree.Nodes do
+		local status: ResultStatus = node.Data.Result.Status
+		local count = statuses[status]
+		if count then
+			statuses[status] = count + 1
+		else
+			statuses[status] = 1
+		end
+	end
+	return statuses
 end
 
 -- Accumulate all before and after functions to run around the test.

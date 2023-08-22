@@ -77,8 +77,9 @@ end
 	10. [Runner.Run][Runner.Run]
 	11. [Runner.Running][Runner.Running]
 	12. [Runner.Start][Runner.Start]
-	13. [Runner.Stop][Runner.Stop]
-	14. [Runner.Wait][Runner.Wait]
+	13. [Runner.StatusCount][Runner.StatusCount]
+	14. [Runner.Stop][Runner.Stop]
+	15. [Runner.Wait][Runner.Wait]
 5. [Assertion][Assertion]
 6. [Benchmark][Benchmark]
 7. [BenchmarkClause][BenchmarkClause]
@@ -625,6 +626,15 @@ function Runner:Start()
 
 Begins running spek without waiting for it to complete. Errors if the
 runner is already active.
+
+## Runner.StatusCount
+[Runner.StatusCount]: #runnerstatuscount
+```
+function Runner:StatusCount(): {[ResultStatus]: number}
+```
+
+Returns a table containing the number of times each
+[ResultStatus][ResultStatus] appears.
 
 ## Runner.Stop
 [Runner.Stop]: #runnerstop
