@@ -1114,14 +1114,14 @@ type Tree = {
 	-- Creates a new node.
 	CreateNode: (self: Tree,
 		type: ResultType,
-		parent: Node?,
+		parent: Node,
 		key: any
 	) -> Node,
 
 	-- Creates a new node frozen with an error result.
 	CreateErrorNode: (self: Tree,
 		type: ResultType,
-		parent: Node?,
+		parent: Node,
 		key: any,
 		format: string,
 		...any
@@ -1159,12 +1159,8 @@ end
 
 -- Creates a new node refered to by *key* under *parent*, or root if *parent* is
 -- nil.
-function Tree.__index.CreateNode(self: Tree, type: ResultType, parent: Node?, key: any): Node
-	if parent == nil then
-		return newNode(self, type, self.Root, key)
-	else
-		return newNode(self, type, parent, key)
-	end
+function Tree.__index.CreateNode(self: Tree, type: ResultType, parent: Node, key: any): Node
+	return newNode(self, type, parent, key)
 end
 
 -- Creates a node as usual, but the result is filled in with an error, and the
@@ -1172,7 +1168,7 @@ end
 function Tree.__index.CreateErrorNode(
 	self: Tree,
 	type: ResultType,
-	parent: Node?,
+	parent: Node,
 	key: any,
 	format: string,
 	...: any
