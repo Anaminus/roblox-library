@@ -2692,6 +2692,12 @@ local function runUnits(self: _Runner, node: Node, outer: WaitGroup, onlyMode: b
 
 	-- Branch unit.
 
+	if #node.Children == 0 and skip then
+		-- Empty non-leaf node in only-mode. Ensure it is skipped.
+		node:UpdateResult(newResult(node, "skipped", ""))
+		return
+	end
+
 	-- Pass context manager to children, if available.
 	if node.Data.ContextManager and ctxm then
 		error("nested context managers")
