@@ -103,7 +103,6 @@ TerrainRegion, the following members are significant:
 
 Member          | Kind      | Type      | Description
 ----------------|-----------|-----------|------------
-Name            | Property  | `string`  | Identifies the logo.
 Corner          | Attribute | `Vector3` | The location of the lower corner of the terrain region.
 PasteEmptyCells | Attribute | `boolean` | Whether empty cells should be included.
 
@@ -157,7 +156,7 @@ removed.
 
 The following types are defined for use by scripts:
 
-```
+```lua
 -- Device must be returned by the main module.
 --
 -- The device is called concurrently with the presentation of the logo, and may

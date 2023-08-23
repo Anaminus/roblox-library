@@ -294,7 +294,7 @@ of a logo.
   be skipped after this section has been entered. If the logo is skipped,
   then the presentation will switch immediately to the FadeOut section.
 - `FadeOut`: When the logo is transitioning to the blanker.
-- `Postfade`:mitted only once, to signal the end of the presentation.
+- `Postfade`: Emitted only once, to signal the end of the presentation.
 
 # Sequence
 [Sequence]: #sequence
