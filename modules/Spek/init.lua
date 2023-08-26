@@ -2202,6 +2202,15 @@ function export.runner(input: Input?, config: Config?): Runner
 	return self
 end
 
+-- Writes metadata to a string concatenation.
+local function sprintMetadata(self: _Runner, out: {string})
+	local meta = self._metadata
+	table.insert(out, `lua version: {meta.LuaVersion}`)
+	table.insert(out, `roblox version: {meta.RobloxVersion}`)
+	table.insert(out, `framework version: {meta.SpekVersion}`)
+	table.insert(out, `start time: {meta.StartTime}`)
+end
+
 -- Walks a tree to produce formatted results.
 local function walkTree(parent: Node, visit: ({node:Node,name:string})->(), level: string?)
 	local children = table.clone(parent.Children)
@@ -2230,17 +2239,8 @@ local function walkTree(parent: Node, visit: ({node:Node,name:string})->(), leve
 	end
 end
 
--- A readable representation of the runner's results.
-function Runner.__tostring(self: _Runner): string
-	local nodes = {}
-	local max = 0
-	walkTree(self._tree.Root, function(node: {node:Node,name:string})
-		table.insert(nodes, node)
-		local l = utf8.len(node.name) or #node.name
-		if l > max then
-			max = l
-		end
-	end)
+-- Writes a result tree to a string concatenation.
+local function sprintTree(self: _Runner, out: {string})
 	local statusString: {[ResultStatus]: string} = {
 		pending = "pend",
 		passed  = "pass",
@@ -2250,13 +2250,15 @@ function Runner.__tostring(self: _Runner): string
 		TODO    = "TODO",
 	}
 
-	local out = {""}
-
-	local meta = self._metadata
-	table.insert(out, `lua version: {meta.LuaVersion}`)
-	table.insert(out, `roblox version: {meta.RobloxVersion}`)
-	table.insert(out, `framework version: {meta.SpekVersion}`)
-	table.insert(out, `start time: {meta.StartTime}`)
+	local nodes = {}
+	local max = 0
+	walkTree(self._tree.Root, function(node: {node:Node,name:string})
+		table.insert(nodes, node)
+		local l = utf8.len(node.name) or #node.name
+		if l > max then
+			max = l
+		end
+	end)
 
 	local stat = {}
 	local total = 0
@@ -2293,6 +2295,15 @@ function Runner.__tostring(self: _Runner): string
 			.. result.Reason
 		)
 	end
+end
+
+-- A readable representation of the runner's results.
+function Runner.__tostring(self: _Runner): string
+	local out = {""}
+
+	sprintMetadata(self, out)
+	sprintTree(self, out)
+
 	return table.concat(out, "\n")
 end
 
