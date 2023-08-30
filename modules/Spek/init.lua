@@ -2593,8 +2593,7 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 				else
 					-- Run for configured duration.
 					local targetD = config.Duration or DEFAULT_DURATION
-					local start = os.clock()
-					while os.clock()-start < targetD do
+					while state.Duration < targetD do
 						state.Iterations += 1
 						state.Timing = true
 						state.StartTime = os.clock()
