@@ -84,11 +84,11 @@ if not task or FORCE_TASKPOLYFILL then
 	}
 
 	-- Called when a thread managed by a [Scheduler][Scheduler] produces an
-	-- error. *thread* is the thread that produced the error, which can be
-	-- passed to debug.traceback to acquire a stack trace of the error. *thread*
-	-- will be nil if the error originated from the scheduler. *err* is the
-	-- produced error.
-	export type ErrorHandler = (thread: thread?, err: any) -> ()
+	-- error. *err* is the produced error. *thread* is the thread that produced
+	-- the error, which can be passed to debug.traceback to acquire a stack
+	-- trace of the error. *thread* will be nil if the error originated from the
+	-- scheduler.
+	export type ErrorHandler = (err: any, thread: thread?) -> ()
 
 	-- A drop-in replacement of Roblox's task library.
 	export type TaskLibrary = {
@@ -132,7 +132,7 @@ if not task or FORCE_TASKPOLYFILL then
 					entries += 1
 					if entries >= 80 then
 						if self._handleError then
-							self._handleError(nil, "maximum re-entrancy depth (80) exceeded")
+							self._handleError("maximum re-entrancy depth (80) exceeded", nil)
 						end
 						break
 					end
@@ -194,7 +194,7 @@ if not task or FORCE_TASKPOLYFILL then
 			ok, result = coroutine.resume(state.thread, table.unpack(args, 1, args.n))
 		end
 		if not ok and self._handleError then
-			self._handleError(state.thread, result)
+			self._handleError(result, state.thread)
 		end
 	end
 

@@ -11,7 +11,7 @@
 -- local TaskPolyfill = require("TaskPolyfill")
 --
 -- local scheduler = TaskPolyfill.new()
--- scheduler:SetErrorHandler(function(thread: thread?, err: any)
+-- scheduler:SetErrorHandler(function(err: any, thread: thread?)
 -- 	print("ERROR:", err)
 -- 	if thread then
 -- 		print(debug.traceback(thread))
@@ -80,12 +80,12 @@ type _Scheduler = Scheduler & {
 }
 
 --@sec: ErrorHandler
---@def: type ErrorHandler = (thread: thread?, err: any) -> ()
+--@def: type ErrorHandler = (err: any, thread: thread?) -> ()
 --@doc: Called when a thread managed by a [Scheduler][Scheduler] produces an
--- error. *thread* is the thread that produced the error, which can be passed to
--- debug.traceback to acquire a stack trace of the error. *thread* will be nil
--- if the error originated from the scheduler. *err* is the produced error.
-export type ErrorHandler = (thread: thread?, err: any) -> ()
+-- error. *err* is the produced error. *thread* is the thread that produced the
+-- error, which can be passed to debug.traceback to acquire a stack trace of the
+-- error. *thread* will be nil if the error originated from the scheduler.
+export type ErrorHandler = (err: any, thread: thread?) -> ()
 
 --@sec: TaskLibrary
 --@def: type TaskLibrary = {
@@ -141,7 +141,7 @@ function export.new()
 				entries += 1
 				if entries >= 80 then
 					if self._handleError then
-						self._handleError(nil, "maximum re-entrancy depth (80) exceeded")
+						self._handleError("maximum re-entrancy depth (80) exceeded", nil)
 					end
 					break
 				end
@@ -203,7 +203,7 @@ function Scheduler.__index._resumeState(self: _Scheduler, state: ThreadState)
 		ok, result = coroutine.resume(state.thread, table.unpack(args, 1, args.n))
 	end
 	if not ok and self._handleError then
-		self._handleError(state.thread, result)
+		self._handleError(result, state.thread)
 	end
 end
 

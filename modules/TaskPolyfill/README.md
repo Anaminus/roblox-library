@@ -10,7 +10,7 @@ Example usage:
 local TaskPolyfill = require("TaskPolyfill")
 
 local scheduler = TaskPolyfill.new()
-scheduler:SetErrorHandler(function(thread: thread?, err: any)
+scheduler:SetErrorHandler(function(err: any, thread: thread?)
 	print("ERROR:", err)
 	if thread then
 		print(debug.traceback(thread))
@@ -136,13 +136,13 @@ end
 # ErrorHandler
 [ErrorHandler]: #errorhandler
 ```
-type ErrorHandler = (thread: thread?, err: any) -> ()
+type ErrorHandler = (err: any, thread: thread?) -> ()
 ```
 
 Called when a thread managed by a [Scheduler][Scheduler] produces an
-error. *thread* is the thread that produced the error, which can be passed to
-debug.traceback to acquire a stack trace of the error. *thread* will be nil
-if the error originated from the scheduler. *err* is the produced error.
+error. *err* is the produced error. *thread* is the thread that produced the
+error, which can be passed to debug.traceback to acquire a stack trace of the
+error. *thread* will be nil if the error originated from the scheduler.
 
 # TaskLibrary
 [TaskLibrary]: #tasklibrary
