@@ -1038,9 +1038,9 @@ local function calculateMetric(
 	elseif string.match(unit, "/s$") then
 		return value/duration
 	elseif string.match(unit, "/ms$") then
-		return value/duration*1000
+		return value/(duration*1000)
 	elseif string.match(unit, "/us$") then
-		return value/duration*1000000
+		return value/(duration*1000000)
 	else
 		return value
 	end
