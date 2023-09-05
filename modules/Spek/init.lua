@@ -3081,7 +3081,7 @@ end
 --@def: function Runner:Paths(path: Path): {Path}?
 --@doc: Returns paths of nodes that exist under the node of *path*. Returns nil
 -- if *path* does not exist.
-function Runner.__index.Paths(self: _Runner, path: Path?): {Path}?
+function Runner.__index.Paths(self: _Runner, path: Path): {Path}?
 	assert(path, "path expected")
 	local node = self._tree.Nodes[path]
 	if node then
