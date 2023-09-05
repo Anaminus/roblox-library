@@ -79,7 +79,8 @@ end
 	12. [Runner.Start][Runner.Start]
 	13. [Runner.StatusCount][Runner.StatusCount]
 	14. [Runner.Stop][Runner.Stop]
-	15. [Runner.Wait][Runner.Wait]
+	15. [Runner.TabulateBenchmarks][Runner.TabulateBenchmarks]
+	16. [Runner.Wait][Runner.Wait]
 5. [Assertion][Assertion]
 6. [Benchmark][Benchmark]
 7. [BenchmarkClause][BenchmarkClause]
@@ -101,7 +102,8 @@ end
 21. [ResultObserver][ResultObserver]
 22. [ResultStatus][ResultStatus]
 23. [ResultType][ResultType]
-24. [Unsubscribe][Unsubscribe]
+24. [Table][Table]
+25. [Unsubscribe][Unsubscribe]
 
 </td></tr></tbody>
 </table>
@@ -645,6 +647,22 @@ function Runner:Stop()
 Stops the runner, canceling all pending units. Does nothing if the
 runner is not running.
 
+## Runner.TabulateBenchmarks
+[Runner.TabulateBenchmarks]: #runnertabulatebenchmarks
+```
+function Runner:TabulateBenchmarks(path: Path?, timeUnit: "s"|"ms"|"us"?): Table
+```
+
+Returns a [Table][Table] tabulating all benchmarks under *path*, or the
+root if unspecified. Returns nil if *path* contains no benchmarks.
+
+If *timeUnit* is specified, it sets the time unit of the operations-per-time
+column. If unspecified, the unit is determined by what best fits the data.
+
+- `s`: Seconds.
+- `ms` Milliseconds.
+- `us`: Microseconds.
+
 ## Runner.Wait
 [Runner.Wait]: #runnerwait
 ```
@@ -936,6 +954,26 @@ node      | A general node aggregating a number of units.
 plan      | A discrete node representing a plan.
 test      | A test unit.
 benchmark | A benchmark unit.
+
+# Table
+[Table]: #table
+```
+type Table = {
+	Headers: {string},
+	Rows: {{Path|number}},
+}
+```
+
+A table of benchmark results. **Headers** contains the name of each
+column, and **Rows** contains each row. Each row contains cells corresponding
+to each column.
+
+The first four columns are reserved for the benchmark name, duration,
+iterations, and operations per time, respectively. The remaining columns are
+the union of benchmark metrics in lexicographical order. All cells are
+numbers, except for the first column, which contains [Paths][Path].
+
+Converting the table to a string displays a formatted representation.
 
 # Unsubscribe
 [Unsubscribe]: #unsubscribe

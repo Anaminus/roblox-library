@@ -1836,6 +1836,7 @@ export type Runner = {
 	Paths: ((self: Runner, path: Path) -> {Path}?),
 	Result: (self: Runner, path: Path) -> Result?,
 	Metrics: (self: Runner, path: Path) -> Metrics?,
+	TabulateBenchmarks: (self: Runner, path: Path?) -> Table?,
 	ObserveResult: (self: Runner, observer: ResultObserver) -> ()->(),
 	ObserveMetric: (self: Runner, observer: MetricObserver) -> ()->(),
 }
@@ -2297,12 +2298,48 @@ local function sprintTree(self: _Runner, out: {string})
 	end
 end
 
+-- Writes tabulated benchmark results to a string concatenation.
+local function sprintTables(self: _Runner, out: {string})
+	-- Tabulate benchmarks per plan.
+	local plans = {}
+	local function findPlans(node: Node)
+		if node.Type == "plan" then
+			table.insert(plans, node.Path)
+		else
+			for _, child in node.Children do
+				findPlans(child)
+			end
+		end
+	end
+	findPlans(self._tree.Root)
+	if #plans == 0 then
+		table.insert(plans, self._tree.Root.Path)
+	end
+
+	-- Build tables.
+	local tables = {}
+	for _, plan in plans do
+		local tab = self:TabulateBenchmarks(plan)
+		if tab then
+			if plan ~= self._tree.Root.Path then
+				table.insert(tables, `measure {tostring(plan)}:`)
+			end
+			table.insert(tables, tostring(tab))
+		end
+	end
+	if #tables > 0 then
+		table.insert(out, `benchmark results:`)
+		table.move(tables, 1, #tables, #out+1, out)
+	end
+end
+
 -- A readable representation of the runner's results.
 function Runner.__tostring(self: _Runner): string
 	local out = {""}
 
 	sprintMetadata(self, out)
 	sprintTree(self, out)
+	sprintTables(self, out)
 
 	return table.concat(out, "\n")
 end
@@ -2330,6 +2367,196 @@ function Runner.__index.StatusCount(self: _Runner): {[ResultStatus]: number}
 		end
 	end
 	return statuses
+end
+
+--@sec: Table
+--@def: type Table = {
+--	Headers: {string},
+--	Rows: {{Path|number}},
+--}
+--@doc: A table of benchmark results. **Headers** contains the name of each
+-- column, and **Rows** contains each row. Each row contains cells corresponding
+-- to each column.
+--
+-- The first four columns are reserved for the benchmark name, duration,
+-- iterations, and operations per time, respectively. The remaining columns are
+-- the union of benchmark metrics in lexicographical order. All cells are
+-- numbers, except for the first column, which contains [Paths][Path].
+--
+-- Converting the table to a string displays a formatted representation.
+local Table = {}
+
+export type Table = {
+	Headers: {string},
+	Rows: {{Path|number}},
+}
+
+-- Produces a tabulation of the results of *benchmarks*. *timeUnit* specifies
+-- the time unit of the derived operations-per-time column.
+local function newTable(runner: _Runner, benchmarks: {Node}, timeUnit: "s"|"ms"|"us"?): Table
+	assert(#benchmarks > 0, "no benchmarks")
+
+	local benchmarkMetrics = {}
+	local metricHeaders = {}
+	for _, benchmark in benchmarks do
+		local metrics = assert(runner:Metrics(benchmark.Path), "unknown path")
+		for unit in metrics do
+			if unit == "duration" or unit == "iterations" then
+				continue
+			end
+			if not table.find(metricHeaders, unit) then
+				table.insert(metricHeaders, unit)
+			end
+		end
+		benchmarkMetrics[benchmark] = metrics
+	end
+	table.sort(metricHeaders)
+
+	-- Determine operations-per-time column.
+	local opPerTime
+	if timeUnit then
+		opPerTime = "op/" .. timeUnit
+	else
+		local FACTOR = 1000
+		-- Ordered by decreasing magnitude by FACTOR, starting at 1.
+		local units = {"s", "ms", "us"}
+		-- Tally number of values that fit each unit.
+		local tally = table.create(#units, 0)
+		for _, metrics in benchmarkMetrics do
+			local value = metrics.iterations/metrics.duration
+			-- Selects the magnitude that best fits the calculated value between
+			-- 0 and FACTOR.
+			local magnitude = math.modf(math.log(value, FACTOR))
+			local index = math.clamp(magnitude+1, 1, #units)
+			tally[index] += 1
+		end
+		-- Select unit with greatest number of fitting values, preferring the
+		-- larget unit.
+		local max = -1
+		local index = 0
+		for i, count in tally do
+			if count > max then
+				max = count
+				index = i
+			end
+		end
+		opPerTime = "op/" .. units[index]
+	end
+
+	-- Build headers.
+	local headers = {"benchmark", "duration", "iterations", opPerTime}
+	for _, unit in metricHeaders do
+		table.insert(headers, unit)
+	end
+	table.freeze(headers)
+
+	-- Build rows.
+	local rows = {}
+	for _, benchmark in benchmarks do
+		local row: {Path|number} = table.create(#headers, 0)
+		local metrics = benchmarkMetrics[benchmark]
+		row[1] = benchmark.Path
+		row[2] = metrics.duration
+		row[3] = metrics.iterations
+		row[4] = calculateMetric(metrics.iterations, opPerTime, metrics.iterations, metrics.duration)
+		for i, unit in metricHeaders do
+			row[4+i] = metrics[unit]
+		end
+		table.freeze(row)
+		table.insert(rows, row)
+	end
+	table.freeze(rows)
+
+	-- Build table.
+	local self: Table = setmetatable({
+		Headers = headers,
+		Rows = rows,
+	}, Table) :: any
+	return table.freeze(self)
+end
+
+-- A readable representation of the table.
+function Table.__tostring(self: Table): string
+	local out = {}
+	--TODO: character-based width.
+	local headers = table.clone(self.Headers)
+	local widths = table.create(#headers, 0)
+	for i, header in headers do
+		local s = tostring(header)
+		if #s > widths[i] then
+			widths[i] = #s
+		end
+	end
+
+	local fmtRows = table.create(#self.Rows)
+	for _, row in self.Rows do
+		local fmtRow = table.create(#headers, "")
+		for i, cell in row do
+			local s = tostring(cell)
+			if #s > widths[i] then
+				widths[i] = #s
+			end
+			fmtRow[i] = s
+		end
+		table.insert(fmtRows, fmtRow)
+	end
+
+	local rowFormatCon = {`%-{tostring(widths[1])}s`}
+	for i = 2, #widths do
+		table.insert(rowFormatCon, `%{tostring(widths[i])}s`)
+	end
+	local rowFormat = `| {table.concat(rowFormatCon, " | ")} |`
+
+	table.insert(out, string.format(rowFormat, table.unpack(headers)))
+	for i, width in widths do
+		headers[i] = string.rep("-", width)
+	end
+	table.insert(out, string.format(rowFormat:gsub(" ", "-"), table.unpack(headers)))
+	for _, fmtRow in fmtRows do
+		table.insert(out, string.format(rowFormat, table.unpack(fmtRow)))
+	end
+	return table.concat(out, "\n")
+end
+
+-- Recursively finds benchmark nodes under *node* and inserts them into
+-- *benchmarks*.
+local function findBenchmarks(benchmarks: {Node}, node: Node)
+	if node.Type == "benchmark" then
+		table.insert(benchmarks, node)
+	else
+		for _, child in node.Children do
+			findBenchmarks(benchmarks, child)
+		end
+	end
+end
+
+--@sec: Runner.TabulateBenchmarks
+--@def: function Runner:TabulateBenchmarks(path: Path?, timeUnit: "s"|"ms"|"us"?): Table
+--@doc: Returns a [Table][Table] tabulating all benchmarks under *path*, or the
+-- root if unspecified. Returns nil if *path* contains no benchmarks.
+--
+-- If *timeUnit* is specified, it sets the time unit of the operations-per-time
+-- column. If unspecified, the unit is determined by what best fits the data.
+--
+-- - `s`: Seconds.
+-- - `ms` Milliseconds.
+-- - `us`: Microseconds.
+--
+function Runner.__index.TabulateBenchmarks(self: _Runner, path: Path?, timeUnit: "s"|"ms"|"us"?): Table?
+	local node
+	if path then
+		node = self._tree.Nodes[path]
+	else
+		node = self._tree.Root
+	end
+
+	local benchmarks = {}
+	findBenchmarks(benchmarks, node)
+	if #benchmarks == 0 then
+		return nil
+	end
+
+	return newTable(self, benchmarks, timeUnit)
 end
 
 -- Accumulate all before and after functions to run around the test.
