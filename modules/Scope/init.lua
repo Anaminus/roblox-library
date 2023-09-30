@@ -363,10 +363,10 @@ function Scope.__index:Destroy()
 	end
 
 	for _, context in self._contexts do
-		if self._scope then
-			self._scope = nil
-			clean(self._namedTasks)
-			clean(self._unnamedTasks)
+		if context._scope then
+			context._scope = nil
+			clean(context._namedTasks)
+			clean(context._unnamedTasks)
 		end
 	end
 end
