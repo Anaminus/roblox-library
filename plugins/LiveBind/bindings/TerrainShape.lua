@@ -3,7 +3,8 @@
 TerrainShape
 
 *NOTE: Clears existing terrain! This binding must be enabled by adding to it an
-`Enabled` boolean attribute that is set to `true`.*
+`Enabled` boolean attribute that is set to `true`. This controls whether Terrain
+will be overwritten.*
 
 A BasePart with this tag will fill in terrain according to the material,
 location, size, and shape of the part.
