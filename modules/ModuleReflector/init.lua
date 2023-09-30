@@ -109,6 +109,9 @@ export type Reflector = {
 
 export type error = any
 
+-- Dummy metatable to ensure that Reflector table is detected as an object.
+local mt = {}
+
 --@sec: ModuleReflector.new
 --@def: ModuleReflector.new(config: Config): Reflector
 --@doc: Returns a new [Reflector][Reflector].
@@ -298,7 +301,8 @@ function export.new(config: Config): Reflector
 		rootMaid:Destroy()
 	end
 
-	return table.freeze(self)
+	setmetatable(self, mt)
+	return (table.freeze(self) :: any)
 end
 
 return table.freeze(export)
