@@ -25,10 +25,11 @@ avoid invoking the callback too often.
 1. [ModuleReflector][ModuleReflector]
 	1. [ModuleReflector.new][ModuleReflector.new]
 2. [Config][Config]
-	1. [Config.Module][Config.Module]
-	2. [Config.Prefix][Config.Prefix]
-	3. [Config.Changed][Config.Changed]
-	4. [Config.ChangeWindow][Config.ChangeWindow]
+	1. [Config.RootParent][Config.RootParent]
+	2. [Config.Module][Config.Module]
+	3. [Config.Prefix][Config.Prefix]
+	4. [Config.Changed][Config.Changed]
+	5. [Config.ChangeWindow][Config.ChangeWindow]
 3. [Reflector][Reflector]
 	1. [Reflector.Module][Reflector.Module]
 	2. [Reflector.Require][Reflector.Require]
@@ -54,6 +55,17 @@ type Config
 ```
 
 Configures a [Reflector][Reflector].
+
+## Config.RootParent
+[Config.RootParent]: #configrootparent
+```
+Config.RootParent: Instance?
+```
+
+An optional Instance specifying where the virtual game tree will be
+located. Defaults to the DataModel. Note that, if the RootParent is not
+the DataModel, then the full path of the RootParent will be included in
+stack traces.
 
 ## Config.Module
 [Config.Module]: #configmodule

@@ -41,6 +41,14 @@ export type Config = {
 	-- game tree.
 	Prefix: string?,
 
+	--@sec: Config.RootParent
+	--@def: Config.RootParent: Instance?
+	--@doc: An optional Instance specifying where the virtual game tree will be
+	-- located. Defaults to the DataModel. Note that, if the RootParent is not
+	-- the DataModel, then the full path of the RootParent will be included in
+	-- stack traces.
+	RootParent: Instance?,
+
 	--@sec: Config.Changed
 	--@ord: 3
 	--@def: Config.Changed: (refl: Reflector) -> ()
@@ -118,11 +126,13 @@ local mt = {}
 function export.new(config: Config): Reflector
 	local rootModule = config.Module
 	local prefix = config.Prefix
+	local rootParent = config.RootParent
 	local changed = config.Changed
 	local changeWindow = config.ChangeWindow
 
 	assert(typeof(rootModule) == "Instance" and rootModule:IsA("ModuleScript"), "Module must be a ModuleScript")
 	assert(prefix == nil or type(prefix) == "string", "Prefix must be a string")
+	assert(rootParent == nil or typeof(rootParent) == "Instance", "RootParent must be an Instance")
 	assert(type(changed) == "function", "Changed must be a function")
 	assert(changeWindow == nil or type(changeWindow) == "number", "ChangeWindow must be a number")
 
@@ -150,7 +160,7 @@ function export.new(config: Config): Reflector
 		root.Archivable = false
 		-- Adding the virtual tree to the DataModel allows ScriptDebuggers to be
 		-- created for virtual ModuleScripts.
-		root.Parent = game
+		root.Parent = rootParent or game
 
 		local virtualCopies = {[game] = root}
 		-- Create or get a virtual copy of a subject.
