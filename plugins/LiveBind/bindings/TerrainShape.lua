@@ -82,7 +82,13 @@ return {
 				end
 				if shape:IsA("Part") then
 					local depth = (depthValue or defaultDepth[shape.Shape] or 0)*2
-					if shape.Shape == Enum.PartType.Ball then
+					if shape.Shape == Enum.PartType.Block then
+						local size = (shape.Size - Vector3.one*depth):Max(Vector3.zero)
+						if size.X*size.Y*size.Z > 0 then
+							Terrain:FillBlock(shape.CFrame, size, shape.Material)
+						end
+						continue
+					elseif shape.Shape == Enum.PartType.Ball then
 						local size = shape.Size
 						local radius = math.min(size.X,size.Y,size.Z)/2 - depth
 						if radius > 0 then
