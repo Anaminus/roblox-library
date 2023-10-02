@@ -3,7 +3,7 @@
 TerrainShape
 
 *NOTE: Clears existing terrain! This binding must be enabled by adding to it an
-`Enabled` boolean attribute that is set to `true`. This controls whether Terrain
+`Update` boolean attribute that is set to `true`. This controls whether Terrain
 will be overwritten.*
 
 A BasePart with this tag will fill in terrain according to the material,
@@ -69,10 +69,11 @@ return {
 	end,
 	tag = function(ctx)
 		ctx:AssignEach(function()
+			if not script:GetAttribute("Update") then return end
 			Terrain:Clear()
 		end)
 		ctx:Connect(nil, RunService.Heartbeat, function()
-			if not script:GetAttribute("Enabled") then return end
+			if not script:GetAttribute("Update") then return end
 			if not pending then return end
 			pending = false
 			Terrain:Clear()
