@@ -21,7 +21,12 @@ RootParent.Archivable = false
 RootParent.Parent = CoreGui
 
 local function handleModule(moduleContext: Scope.Context, module: ModuleScript)
-	local function updateName(tag: string)
+	local function updateName()
+		if module:GetAttribute("Disabled") then
+			moduleContext:Clean("tagScope")
+			return
+		end
+		local tag = module.Name
 		local tagScope = Scope.new()
 		local tagContext = tagScope:Context()
 		moduleContext:Assign("tagScope", tagScope)
@@ -84,10 +89,9 @@ local function handleModule(moduleContext: Scope.Context, module: ModuleScript)
 		task.spawn(sourceChanged, reflector)
 	end
 
-	moduleContext:Connect(nil, module:GetPropertyChangedSignal("Name"), function()
-		updateName(module.Name)
-	end)
-	updateName(module.Name)
+	moduleContext:Connect(nil, module:GetAttributeChangedSignal("Disabled"), updateName)
+	moduleContext:Connect(nil, module:GetPropertyChangedSignal("Name"), updateName)
+	updateName()
 end
 
 local moduleScopes: {[ModuleScript]: Scope.Scope} = {}

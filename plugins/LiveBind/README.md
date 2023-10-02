@@ -55,6 +55,8 @@ attached to the tag itself. That is, the function is called when the tag is
 first used by any instance, and the context is destroyed when the tag is no
 longer used by any instances.
 
+Any binding can be disabled by adding to it a `Disabled` attribute set to true.
+
 ## Installation
 This plugin can be built with [Rojo][rojo].
 
