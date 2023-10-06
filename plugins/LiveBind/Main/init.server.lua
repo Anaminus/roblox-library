@@ -49,7 +49,9 @@ local function handleModule(moduleContext: Scope.Context, module: ModuleScript)
 				bindInstance = bindInstance.instance
 			end
 			if type(bindInstance) ~= "function" then
-				return
+				if bindTag == nil then
+					return
+				end
 			end
 
 			-- Override *after* confirming that the binding has been resolved.
@@ -65,9 +67,11 @@ local function handleModule(moduleContext: Scope.Context, module: ModuleScript)
 					task.spawn(bindTag, bindTagScope:Context())
 				end
 				count += 1
-				local instanceScope = Scope.new()
-				sourceContext:Assign(instance, instanceScope)
-				bindInstance(instanceScope:Context(), instance)
+				if bindInstance then
+					local instanceScope = Scope.new()
+					sourceContext:Assign(instance, instanceScope)
+					bindInstance(instanceScope:Context(), instance)
+				end
 			end
 
 			sourceContext:Connect("instanceAdded", CollectionService:GetInstanceAddedSignal(tag), instanceAdded)

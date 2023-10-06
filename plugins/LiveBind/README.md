@@ -44,8 +44,8 @@ The binding may instead return a table with two fields:
 
 ```lua
 {
-	instance: (context: Scope.Context, instance: Instance) -> (),
-	tag: (context: Scope.Context) -> ()?
+	instance: (context: Scope.Context, instance: Instance) -> ()?,
+	tag: (context: Scope.Context) -> ()?,
 }
 ```
 
