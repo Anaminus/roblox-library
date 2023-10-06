@@ -35,7 +35,11 @@ local function handleModule(moduleContext: Scope.Context, module: ModuleScript)
 			local sourceScope = Scope.new()
 			local sourceContext = sourceScope:Context()
 
-			local bindInstance = reflector:Require()
+			local bindInstance, err = reflector:Require()
+			if err ~= nil then
+				warn(string.format("binding %q: %s", tag, err))
+				return
+			end
 			local bindTag = nil
 			if type(bindInstance) == "table" then
 				bindTag = bindInstance.tag
