@@ -31,7 +31,7 @@ local function handleModule(moduleContext: Scope.Context, module: ModuleScript)
 		local tagContext = tagScope:Context()
 		moduleContext:Assign("tagScope", tagScope)
 
-		local function sourceChanged(reflector: ModuleReflector.Reflector)
+		local function sourceChanged(reflector: ModuleReflector.Reflector, edited: boolean?)
 			local sourceScope = Scope.new()
 			local sourceContext = sourceScope:Context()
 
@@ -58,6 +58,10 @@ local function handleModule(moduleContext: Scope.Context, module: ModuleScript)
 			-- This causes the previous binding to continue working while the
 			-- current binding is failing.
 			tagContext:Assign("sourceScope", sourceScope)
+
+			if edited then
+				warn(string.format("updated %s", tag))
+			end
 
 			local count = 0
 			local function instanceAdded(instance: Instance)
@@ -91,7 +95,9 @@ local function handleModule(moduleContext: Scope.Context, module: ModuleScript)
 			Module = module,
 			Prefix = `[{tag}]`,
 			RootParent = RootParent,
-			Changed = sourceChanged,
+			Changed = function(refl: ModuleReflector.Reflector)
+				sourceChanged(refl, true)
+			end,
 		})
 		tagContext:AssignEach(reflector)
 		task.spawn(sourceChanged, reflector)
