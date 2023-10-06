@@ -7,6 +7,27 @@ A collection of useful bindings is available in the [bindings](bindings)
 directory.
 
 ## Usage
+
+To get started:
+
+1. [Install](#installation) the LiveBind plugin.
+2. Create a Folder and add the `LiveBind` tag to it.
+3. Create a ModuleScript named `Greet` and add it as a child of the Folder.
+4. Give the ModuleScript the following source:
+
+	```lua
+	return function(context, instance)
+		print("hello", instance)
+		ctx:AssignEach(function()
+			print("bye", instance)
+		end)
+	end
+	```
+
+Now any instance given the `Greet` tag will be greeted with a message.
+
+### Details
+
 Instances with the `LiveBind` tag become containers for **bindings**. Any child
 ModuleScript is considered a binding.
 
