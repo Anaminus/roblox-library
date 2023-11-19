@@ -18,7 +18,7 @@ To get started:
 	```lua
 	return function(context, instance)
 		print("hello", instance)
-		ctx:AssignEach(function()
+		context:AssignEach(function()
 			print("bye", instance)
 		end)
 	end
@@ -40,7 +40,7 @@ Source:
 ```lua
 return function(context, instance)
 	print("hello", instance)
-	ctx:AssignEach(function()
+	context:AssignEach(function()
 		print("bye", instance)
 	end)
 end
