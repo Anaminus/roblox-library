@@ -2557,9 +2557,9 @@ function Table.__tostring(self: Table): string
 		table.insert(fmtRows, fmtRow)
 	end
 
-	local rowFormatCon = {`%-{tostring(widths[1])}s`}
-	for i = 2, #widths do
-		table.insert(rowFormatCon, `%-{tostring(widths[i])}s`)
+	local rowFormatCon = table.create(#widths)
+	for _, w in widths do
+		table.insert(rowFormatCon, `%-{tostring(w)}s`)
 	end
 	local rowFormat = `| {table.concat(rowFormatCon, " | ")} |`
 
