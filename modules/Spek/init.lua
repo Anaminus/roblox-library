@@ -1986,7 +1986,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				visit(...)
 			else
 				local param = params[n]
-				for _, v in param._variations do
+				for _, v in ipairs(param._variations) do
 					permuteParameters(params, visit, n-1, v, ...)
 				end
 			end
