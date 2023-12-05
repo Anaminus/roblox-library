@@ -727,7 +727,7 @@ type Node = {
 		-- Total duration of all iterations of the unit.
 		Duration: number,
 		-- Benchmark categories.
-		Categories: {string}?,
+		Categories: {[string]: true}?,
 	},
 	-- Marks data has having changed.
 	Pending: {
@@ -1842,7 +1842,8 @@ export type Runner = {
 	StatusCount: (self: Runner) -> {[ResultStatus]: number},
 	Root: (self: Runner) -> Path,
 	All: (self: Runner) -> {Path},
-	Paths: ((self: Runner, path: Path) -> {Path}?),
+	Paths: (self: Runner, path: Path) -> {Path}?,
+	Categories: (self: Runner, ...string?) -> {Path},
 	Result: (self: Runner, path: Path) -> Result?,
 	Metrics: (self: Runner, path: Path) -> Metrics?,
 	TabulateBenchmarks: (self: Runner, path: Path?) -> Table?,
@@ -2006,14 +2007,14 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 		-- If the given description cannot be formatted according to the given
 		-- parameters, then only one benchmark is generated.
 		local function generateBenchmarks(key: string?, flags: Flags, benchmark: Benchmark, ...: Parameter|string)
-			local categories: {string} = {}
+			local hasCategories = false
+			local categories: {[string]: true} = {}
 			local parameters: {_Parameter<any>} = {}
 			for i = 1, select("#", ...) do
 				local arg = select(i, ...)
 				if type(arg) == "string" then
-					if not table.find(categories, arg) then
-						table.insert(categories, arg)
-					end
+					categories[arg] = true
+					hasCategories = true
 					continue
 				elseif type(arg) == "table" then
 					if arg.type == "parameter"
@@ -2049,7 +2050,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 					state:CreateNode("benchmark", formatted, flags, function()
 						benchmark(table.unpack(values, 1, values.n))
 					end)
-					if #categories > 0 then
+					if hasCategories then
 						state:PeekNode().Data.Categories = categories
 					end
 					state:PopNode()
@@ -2060,7 +2061,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				state:CreateNode("benchmark", key, flags, function()
 					benchmark(table.unpack(firsts, 1, firsts.n))
 				end)
-				if #categories > 0 then
+				if hasCategories then
 					state:PeekNode().Data.Categories = categories
 				end
 				state:PopNode()
@@ -3132,6 +3133,36 @@ function Runner.__index.Paths(self: _Runner, path: Path): {Path}?
 		return paths
 	end
 	return nil
+end
+
+--@sec: Runner.Categories
+--@def: function Runner:Categories(self: _Runner, ...: string): {Path}
+--@doc: Returns the paths of nodes matching any of the given categories. Nil
+-- matches nodes that have no category.
+function Runner.__index.Categories(self: _Runner, ...: string?): {Path}
+	local selection = {}
+	for path in self._tree.Nodes do
+		local node = self._tree.Nodes[path]
+		for i = 1, select("#", ...) do
+			local category = select(i, ...)
+			if category == nil then
+				if not node.Data.Categories then
+					selection[path] = true
+				end
+			elseif node.Data.Categories and node.Data.Categories[category] then
+				selection[path] = true
+			end
+		end
+	end
+
+	local paths = {}
+	for path in selection do
+		table.insert(paths, path)
+	end
+	table.sort(paths, function(a: any, b: any): boolean
+		return a._string < b._string
+	end)
+	return paths
 end
 
 --@sec: Runner.Result

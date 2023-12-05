@@ -66,21 +66,22 @@ end
 	17. [T.stop_timer][T.stop_timer]
 4. [Runner][Runner]
 	1. [Runner.All][Runner.All]
-	2. [Runner.Metadata][Runner.Metadata]
-	3. [Runner.Metrics][Runner.Metrics]
-	4. [Runner.ObserveMetric][Runner.ObserveMetric]
-	5. [Runner.ObserveResult][Runner.ObserveResult]
-	6. [Runner.Paths][Runner.Paths]
-	7. [Runner.Reset][Runner.Reset]
-	8. [Runner.Result][Runner.Result]
-	9. [Runner.Root][Runner.Root]
-	10. [Runner.Run][Runner.Run]
-	11. [Runner.Running][Runner.Running]
-	12. [Runner.Start][Runner.Start]
-	13. [Runner.StatusCount][Runner.StatusCount]
-	14. [Runner.Stop][Runner.Stop]
-	15. [Runner.TabulateBenchmarks][Runner.TabulateBenchmarks]
-	16. [Runner.Wait][Runner.Wait]
+	2. [Runner.Categories][Runner.Categories]
+	3. [Runner.Metadata][Runner.Metadata]
+	4. [Runner.Metrics][Runner.Metrics]
+	5. [Runner.ObserveMetric][Runner.ObserveMetric]
+	6. [Runner.ObserveResult][Runner.ObserveResult]
+	7. [Runner.Paths][Runner.Paths]
+	8. [Runner.Reset][Runner.Reset]
+	9. [Runner.Result][Runner.Result]
+	10. [Runner.Root][Runner.Root]
+	11. [Runner.Run][Runner.Run]
+	12. [Runner.Running][Runner.Running]
+	13. [Runner.Start][Runner.Start]
+	14. [Runner.StatusCount][Runner.StatusCount]
+	15. [Runner.Stop][Runner.Stop]
+	16. [Runner.TabulateBenchmarks][Runner.TabulateBenchmarks]
+	17. [Runner.Wait][Runner.Wait]
 5. [Assertion][Assertion]
 6. [Benchmark][Benchmark]
 7. [BenchmarkClause][BenchmarkClause]
@@ -532,6 +533,15 @@ function Runner:All(): {Path}
 
 Returns a list of all paths in the runner. Paths are sorted by their
 string representation.
+
+## Runner.Categories
+[Runner.Categories]: #runnercategories
+```
+function Runner:Categories(self: _Runner, ...: string): {Path}
+```
+
+Returns the paths of nodes matching any of the given categories. Nil
+matches nodes that have no category.
 
 ## Runner.Metadata
 [Runner.Metadata]: #runnermetadata
