@@ -67,21 +67,22 @@ end
 4. [Runner][Runner]
 	1. [Runner.All][Runner.All]
 	2. [Runner.Categories][Runner.Categories]
-	3. [Runner.Metadata][Runner.Metadata]
-	4. [Runner.Metrics][Runner.Metrics]
-	5. [Runner.ObserveMetric][Runner.ObserveMetric]
-	6. [Runner.ObserveResult][Runner.ObserveResult]
-	7. [Runner.Paths][Runner.Paths]
-	8. [Runner.Reset][Runner.Reset]
-	9. [Runner.Result][Runner.Result]
-	10. [Runner.Root][Runner.Root]
-	11. [Runner.Run][Runner.Run]
-	12. [Runner.Running][Runner.Running]
-	13. [Runner.Start][Runner.Start]
-	14. [Runner.StatusCount][Runner.StatusCount]
-	15. [Runner.Stop][Runner.Stop]
-	16. [Runner.TabulateBenchmarks][Runner.TabulateBenchmarks]
-	17. [Runner.Wait][Runner.Wait]
+	3. [Runner.Category][Runner.Category]
+	4. [Runner.Metadata][Runner.Metadata]
+	5. [Runner.Metrics][Runner.Metrics]
+	6. [Runner.ObserveMetric][Runner.ObserveMetric]
+	7. [Runner.ObserveResult][Runner.ObserveResult]
+	8. [Runner.Paths][Runner.Paths]
+	9. [Runner.Reset][Runner.Reset]
+	10. [Runner.Result][Runner.Result]
+	11. [Runner.Root][Runner.Root]
+	12. [Runner.Run][Runner.Run]
+	13. [Runner.Running][Runner.Running]
+	14. [Runner.Start][Runner.Start]
+	15. [Runner.StatusCount][Runner.StatusCount]
+	16. [Runner.Stop][Runner.Stop]
+	17. [Runner.TabulateBenchmarks][Runner.TabulateBenchmarks]
+	18. [Runner.Wait][Runner.Wait]
 5. [Assertion][Assertion]
 6. [Benchmark][Benchmark]
 7. [BenchmarkClause][BenchmarkClause]
@@ -537,7 +538,15 @@ string representation.
 ## Runner.Categories
 [Runner.Categories]: #runnercategories
 ```
-function Runner:Categories(self: _Runner, ...: string): {Path}
+function Runner:Categories(self: _Runner): {Path}
+```
+
+Returns a list of category names.
+
+## Runner.Category
+[Runner.Category]: #runnercategory
+```
+function Runner:Category(self: _Runner, ...: string?): {Path}
 ```
 
 Returns the paths of nodes matching any of the given categories. Nil
@@ -660,11 +669,12 @@ runner is not running.
 ## Runner.TabulateBenchmarks
 [Runner.TabulateBenchmarks]: #runnertabulatebenchmarks
 ```
-function Runner:TabulateBenchmarks(path: Path?, timeUnit: "s"|"ms"|"us"?): Table
+function Runner:TabulateBenchmarks(paths: {Path}?, timeUnit: "s"|"ms"|"us"?): Table
 ```
 
-Returns a [Table][Table] tabulating all benchmarks under *path*, or the
-root if unspecified. Returns nil if *path* contains no benchmarks.
+Returns a [Table][Table] tabulating all benchmarks in *paths*, or the
+root if unspecified. For branch nodes, all benchmark descendant nodes are
+included. Returns nil if *path* contains no benchmarks.
 
 If *timeUnit* is specified, it sets the time unit of the operations-per-time
 column. If unspecified, the unit is determined by what best fits the data.

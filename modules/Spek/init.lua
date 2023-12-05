@@ -1843,10 +1843,11 @@ export type Runner = {
 	Root: (self: Runner) -> Path,
 	All: (self: Runner) -> {Path},
 	Paths: (self: Runner, path: Path) -> {Path}?,
-	Categories: (self: Runner, ...string?) -> {Path},
+	Category: (self: Runner, ...string?) -> {Path},
+	Categories: (self: Runner) -> {string},
 	Result: (self: Runner, path: Path) -> Result?,
 	Metrics: (self: Runner, path: Path) -> Metrics?,
-	TabulateBenchmarks: (self: Runner, path: Path?) -> Table?,
+	TabulateBenchmarks: (self: Runner, path: {Path}?) -> Table?,
 	ObserveResult: (self: Runner, observer: ResultObserver) -> ()->(),
 	ObserveMetric: (self: Runner, observer: MetricObserver) -> ()->(),
 }
@@ -2340,29 +2341,18 @@ end
 
 -- Writes tabulated benchmark results to a string concatenation.
 local function sprintTables(self: _Runner, out: {string})
-	-- Tabulate benchmarks per plan.
-	local plans = {}
-	local function findPlans(node: Node)
-		if node.Type == "plan" then
-			table.insert(plans, node.Path)
-		else
-			for _, child in node.Children do
-				findPlans(child)
-			end
-		end
-	end
-	findPlans(self._tree.Root)
-	if #plans == 0 then
-		table.insert(plans, self._tree.Root.Path)
-	end
-
-	-- Build tables.
 	local tables = {}
-	for _, plan in plans do
-		local tab = self:TabulateBenchmarks(plan)
+	-- Tabulate benchmarks per category.
+	local categories = self:Categories()
+	-- Adding 1 includes nil, or non-categorized.
+	for i = 1, #categories+1 do
+		local category = categories[i]
+		local paths = self:Category(category)
+		local tab = self:TabulateBenchmarks(paths)
 		if tab then
-			if plan ~= self._tree.Root.Path then
-				table.insert(tables, `measure {tostring(plan)}:`)
+			table.insert(tables, "")
+			if category ~= nil then
+				table.insert(tables, `{category}:`)
 			end
 			table.insert(tables, tostring(tab))
 		end
@@ -2375,6 +2365,17 @@ end
 
 -- A readable representation of the runner's results.
 function Runner.__tostring(self: _Runner): string
+	local out = {""}
+
+	sprintMetadata(self, out)
+	sprintTree(self, out)
+	sprintTables(self, out)
+
+	return table.concat(out, "\n")
+end
+
+-- Metamethods disallow pausing, so this is provided for debugging.
+function Runner.__index.String(self: _Runner): string
 	local out = {""}
 
 	sprintMetadata(self, out)
@@ -2560,9 +2561,9 @@ end
 
 -- Recursively finds benchmark nodes under *node* and inserts them into
 -- *benchmarks*.
-local function findBenchmarks(benchmarks: {Node}, node: Node)
+local function findBenchmarks(benchmarks: {[Node]: true}, node: Node)
 	if node.Type == "benchmark" then
-		table.insert(benchmarks, node)
+		benchmarks[node] = true
 	else
 		for _, child in node.Children do
 			findBenchmarks(benchmarks, child)
@@ -2571,9 +2572,10 @@ local function findBenchmarks(benchmarks: {Node}, node: Node)
 end
 
 --@sec: Runner.TabulateBenchmarks
---@def: function Runner:TabulateBenchmarks(path: Path?, timeUnit: "s"|"ms"|"us"?): Table
---@doc: Returns a [Table][Table] tabulating all benchmarks under *path*, or the
--- root if unspecified. Returns nil if *path* contains no benchmarks.
+--@def: function Runner:TabulateBenchmarks(paths: {Path}?, timeUnit: "s"|"ms"|"us"?): Table
+--@doc: Returns a [Table][Table] tabulating all benchmarks in *paths*, or the
+-- root if unspecified. For branch nodes, all benchmark descendant nodes are
+-- included. Returns nil if *path* contains no benchmarks.
 --
 -- If *timeUnit* is specified, it sets the time unit of the operations-per-time
 -- column. If unspecified, the unit is determined by what best fits the data.
@@ -2582,21 +2584,24 @@ end
 -- - `ms` Milliseconds.
 -- - `us`: Microseconds.
 --
-function Runner.__index.TabulateBenchmarks(self: _Runner, path: Path?, timeUnit: "s"|"ms"|"us"?): Table?
-	local node
-	if path then
-		node = self._tree.Nodes[path]
-	else
-		node = self._tree.Root
+function Runner.__index.TabulateBenchmarks(self: _Runner, paths: {Path}?, timeUnit: "s"|"ms"|"us"?): Table?
+	local benchmarks = {}
+	for _, path in (paths or {self._tree.Root.Path})::any do
+		findBenchmarks(benchmarks, self._tree.Nodes[path])
 	end
 
-	local benchmarks = {}
-	findBenchmarks(benchmarks, node)
-	if #benchmarks == 0 then
+	local list = {}
+	for node in benchmarks do
+		table.insert(list, node)
+	end
+	if #list == 0 then
 		return nil
 	end
+	table.sort(list, function(a: any ,b: any): boolean
+		return a.Path._string < b.Path._string
+	end)
 
-	return newTable(self, benchmarks, timeUnit)
+	return newTable(self, list, timeUnit)
 end
 
 -- Accumulate all before and after functions to run around the test.
@@ -3135,18 +3140,18 @@ function Runner.__index.Paths(self: _Runner, path: Path): {Path}?
 	return nil
 end
 
---@sec: Runner.Categories
---@def: function Runner:Categories(self: _Runner, ...: string): {Path}
+--@sec: Runner.Category
+--@def: function Runner:Category(self: _Runner, ...: string?): {Path}
 --@doc: Returns the paths of nodes matching any of the given categories. Nil
 -- matches nodes that have no category.
-function Runner.__index.Categories(self: _Runner, ...: string?): {Path}
+function Runner.__index.Category(self: _Runner, ...: string?): {Path}
 	local selection = {}
 	for path in self._tree.Nodes do
 		local node = self._tree.Nodes[path]
 		for i = 1, select("#", ...) do
 			local category = select(i, ...)
 			if category == nil then
-				if not node.Data.Categories then
+				if not node.Data.Categories and node:IsLeaf() then
 					selection[path] = true
 				end
 			elseif node.Data.Categories and node.Data.Categories[category] then
@@ -3163,6 +3168,28 @@ function Runner.__index.Categories(self: _Runner, ...: string?): {Path}
 		return a._string < b._string
 	end)
 	return paths
+end
+
+--@sec: Runner.Categories
+--@def: function Runner:Categories(self: _Runner): {Path}
+--@doc: Returns a list of category names.
+function Runner.__index.Categories(self: _Runner): {string}
+	local selection = {}
+	for path in self._tree.Nodes do
+		local node = self._tree.Nodes[path]
+		if node.Data.Categories then
+			for category in node.Data.Categories do
+				selection[category] = true
+			end
+		end
+	end
+
+	local categories = {}
+	for category in selection do
+		table.insert(categories, category)
+	end
+	table.sort(categories)
+	return categories
 end
 
 --@sec: Runner.Result
