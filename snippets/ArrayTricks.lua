@@ -57,3 +57,13 @@ local function BulkFastRemove(a: {any}, cond: (any)->boolean)
 		end
 	end
 end
+
+-- Truncate removes elements from the end of *a* until its length is at most
+-- *length*. Clears *a* if *length* is less than or equal to zero.
+local function Truncate(a: {any}, length: number): {any}
+	if length <= 0 then
+		table.clear(a)
+		return a
+	end
+	return table.move({}, 1, #a-length, length+1, a)
+end
