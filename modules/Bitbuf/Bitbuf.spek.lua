@@ -1,9 +1,11 @@
-local T = {}
+--!strict
+--!optimize 2
 
-local SHOW_ERRORS = false
+local Spek = require(script.Parent.Parent.Spek)
+local Bitbuf = require(script.Parent)
 
 -- Reset Buffer content. Depends on implementation.
-local function resetBuf(self, l, i, ones)
+local function resetBuf(self: _Buffer, l: number, i: number, ones: boolean)
 	self.len = l
 	self.i = i
 	table.clear(self.buf)
@@ -17,50 +19,29 @@ local function resetBuf(self, l, i, ones)
 	end
 end
 
-local function join(a, b)
+local function errorf(fmt: string, ...: any)
+	error(string.format(fmt, ...))
+end
+
+local function join<T>(a: {T}, b: {T}): {T}
 	local c = table.create(#a + #b)
 	table.move(a, 1, #a, 1, c)
 	table.move(b, 1, #b, #a+1, c)
 	return c
 end
 
-local function pass(t, v, msg)
-	msg = msg or "expected pass"
-	if type(v) == "function" then
-		local ok, err = pcall(v)
-		if not ok then
-			t:Errorf("%s: %s", msg, err)
-			return
-		end
-		if not err then
-			t:Error(msg)
-		end
-	elseif not v then
-		t:Errorf(msg)
-	end
-end
+type _Buffer = Bitbuf.Buffer & {
+	buf: {number},
+	len: number,
+	i: number,
+	writeUnit: (self: _Buffer, size: number, v: number) -> (),
+	readUnit: (self: _Buffer, size: number) -> number,
+}
 
-local function fail(t, v, msg)
-	msg = msg or "expected fail"
-	if type(v) == "function" then
-		local ok, err = pcall(v)
-		if ok then
-			if err then
-				t:Error(msg)
-			end
-			t:Errorf(msg)
-			return
-		elseif SHOW_ERRORS then
-			t:Logf("ERROR: %s\n", err)
-		end
-	elseif v then
-		t:Errorf(msg)
-	end
-end
-
-local ones do
+-- Produce string having *size* 1 bits, with trailing zeros.
+local ones: (size: number) -> string do
 	local pow2 = {1, 3, 7, 15, 31, 63, 127}
-	function ones(size)
+	function ones(size: number): string
 		local r = size % 8
 		if r == 0 then
 			return string.rep("\255", math.floor(size/8))
@@ -135,10 +116,12 @@ local explodeByte = {
 	[0xF8]="00011111",[0xF9]="10011111",[0xFA]="01011111",[0xFB]="11011111",
 	[0xFC]="00111111",[0xFD]="10111111",[0xFE]="01111111",[0xFF]="11111111",
 }
-local explode do
+
+-- Return the bits of *v* having *size* bits.
+local explode: (v: string, size: number?) -> string do
 	local a = table.create(512*8)
-	function explode(v, size)
-		size = size or #v*8
+	function explode(v: string, size: number?): string
+		local size = size or #v*8
 		if size == 0 then
 			return ""
 		end
@@ -151,12 +134,15 @@ local explode do
 	end
 end
 
-local function explodeBuf(buf)
+-- Return the bits of a Buffer.
+local function explodeBuf(buf: Bitbuf.Buffer): string
 	return explode(buf:String(), buf:Len())
 end
 
-local unprint = "[^\32-\126]"
-local function compError(want, got, fn)
+-- Return string comparing *want* and *got* by printing bytes side by side.
+-- Unprintable bytes are escaped.
+local function compError(want: string, got: string, fn: ((string, ...any)->string)?): string
+	local unprint = "[^\32-\126]"
 	if string.match(want, unprint) or string.match(got, unprint) then
 		want = "*" .. string.gsub(want, ".", function(c) return string.format("\\x%02X", string.byte(c)) end)
 		got = "*" .. string.gsub(got, ".", function(c) return string.format("\\x%02X", string.byte(c)) end)
@@ -167,27 +153,56 @@ local function compError(want, got, fn)
 	return "unexpected buffer content:\n\twant: %s\n\t got: %s", want, got
 end
 
-local function compare(want, got)
+-- If two strings aren't equal, return an error comparing their bytes.
+local function compare(want: string, got: string): string?
 	if got == want then
 		return nil
 	end
 	return compError(want, got)
 end
 
-local function bits(t, buf, bits)
+-- Explode buffer into string of bits.
+local function bits(buf: Bitbuf.Buffer, bits: string)
 	if buf:Len() ~= #bits then
-		t:Errorf("expected length %d, got %d", #bits, buf:Len())
-		return true
+		errorf("expected length %d, got %d", #bits, buf:Len())
+		return false
 	end
 	local got = explodeBuf(buf)
 	if got ~= bits then
-		t:Errorf(compError(bits, got))
-		return true
+		errorf(compError(bits, got))
+		return false
 	end
-	return false
+	return true
 end
 
-local unitSuite = {
+type SuiteDef = {
+	lengths: {number},
+	sizes: {number},
+	values: {{
+		value: number,
+		bytes: string,
+		bits: string,
+	}},
+	ones: boolean?,
+}
+
+type Suite = {
+	lengths: {number} | number | nil,
+	sizes: {number} | number | nil,
+	values: {SuiteValue} | number | nil,
+	ones: boolean?,
+}
+
+type SuiteValue = {
+	value: number,
+	bytes: string,
+	bits: string,
+}
+
+local _: Suite = (nil::any)::SuiteDef
+
+-- Tests numeric data by generating values at various bit boundaries.
+local unitSuite: SuiteDef = {
 	lengths = {
 		00, 01, 02,
 		15, 16, 17,
@@ -334,7 +349,8 @@ local unitSuite = {
 	},
 }
 
-local intSuite = {
+-- Supplements unitSuite with values above 32 bits.
+local intSuite: SuiteDef = {
 	lengths = {},
 	sizes = {
 		39, 40, 41,
@@ -423,1066 +439,1098 @@ intSuite = {
 	values = join(unitSuite.values, intSuite.values),
 }
 
-local unitTestInterval = 1
-local function testSuite(t, Bitbuf, suite, cb)
-	local n = 0
-	local time = os.clock()
-	local lengths = suite.lengths
-	if not lengths then
-		lengths = {0}
-	elseif type(lengths) == "number" then
-		local a = table.create(lengths+1, 0)
-		for i in ipairs(a) do
-			a[i] = i-1
+type SuiteCallbackBuf = (buf: _Buffer, length: number, index: number, size: number, value: SuiteValue) -> (string?, ...any)
+type SuiteCallbackNil = (buf: nil, length: number, index: number, size: number, value: SuiteValue) -> (string?, ...any)
+type SuiteCallback = (buf: _Buffer?, length: number, index: number, size: number, value: SuiteValue) -> (string?, ...any)
+
+type TestSuiteBuf = (expect: Spek.Clause<Spek.Assertion>, bb: typeof(Bitbuf), suite: Suite, cb: SuiteCallbackBuf) -> ()
+type TestSuiteNil = (expect: Spek.Clause<Spek.Assertion>, bb: nil, suite: Suite, cb: SuiteCallbackNil) -> ()
+type TestSuite = TestSuiteBuf & TestSuiteNil
+
+local testSuite: TestSuite =
+	function (expect: Spek.Clause<Spek.Assertion>, bb: typeof(Bitbuf)?, suite: Suite, cb: SuiteCallback)
+		local lengths = suite.lengths
+		if not lengths then
+			lengths = {0}
+		elseif type(lengths) == "number" then
+			local a = table.create(lengths+1, 0)
+			for i in a do
+				a[i] = i-1
+			end
+			lengths = a
 		end
-		lengths = a
-	end
-	local sizes = suite.sizes
-	if not sizes then
-		sizes = {0}
-	elseif type(sizes) == "number" then
-		local a = table.create(sizes+1, 0)
-		for i in ipairs(a) do
-			a[i] = i-1
+		local lengths: {number} = lengths :: any
+
+		local sizes = suite.sizes
+		if not sizes then
+			sizes = {0}
+		elseif type(sizes) == "number" then
+			local a = table.create(sizes+1, 0)
+			for i in a do
+				a[i] = i-1
+			end
+			sizes = a
 		end
-		sizes = a
-	end
-	local values = suite.values
-	if not values then
-		values = {{value=0, bytes="\0", bits="0"}}
-	elseif type(values) == "number" then
-		local a = table.create(values+1, 0)
-		for i in ipairs(a) do
-			a[i] = {value = i-1, bits = explodeByte[i-1]}
+		local sizes: {number} = sizes :: any
+
+		local values = suite.values
+		if not values then
+			values = {{value=0, bytes="\0", bits="0"}}
+		elseif type(values) == "number" then
+			local a: {SuiteValue} = table.create(values+1, 0) :: any
+			for i in a do
+				a[i] = {value = i-1, bytes = "TODO", bits = explodeByte[i-1]}
+			end
+			values = a
 		end
-		values = a
-	end
-	local buf
-	if Bitbuf then
-		buf = Bitbuf.new(sizes[#sizes])
-	end
-	for l, length in ipairs(lengths) do
-		for i = 1, l do
-			local index = lengths[i]
-			for _, size in ipairs(sizes) do
-				for _, value in ipairs(values) do
-					if buf then
-						resetBuf(buf, length, index, suite.ones)
-					end
-					local r = {cb(buf, length, index, size, value)}
-					if r[1] then
-						t:Errorf("[%d:%d:%d:%d]: " .. r[1], length, index, size, value.value, unpack(r, 2))
-						n = n + 1
-					end
-					if n >= 10 then
-						t:Fatal("too many errors")
-					end
-					if os.clock()-time >= unitTestInterval then
-						t:Yield()
-						time = os.clock()
+		local values: {SuiteValue} = values :: any
+
+		local buf: _Buffer?
+		if Bitbuf then
+			buf = Bitbuf.new(sizes[#sizes]) :: _Buffer
+		end
+
+		local errors = {}
+		pcall(function()
+			-- Number of seconds before forcing a yield.
+			local unitTestInterval = 1
+
+			local time = os.clock()
+			for l, length in lengths do
+				for i = 1, l do
+					local index = lengths[i]
+					for _, size in sizes do
+						for _, value in values do
+							if buf then
+								resetBuf(buf, length, index, not not suite.ones)
+							end
+							local r = {cb(buf, length, index, size, value)}
+							if r[1] then
+								table.insert(errors, string.format("[%d:%d:%d:%d]: " .. r[1]::any,
+									length, index, size, value.value, table.unpack(r, 2)))
+							end
+							if #errors >= 10 then
+								-- Jump out of all loops.
+								error("too many errors")
+							end
+							if os.clock()-time >= unitTestInterval then
+								task.wait()
+								time = os.clock()
+							end
+						end
 					end
 				end
 			end
-		end
+		end)
+		expect(function()
+			if #errors == 0 then
+				return true
+			end
+			return false, table.concat(errors, "\n")
+		end)
+	end :: any
+
+-- Returns a function that produces an expect of bits.
+local function bit_expector(expect: Spek.Clause<Spek.Assertion>): (buf: Bitbuf.Buffer, b: string) -> ()
+	return function(buf: Bitbuf.Buffer, b: string)
+		expect(function()
+			return bits(buf, b)
+		end)
 	end
 end
 
 local pi64Bits = string.pack("<d", math.pi)
 local pi32Bits = string.pack("<f", math.pi)
 
-function T.TestNew(t, require)
-	local Bitbuf = require()
+return function(t: Spek.T)
+	local describe = t.describe
+	local before_each = t.before_each
+	local it = t.it
+	local expect = t.expect
+	local expect_error = t.expect_error
+	local parameter = t.parameter
+	local measure = t.measure
+	local operation = t.operation
+	local expect_bits = bit_expector(expect)
 
-	pass(t, Bitbuf.new():Len() == 0, "no argument expects zero-length buffer")
-	pass(t, Bitbuf.new(42):Len() == 42, "argument sets buffer length")
-	pass(t, Bitbuf.new(42):Index() == 0, "index of new buffer is 0")
-
-	bits(t, Bitbuf.new(42), "000000000000000000000000000000000000000000")
-end
-
-function T.TestFromString(t, require)
-	local Bitbuf = require()
-
-	bits(t, Bitbuf.fromString(string.sub(pi64Bits, 1, 8)), "0001100010110100001000100010101011011111100001001001000000000010")
-	bits(t, Bitbuf.fromString(string.sub(pi64Bits, 1, 7)), "00011000101101000010001000101010110111111000010010010000")
-	bits(t, Bitbuf.fromString(string.sub(pi64Bits, 1, 6)), "000110001011010000100010001010101101111110000100")
-	bits(t, Bitbuf.fromString(string.sub(pi64Bits, 1, 5)), "0001100010110100001000100010101011011111")
-	bits(t, Bitbuf.fromString(string.sub(pi64Bits, 1, 4)), "00011000101101000010001000101010")
-	bits(t, Bitbuf.fromString(string.sub(pi64Bits, 1, 3)), "000110001011010000100010")
-	bits(t, Bitbuf.fromString(string.sub(pi64Bits, 1, 2)), "0001100010110100")
-	bits(t, Bitbuf.fromString(string.sub(pi64Bits, 1, 1)), "00011000")
-	bits(t, Bitbuf.fromString(""), "")
-end
-
-function T.TestBuffer_String(t, require)
-	local Bitbuf = require()
-
-	local bytes = "\x18\x2D\x44\x54\xFB\x21\x09\x40"
-	for i = 0, #bytes, 1 do
-		local want = string.sub(bytes, 1, i)
-		local buf = Bitbuf.fromString(want)
-		local got = buf:String()
-		if got ~= want then
-			t:Errorf(compError(want, buf:String()))
-		end
-	end
-
-	local buf = Bitbuf.new()
-	for l = 0, 64 do
-		resetBuf(buf, l, 0, true)
-		local want = string.rep("1", l) .. string.rep("0", math.ceil(l/8)*8-l)
-		local got = explode(buf:String())
-		if got ~= want then
-			t:Errorf(compError(want, got))
-		end
-	end
-end
-
-function T.TestBuffer_writeUnit(t, require)
-	local Bitbuf = require()
-
-	testSuite(t, Bitbuf, unitSuite, function(buf, l, i, s, v)
-		buf:writeUnit(s, v.value)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("0", i) .. string.sub(v.bits, 1, s) .. string.rep("0", l-i-s)
-		local got = explodeBuf(buf)
-		return compare(want, got)
+	describe "new" (function()
+		it "should create a zero-length buffer with no arguments" (function()
+			expect(function()
+				return Bitbuf.new():Len() == 0
+			end)
+		end)
+		it "should set buffer length from argument" (function()
+			expect(function()
+				return Bitbuf.new(42):Len() == 42
+			end)
+		end)
+		it "initialize the index to zero" (function()
+			expect(function()
+				return Bitbuf.new(42):Index() == 0
+			end)
+		end)
+		it "initialize bits with zeros" (function()
+			expect_bits(Bitbuf.new(42), "000000000000000000000000000000000000000000")
+		end)
 	end)
-end
 
-function T.TestBuffer_readUnit(t, require)
-	local Bitbuf = require()
-
-	testSuite(t, Bitbuf, unitSuite, function(buf, l, i, s, v)
-		buf:writeUnit(s, v.value)
-		buf:SetIndex(i)
-		local value = buf:readUnit(s)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = bit32.band(v.value, 2^s-1)
-		if value ~= want then
-			return "expected value %d, got %d", want, value
-		end
-		return
+	describe "fromString" (function()
+		it "should produce correct bits for 8 bytes" (function() expect_bits(Bitbuf.fromString(string.sub(pi64Bits, 1, 8)), "0001100010110100001000100010101011011111100001001001000000000010") end)
+		it "should produce correct bits for 7 bytes" (function() expect_bits(Bitbuf.fromString(string.sub(pi64Bits, 1, 7)), "00011000101101000010001000101010110111111000010010010000") end)
+		it "should produce correct bits for 6 bytes" (function() expect_bits(Bitbuf.fromString(string.sub(pi64Bits, 1, 6)), "000110001011010000100010001010101101111110000100") end)
+		it "should produce correct bits for 5 bytes" (function() expect_bits(Bitbuf.fromString(string.sub(pi64Bits, 1, 5)), "0001100010110100001000100010101011011111") end)
+		it "should produce correct bits for 4 bytes" (function() expect_bits(Bitbuf.fromString(string.sub(pi64Bits, 1, 4)), "00011000101101000010001000101010") end)
+		it "should produce correct bits for 3 bytes" (function() expect_bits(Bitbuf.fromString(string.sub(pi64Bits, 1, 3)), "000110001011010000100010") end)
+		it "should produce correct bits for 2 bytes" (function() expect_bits(Bitbuf.fromString(string.sub(pi64Bits, 1, 2)), "0001100010110100") end)
+		it "should produce correct bits for 1 bytes" (function() expect_bits(Bitbuf.fromString(string.sub(pi64Bits, 1, 1)), "00011000") end)
+		it "should produce correct bits for 0 bytes" (function() expect_bits(Bitbuf.fromString(""), "") end)
 	end)
-end
 
-function T.TestBuffer_Len(t, require)
-	local Bitbuf = require()
-
-	for i = 0, 256 do
-		local n = Bitbuf.new(i):Len()
-		if n ~= i then
-			t:Errorf("length %d expected, got %d", i, n)
-		end
-	end
-end
-
-function T.TestBuffer_SetLen(t, require)
-	local Bitbuf = require()
-
-	testSuite(t, nil, {lengths = unitSuite.lengths}, function(_, l, i, _, _)
-		local buf = Bitbuf.new()
-		buf:SetIndex(i)
-		buf:SetLen(l)
-		if buf:Len() ~= l then
-			return "expected length %d, got %d", l, buf:Len()
-		end
-		local expi = math.min(i, l)
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("0", l)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_Index(t, require)
-	local Bitbuf = require()
-
-	pass(t, Bitbuf.new(42):Index() == 0, "new buffer index is 0")
-	local buf = Bitbuf.new()
-	pass(t, buf:Index() == 0, "buffer index is 0")
-	pass(t, buf:Len() == 0, "buffer length is 0")
-	bits(t, buf, "")
-
-	buf:SetIndex(10)
-	pass(t, buf:Index() == 10, "buffer index set to 10")
-	pass(t, buf:Len() == 10, "buffer length grows to 10")
-	bits(t, buf, "0000000000")
-
-	buf:SetIndex(5)
-	pass(t, buf:Index() == 5, "buffer index set to 5")
-	pass(t, buf:Len() == 10, "buffer length still 10")
-	bits(t, buf, "0000000000")
-
-	buf:SetIndex(202)
-	pass(t, buf:Index() == 202, "buffer index set to 202")
-	pass(t, buf:Len() == 202, "buffer length grows to 202")
-	bits(t, buf, string.rep("0", 202))
-
-	buf:SetIndex(20)
-	pass(t, buf:Index() == 20, "buffer index set to 20")
-	pass(t, buf:Len() == 202, "buffer length still 202")
-	bits(t, buf, string.rep("0", 202))
-
-	buf:SetIndex(-10)
-	pass(t, buf:Index() == 0, "setting negative buffer index clamps to 0")
-	bits(t, buf, string.rep("0", 202))
-
-	buf = Bitbuf.new()
-	for i = 0, 256 do
-		buf:SetIndex(i)
-		if buf:Index() ~= i then
-			t:Errorf("[%d]: got index %d", i, buf:Index())
-			return
-		end
-		if buf:Len() ~= i then
-			t:Errorf("[%d]: got length %d", i, buf:Len())
-			return
-		end
-		local want = string.rep("0", i)
-		local got = explodeBuf(buf)
-		if got ~= want then
-			local r = {compError(want, got)}
-			r[1] = string.format("[%d]: %s", i, r[1])
-			t:Errorf(unpack(r))
-			return
-		end
-	end
-end
-
-function T.TestBuffer_Fits(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-	}
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		if buf:Fits(s) ~= (i+s <= l) then
-			return "%d+%d > %d", i, s, l
-		end
-		return
-	end)
-end
-
-function T.TestBuffer_WritePad(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-		ones = true,
-	}
-
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		buf:WritePad(s)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("1", i) .. string.rep("0", s) .. string.rep("1", l-i-s)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_ReadPad(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-		ones = true,
-	}
-
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		buf:ReadPad(s)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("1", l) .. string.rep("0", explen-l)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_WriteAlign(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-		ones = true,
-	}
-
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		buf:WriteAlign(s)
-
-		local expi = s == 0 and i or math.ceil(i/s)*s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("1", i) .. string.rep("0", expi-i) .. string.rep("1", l-i-(expi-i))
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_ReadAlign(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-		ones = true,
-	}
-
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		buf:ReadAlign(s)
-
-		local expi = s == 0 and i or math.ceil(i/s)*s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("1", l) .. string.rep("0", explen-l)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_Reset(t, require)
-	local Bitbuf = require()
-
-	local buf = Bitbuf.fromString(pi64Bits)
-	buf:Reset()
-	pass(t, buf:Len() == 0, "reset buffer length is 0")
-	pass(t, buf:Index() == 0, "reset buffer index is 0")
-	pass(t, buf:String() == "", "reset buffer content is empty")
-end
-
-function T.TestBuffer_WriteBytes(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-	}
-
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		local b = ones(s)
-		buf:WriteBytes(b)
-
-		local expi = i + #b*8
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("0", i) .. string.rep("1", s) .. string.rep("0", explen-i-s)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_ReadBytes(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-	}
-
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		local a = ones(s)
-		buf:WriteBytes(a)
-		buf:SetIndex(i)
-		local exps = math.ceil(s/8)
-		local b = buf:ReadBytes(exps)
-
-		local expi = i + #a*8
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("1", s) .. string.rep("0", exps*8-s)
-		local got = explode(b)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_WriteUint(t, require)
-	local Bitbuf = require()
-
-	fail(t, function() return Bitbuf.new():WriteUint(54, 0) end, "size 54 not in range [0,53]")
-	fail(t, function() return Bitbuf.new():WriteUint(-1, 0) end, "size -1 not in range [0,53]")
-
-	testSuite(t, Bitbuf, intSuite, function(buf, l, i, s, v)
-		buf:WriteUint(s, v.value)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("0", i) .. string.sub(v.bits, 1, s) .. string.rep("0", explen-i-s)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_ReadUint(t, require)
-	local Bitbuf = require()
-
-	testSuite(t, Bitbuf, intSuite, function(buf, l, i, s, v)
-		buf:WriteUint(s, v.value)
-		buf:SetIndex(i)
-		local value = buf:ReadUint(s)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = v.value % 2^s
-		if value ~= want then
-			return "expected value %d, got %d", want, value
-		end
-		return
-	end)
-end
-
-function T.TestBuffer_WriteBool(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-		values = {
-			{value = 0},
-			{value = 1},
-		},
-	}
-
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, v)
-		for i = 1, s do
-			buf:WriteBool(v == 1)
-		end
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("0", i) .. string.rep(v == 1 and "1" or "0", s) .. string.rep("0", explen-i-s)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_ReadBool(t, require)
-	local Bitbuf = require()
-
-	t:Log("false")
-	local suite = {
-		lengths = unitSuite.lengths,
-		sizes = unitSuite.sizes,
-	}
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		for j = 1, s do
-			if buf:ReadBool() ~= false then
-				return "expected false"
+	describe "Buffer.String" (function()
+		it "should produce round-trip strings" (function()
+			local bytes = "\x18\x2D\x44\x54\xFB\x21\x09\x40"
+			for i = 0, #bytes, 1 do
+				expect(function()
+					local want = string.sub(bytes, 1, i)
+					local buf = Bitbuf.fromString(want)
+					local got = buf:String()
+					if got ~= want then
+						errorf(compError(want, buf:String()))
+					end
+					return true
+				end)
 			end
-			local expi = i + j
-			local explen = math.max(expi, l)
-			if buf:Len() ~= explen then
-				return "expected length %d, got %d", explen, buf:Len()
+		end)
+		it "should produce zeroed trailing bits" (function()
+			local buf = Bitbuf.new()
+			for l = 0, 64 do
+				expect(function()
+					resetBuf(buf::_Buffer, l, 0, true)
+					local want = string.rep("1", l) .. string.rep("0", math.ceil(l/8)*8-l)
+					local got = explode(buf:String())
+					if got ~= want then
+						errorf(compError(want, got))
+					end
+					return true
+				end)
 			end
-			if buf:Index() ~= expi then
-				return "expected index %d, got %d", expi, buf:Index()
-			end
-		end
-		return
+		end)
 	end)
 
-	t:Log("true")
-	suite.ones = true
-	testSuite(t, Bitbuf, suite, function(buf, l, i, s, _)
-		for j = 1, s do
-			local v = i+j <= l
-			if buf:ReadBool() ~= v then
-				return "expected " .. (v and "true" or "false")
-			end
-			local expi = i + j
-			local explen = math.max(expi, l)
-			if buf:Len() ~= explen then
-				return "expected length %d, got %d", explen, buf:Len()
-			end
-			if buf:Index() ~= expi then
-				return "expected index %d, got %d", expi, buf:Index()
-			end
-		end
-		return
+	describe "Buffer.writeUnit" (function()
+		it "should pass the unit test suite" (function()
+			testSuite(expect, Bitbuf, unitSuite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:writeUnit(s, v.value)
+
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("0", i) .. string.sub(v.bits, 1, s) .. string.rep("0", l-i-s)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
 	end)
-end
 
-function T.TestBuffer_WriteByte(t, require)
-	local Bitbuf = require()
+	describe "Buffer.readUnit" (function()
+		it "should pass the unit test suite" (function()
+			testSuite(expect, Bitbuf, unitSuite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:writeUnit(s, v.value)
+				buf:SetIndex(i)
+				local value = buf:readUnit(s)
 
-	local suite = {
-		lengths = unitSuite.lengths,
-		values = 255,
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = bit32.band(v.value, 2^s-1)
+				if value ~= want then
+					return "expected value %d, got %d", want, value
+				end
+				return
+			end)
+		end)
+	end)
+
+	describe "Buffer.Len" (function()
+		it "should return the number of bits of a new buffer" (function()
+			for i = 0, 256 do
+				expect(function()
+					local n = Bitbuf.new(i):Len()
+					if n ~= i then
+						return false, string.format("length %d expected, got %d", i, n)
+					end
+					return true
+				end)
+			end
+		end)
+	end)
+
+	describe "Buffer.SetLen" (function()
+		it "should pass the test suite" (function()
+			testSuite(expect, nil, {lengths = unitSuite.lengths}, function(_, l: number, i: number, _, _): (string?, ...any)
+				local buf = Bitbuf.new()
+				buf:SetIndex(i)
+				buf:SetLen(l)
+				if buf:Len() ~= l then
+					return "expected length %d, got %d", l, buf:Len()
+				end
+				local expi = math.min(i, l)
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("0", l)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.Index" (function()
+		it "should return 0 for a new buffer" (function()
+			expect(function()
+				return Bitbuf.new(42):Index() == 0
+			end)
+		end)
+
+		it "should equal value passed to SetIndex" (function()
+			local buf = Bitbuf.new()
+
+			expect "buffer index to be 0" (function() return buf:Index() == 0 end)
+			expect "buffer length to be 0" (function() return buf:Len() == 0 end)
+			expect_bits(buf, "")
+
+			buf:SetIndex(10)
+			expect "buffer index to be set to 10" (function() return buf:Index() == 10 end)
+			expect "buffer length to grow to 10" (function() return buf:Len() == 10 end)
+			expect_bits(buf, "0000000000")
+
+			buf:SetIndex(5)
+			expect "buffer index to be set to 5" (function() return buf:Index() == 5 end)
+			expect "buffer length to still be 10" (function() return buf:Len() == 10 end)
+			expect_bits(buf, "0000000000")
+
+			buf:SetIndex(202)
+			expect "buffer index to be set to 202" (function() return buf:Index() == 202 end)
+			expect "buffer length to grow to 202" (function() return buf:Len() == 202 end)
+			expect_bits(buf, string.rep("0", 202))
+
+			buf:SetIndex(20)
+			expect "buffer index to be set to 20" (function() return buf:Index() == 20 end)
+			expect "buffer length to still be 202" (function() return buf:Len() == 202 end)
+			expect_bits(buf, string.rep("0", 202))
+
+			buf:SetIndex(-10)
+			expect "setting negative buffer index to clamp to 0" (function() return buf:Index() == 0 end)
+			expect_bits(buf, string.rep("0", 202))
+		end)
+
+		it "should automatically grow to set index" (function()
+			local buf = Bitbuf.new()
+			for i = 0, 256 do
+				buf:SetIndex(i)
+				expect(function()
+					if buf:Index() ~= i then
+						return false, string.format("[%d]: got index %d", i, buf:Index())
+					end
+					return true
+				end)
+				expect(function()
+					if buf:Len() ~= i then
+						return false, string.format("[%d]: got length %d", i, buf:Len())
+					end
+					return true
+				end)
+				expect(function()
+					local want = string.rep("0", i)
+					local got = explodeBuf(buf)
+					if got ~= want then
+						local r = {compError(want, got)}
+						r[1] = string.format("[%d]: %s", i, r[1])
+						return false, string.format(unpack(r))
+					end
+					return true
+				end)
+			end
+		end)
+	end)
+
+	describe "Buffer.Fits" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+			}
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				if buf:Fits(s) ~= (i+s <= l) then
+					return "%d+%d > %d", i, s, l
+				end
+				return
+			end)
+		end)
+	end)
+
+	describe "Buffer.WritePad" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+				ones = true,
+			}
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:WritePad(s)
+
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("1", i) .. string.rep("0", s) .. string.rep("1", l-i-s)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.ReadPad" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+				ones = true,
+			}
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:ReadPad(s)
+
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("1", l) .. string.rep("0", explen-l)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.WriteAlign" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+				ones = true,
+			}
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:WriteAlign(s)
+
+				local expi = s == 0 and i or math.ceil(i/s)*s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("1", i) .. string.rep("0", expi-i) .. string.rep("1", l-i-(expi-i))
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.ReadAlign" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+				ones = true,
+			}
+
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:ReadAlign(s)
+
+				local expi = s == 0 and i or math.ceil(i/s)*s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("1", l) .. string.rep("0", explen-l)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.Reset" (function()
+		local buf
+		before_each(function()
+			buf = Bitbuf.fromString(pi64Bits)
+			buf:Reset()
+		end)
+		it "should reset the length to 0" (function()
+			expect(function()
+				return buf:Len() == 0
+			end)
+		end)
+		it "should reset the index to 0" (function()
+			expect(function()
+				return buf:Index() == 0
+			end)
+		end)
+		it "should reset to an empty buffer" (function()
+			expect(function()
+				return buf:String() == ""
+			end)
+		end)
+	end)
+
+	describe "Buffer.WriteBytes" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+			}
+
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				local b = ones(s)
+				buf:WriteBytes(b)
+
+				local expi = i + #b*8
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("0", i) .. string.rep("1", s) .. string.rep("0", explen-i-s)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.ReadBytes" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+			}
+
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				local a = ones(s)
+				buf:WriteBytes(a)
+				buf:SetIndex(i)
+				local exps = math.ceil(s/8)
+				local b = buf:ReadBytes(exps)
+
+				local expi = i + #a*8
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("1", s) .. string.rep("0", exps*8-s)
+				local got = explode(b)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.WriteUint" (function()
+		it "should fail when size is 54" (function()
+			expect_error(function()
+				Bitbuf.new():WriteUint(54, 0)
+			end)
+		end)
+		it "should fail when size is -1" (function()
+			expect_error(function()
+				Bitbuf.new():WriteUint(-1, 0)
+			end)
+		end)
+		it "should pass test suite" (function()
+			testSuite(expect, Bitbuf, intSuite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:WriteUint(s, v.value)
+
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("0", i) .. string.sub(v.bits, 1, s) .. string.rep("0", explen-i-s)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.ReadUint" (function()
+		it "should pass test suite" (function()
+			testSuite(expect, Bitbuf, intSuite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:WriteUint(s, v.value)
+				buf:SetIndex(i)
+				local value = buf:ReadUint(s)
+
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = v.value % 2^s
+				if value ~= want then
+					return "expected value %d, got %d", want, value
+				end
+				return
+			end)
+		end)
+	end)
+
+	describe "Buffer.WriteBool" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+				values = {
+					{value = 0, bytes="", bits=""},
+					{value = 1, bytes="", bits=""},
+				},
+			}
+
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				for i = 1, s do
+					buf:WriteBool(v.value == 1)
+				end
+
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("0", i) .. string.rep(v.value == 1 and "1" or "0", s) .. string.rep("0", explen-i-s)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.ReadBool" (function()
+		it "should pass test suite with false" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+			}
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				for j = 1, s do
+					if buf:ReadBool() ~= false then
+						return "expected false"
+					end
+					local expi = i + j
+					local explen = math.max(expi, l)
+					if buf:Len() ~= explen then
+						return "expected length %d, got %d", explen, buf:Len()
+					end
+					if buf:Index() ~= expi then
+						return "expected index %d, got %d", expi, buf:Index()
+					end
+				end
+				return
+			end)
+		end)
+
+		it "should pass test suite with true" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				sizes = unitSuite.sizes,
+				ones = true,
+			}
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				for j = 1, s do
+					local v = i+j <= l
+					if buf:ReadBool() ~= v then
+						return "expected " .. (v and "true" or "false")
+					end
+					local expi = i + j
+					local explen = math.max(expi, l)
+					if buf:Len() ~= explen then
+						return "expected length %d, got %d", explen, buf:Len()
+					end
+					if buf:Index() ~= expi then
+						return "expected index %d, got %d", expi, buf:Index()
+					end
+				end
+				return
+			end)
+		end)
+	end)
+
+	describe "Buffer.WriteByte" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				values = 255,
+			}
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:WriteByte(v.value)
+
+				local expi = i + 8
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("0", i) .. v.bits .. string.rep("0", explen-i-8)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	describe "Buffer.ReadByte" (function()
+		it "should pass test suite" (function()
+			local suite = {
+				lengths = unitSuite.lengths,
+				values = 255,
+			}
+			testSuite(expect, Bitbuf, suite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:WriteByte(v.value)
+				buf:SetIndex(i)
+				local value = buf:ReadByte()
+
+				local expi = i + 8
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = v.value
+				if value ~= want then
+					return "expected value %d, got %d", want, value
+				end
+				return
+			end)
+		end)
+	end)
+
+	describe "Buffer.WriteInt" (function()
+		it "should fail when size is 54" (function()
+			expect_error(function()
+				Bitbuf.new():WriteInt(54, 0)
+			end)
+		end)
+		it "should fail when size is -1" (function()
+			expect_error(function()
+				Bitbuf.new():WriteInt(-1, 0)
+			end)
+		end)
+		it "should pass test suite" (function()
+			testSuite(expect, Bitbuf, intSuite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:WriteInt(s, v.value)
+
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = string.rep("0", i) .. string.sub(v.bits, 1, s) .. string.rep("0", explen-i-s)
+				local got = explodeBuf(buf)
+				return compare(want, got)
+			end)
+		end)
+	end)
+
+	local function uint2int(size: number, v: number): number
+		local n = 2^size
+		v = v % n
+		if v >= n/2 then
+			return v - n
+		end
+		return v
+	end
+
+	describe "Buffer.ReadInt" (function()
+		it "should pass test suite" (function()
+			testSuite(expect, Bitbuf, intSuite, function(buf: _Buffer, l: number, i: number, s: number, v: SuiteValue): (string?, ...any)
+				buf:WriteInt(s, v.value)
+				buf:SetIndex(i)
+				local value = buf:ReadInt(s)
+
+				local expi = i + s
+				local explen = math.max(expi, l)
+				if buf:Len() ~= explen then
+					return "expected length %d, got %d", explen, buf:Len()
+				end
+				if buf:Index() ~= expi then
+					return "expected index %d, got %d", expi, buf:Index()
+				end
+				local want = uint2int(s, v.value)
+				if value ~= want then
+					return "expected value %d, got %d", want, value
+				end
+				return
+			end)
+		end)
+	end)
+
+	describe "Buffer.WriteFloat" (function()
+		it "should write 32 bit numbers" (function()
+			local buf = Bitbuf.new()
+			buf:WriteFloat(32, math.pi)
+			expect "length to be 32" (function()
+				return buf:Len() == 32
+			end)
+			expect "index to be 32" (function()
+				return buf:Index() == 32
+			end)
+			expect "correct string to be produced" (function()
+				return buf:String() == pi32Bits
+			end)
+		end)
+
+		it "should write 64 bit numbers" (function()
+			local buf = Bitbuf.new()
+			buf:WriteFloat(64, math.pi)
+			expect "length to be 64" (function()
+				return buf:Len() == 64
+			end)
+			expect "index to be 64" (function()
+				return buf:Index() == 64
+			end)
+			expect "correct string to be produced" (function()
+				return buf:String() == pi64Bits
+			end)
+		end)
+	end)
+
+	describe "Buffer.ReadFloat" (function()
+		it "should read 32 bit numbers" (function()
+			local pi32 = string.unpack("<f", string.pack("<f", math.pi))
+			local buf = Bitbuf.fromString(pi32Bits)
+			expect "32 bit value" (function()
+				return buf:ReadFloat(32) == pi32
+			end)
+			expect "index to be 32" (function()
+				return buf:Index() == 32
+			end)
+		end)
+		it "should read 32 bit numbers" (function()
+			local buf = Bitbuf.fromString(pi64Bits)
+			expect "64 bit value" (function()
+				return buf:ReadFloat(64) == math.pi
+			end)
+			expect "index to be 64" (function()
+				return buf:Index() == 64
+			end)
+		end)
+		it "should fail when receiving invald size" (function()
+			local buf = Bitbuf.fromString(pi64Bits)
+			expect_error (function()
+				buf:ReadFloat(1)
+			end)
+		end)
+	end)
+
+	describe "Buffer.WriteUfixed" (function()
+		-- t.TODO()
+	end)
+
+	describe "Buffer.ReadUfixed" (function()
+		-- t.TODO()
+	end)
+
+	describe "Buffer.WriteFixed" (function()
+		-- t.TODO()
+	end)
+
+	describe "Buffer.ReadFixed" (function()
+		-- t.TODO()
+	end)
+
+	describe "isBuffer" (function()
+		it "should return false when receiving a non-Buffer" (function()
+			expect (function()
+				return Bitbuf.isBuffer(42) == false
+			end)
+		end)
+		it "should return true when receiving from Buffer.new" (function()
+			expect (function()
+				return Bitbuf.isBuffer(Bitbuf.new()) == true
+			end)
+		end)
+		it "should return true when receiving from Buffer.fromString" (function()
+			expect (function()
+				return Bitbuf.isBuffer(Bitbuf.fromString("")) == true
+			end)
+		end)
+	end)
+
+	local sample = {
+		unsigned = 3634604713,
+		signed = -1487121065,
+		float32 = math.pi,
+		float64 = math.pi,
+		string = "",
+		bool = {},
 	}
-	testSuite(t, Bitbuf, suite, function(buf, l, i, _, v)
-		buf:WriteByte(v.value)
 
-		local expi = i + 8
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("0", i) .. v.bits .. string.rep("0", explen-i-8)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-function T.TestBuffer_ReadByte(t, require)
-	local Bitbuf = require()
-
-	local suite = {
-		lengths = unitSuite.lengths,
-		values = 255,
-	}
-	testSuite(t, Bitbuf, suite, function(buf, l, i, _, v)
-		buf:WriteByte(v.value)
-		buf:SetIndex(i)
-		local value = buf:ReadByte()
-
-		local expi = i + 8
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = v.value
-		if value ~= want then
-			return "expected value %d, got %d", want, value
-		end
-		return
-	end)
-end
-
-function T.TestBuffer_WriteInt(t, require)
-	local Bitbuf = require()
-
-	fail(t, function() return Bitbuf.new():WriteUint(54, 0) end, "size 54 not in range [0,53]")
-	fail(t, function() return Bitbuf.new():WriteUint(-1, 0) end, "size -1 not in range [0,53]")
-
-	testSuite(t, Bitbuf, intSuite, function(buf, l, i, s, v)
-		buf:WriteInt(s, v.value)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = string.rep("0", i) .. string.sub(v.bits, 1, s) .. string.rep("0", explen-i-s)
-		local got = explodeBuf(buf)
-		return compare(want, got)
-	end)
-end
-
-local function uint2int(size, v)
-	local n = 2^size
-	v = v % n
-	if v >= n/2 then
-		return v - n
-	end
-	return v
-end
-
-function T.TestBuffer_ReadInt(t, require)
-	local Bitbuf = require()
-
-	testSuite(t, Bitbuf, intSuite, function(buf, l, i, s, v)
-		buf:WriteInt(s, v.value)
-		buf:SetIndex(i)
-		local value = buf:ReadInt(s)
-
-		local expi = i + s
-		local explen = math.max(expi, l)
-		if buf:Len() ~= explen then
-			return "expected length %d, got %d", explen, buf:Len()
-		end
-		if buf:Index() ~= expi then
-			return "expected index %d, got %d", expi, buf:Index()
-		end
-		local want = uint2int(s, v.value)
-		if value ~= want then
-			return "expected value %d, got %d", want, value
-		end
-		return
-	end)
-end
-
-function T.TestBuffer_WriteFloat(t, require)
-	local Bitbuf = require()
-
-	local buf = Bitbuf.new()
-	buf:WriteFloat(32, math.pi)
-	pass(t, buf:Len() == 32, "buffer length is 32")
-	pass(t, buf:Index() == 32, "buffer index is 32")
-	pass(t, buf:String() == pi32Bits, "32-bit pi")
-
-	buf = Bitbuf.new()
-	buf:WriteFloat(64, math.pi)
-	pass(t, buf:Len() == 64, "buffer length is 64")
-	pass(t, buf:Index() == 64, "buffer index is 64")
-	pass(t, buf:String() == pi64Bits, "64-bit pi")
-
-	fail(t, function() buf:WriteFloat(1, 0) end, "invalid size")
-end
-
-function T.TestBuffer_ReadFloat(t, require)
-	local Bitbuf = require()
-
-	local pi32 = string.unpack("<f", string.pack("<f", math.pi))
-	local buf = Bitbuf.fromString(pi32Bits)
-	pass(t, buf:ReadFloat(32) == pi32, "32-bit pi")
-	pass(t, buf:Index() == 32, "buffer index is 32")
-
-	buf = Bitbuf.fromString(pi64Bits)
-	pass(t, buf:ReadFloat(64) == math.pi, "64-bit pi")
-	pass(t, buf:Index() == 64, "buffer index is 32")
-
-	fail(t, function() buf:ReadFloat(1, 0) end, "invalid size")
-end
-
-function T.TestBuffer_WriteUfixed(t, require)
-	--TODO: WriteUfixed
-end
-
-function T.TestBuffer_ReadUfixed(t, require)
-	--TODO: ReadUfixed
-end
-
-function T.TestBuffer_WriteFixed(t, require)
-	--TODO: WriteFixed
-end
-
-function T.TestBuffer_ReadFixed(t, require)
-	--TODO: ReadFixed
-end
-
-function T.TestIsBuffer(t, require)
-	local Bitbuf = require()
-
-	pass(t, Bitbuf.isBuffer(42) == false, "42 is not a Buffer")
-	pass(t, Bitbuf.isBuffer(Bitbuf.new()) == true, "result of new is a Buffer")
-	pass(t, Bitbuf.isBuffer(Bitbuf.fromString("")) == true, "result of fromString is a Buffer")
-end
-
---------------------------------------------------------------------------------
---------------------------------------------------------------------------------
--- Benchmarks
-
-local sample = {
-	unsigned = 3634604713,
-	signed = -1487121065,
-	float32 = math.pi,
-	float64 = math.pi,
-	string = "",
-	bool = {},
-}
-
-do
-	local n = 100000
-	local t = table.create(n)
-	for i = 1, n do
-		t[i] = string.char(math.random(0, 255))
-	end
-	sample.string = table.concat(t)
-end
-
-do
-	local t = table.create(1000)
-	for i = 1, 1000 do
-		t[i] = math.random(0, 1) == 1
-	end
-	sample.bool = t
-end
-
-function T.BenchmarkNew(b, require)
-	local Bitbuf = require()
-	b:ResetTimer()
-	for i = 1, b.N do
-		local _ = Bitbuf.new()
-	end
-end
-
-local function benchmarkWriteBool(n)
-	return function(b, require)
-		local Bitbuf = require()
-		local buf = Bitbuf.new()
-		b:ResetTimer()
-		for i = 1, b.N do
-			buf:SetIndex(0)
-			for j = 1, n do
-				buf:WriteBool(sample.bool[j])
-			end
-		end
-	end
-end
-T.BenchmarkWriteBool_N1 = benchmarkWriteBool(1)
-T.BenchmarkWriteBool_N10 = benchmarkWriteBool(10)
-T.BenchmarkWriteBool_N100 = benchmarkWriteBool(100)
-T.BenchmarkWriteBool_N1000 = benchmarkWriteBool(1000)
-
-local function benchmarkReadBool(n)
-	return function(b, require)
-		local Bitbuf = require()
-		local buf = Bitbuf.new()
+	do
+		local n = 100000
+		local t = table.create(n)
 		for i = 1, n do
+			t[i] = string.char(math.random(0, 255))
+		end
+		sample.string = table.concat(t)
+	end
+
+	do
+		local t = table.create(1000)
+		for i = 1, 1000 do
+			t[i] = math.random(0, 1) == 1
+		end
+		sample.bool = t
+	end
+
+	local count = parameter "count" (
+		1,
+		10,
+		100,
+		1000
+	)
+
+	local length = parameter "length" (
+		1,
+		10,
+		100,
+		1000,
+		10000,
+		100000
+	)
+
+	measure "Bitbuf.new" (function()
+		operation(function()
+			local _ = Bitbuf.new()
+		end)
+	end)
+
+	measure "Buffer.WriteBool (N=%4d)" (function(count)
+		local buf = Bitbuf.new()
+		operation(function()
+			buf:SetIndex(0)
+			for i = 1, count do
+				buf:WriteBool(sample.bool[i])
+			end
+		end)
+	end, count, "Buffer.WriteBool")
+
+	measure "Buffer.ReadBool (N=%4d)" (function(count)
+		local buf = Bitbuf.new()
+		for i = 1, count do
 			buf:WriteBool(sample.bool[i])
 		end
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			buf:SetIndex(0)
-			for j = 1, n do
+			for i = 1, count do
 				local _ = buf:ReadBool()
 			end
-		end
-	end
-end
-T.BenchmarkReadBool_N1 = benchmarkReadBool(1)
-T.BenchmarkReadBool_N10 = benchmarkReadBool(10)
-T.BenchmarkReadBool_N100 = benchmarkReadBool(100)
-T.BenchmarkReadBool_N1000 = benchmarkReadBool(1000)
+		end)
+	end, count, "Buffer.ReadBool")
 
-local function benchmarkWriteUint(n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.WriteUint (N=%4d)" (function(count)
 		local buf = Bitbuf.new()
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			buf:SetIndex(0)
-			for j = 1, n do
+			for i = 1, count do
 				buf:WriteUint(32, sample.unsigned)
 			end
-		end
-	end
-end
-T.BenchmarkWriteUint_N1 = benchmarkWriteUint(1)
-T.BenchmarkWriteUint_N10 = benchmarkWriteUint(10)
-T.BenchmarkWriteUint_N100 = benchmarkWriteUint(100)
-T.BenchmarkWriteUint_N1000 = benchmarkWriteUint(1000)
+		end)
+	end, count, "Buffer.WriteUint")
 
-local function benchmarkWriteUint_Unaligned(n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.WriteUint (N=%4d, unaligned)" (function(count)
 		local buf = Bitbuf.new()
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			buf:SetIndex(0)
 			buf:WriteBool(true)
-			for j = 1, n do
+			for j = 1, count do
 				buf:WriteUint(32, sample.unsigned)
 			end
-		end
-	end
-end
-T.BenchmarkWriteUint_Unaligned_N1 = benchmarkWriteUint_Unaligned(1)
-T.BenchmarkWriteUint_Unaligned_N10 = benchmarkWriteUint_Unaligned(10)
-T.BenchmarkWriteUint_Unaligned_N100 = benchmarkWriteUint_Unaligned(100)
-T.BenchmarkWriteUint_Unaligned_N1000 = benchmarkWriteUint_Unaligned(1000)
+		end)
+	end, count, "Buffer.WriteUint")
 
-local function benchmarkReadUint(n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.ReadUint (N=%4d)" (function(count)
 		local buf = Bitbuf.new()
-		for j = 1, n do
+		for j = 1, count do
 			buf:WriteUint(32, sample.unsigned)
 		end
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			buf:SetIndex(0)
-			for j = 1, n do
+			for j = 1, count do
 				local _ = buf:ReadUint(32)
 			end
-		end
-	end
-end
-T.BenchmarkReadUint_N1 = benchmarkReadUint(1)
-T.BenchmarkReadUint_N10 = benchmarkReadUint(10)
-T.BenchmarkReadUint_N100 = benchmarkReadUint(100)
-T.BenchmarkReadUint_N1000 = benchmarkReadUint(1000)
+		end)
+	end, count, "Buffer.ReadUint")
 
-local function benchmarkReadUint_Unaligned(n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.ReadUint (N=%4d, unaligned)" (function(count)
 		local buf = Bitbuf.new()
 		buf:WriteBool(true)
-		for j = 1, n do
+		for j = 1, count do
 			buf:WriteUint(32, sample.unsigned)
 		end
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			buf:SetIndex(0)
 			local _ = buf:ReadBool()
-			for j = 1, n do
+			for j = 1, count do
 				local _ = buf:ReadUint(32)
 			end
-		end
-	end
-end
-T.BenchmarkReadUint_Unaligned_N1 = benchmarkReadUint_Unaligned(1)
-T.BenchmarkReadUint_Unaligned_N10 = benchmarkReadUint_Unaligned(10)
-T.BenchmarkReadUint_Unaligned_N100 = benchmarkReadUint_Unaligned(100)
-T.BenchmarkReadUint_Unaligned_N1000 = benchmarkReadUint_Unaligned(1000)
+		end)
+	end, count, "Buffer.ReadUint")
 
-function T.BenchmarkWriteInt(b, require)
-	local Bitbuf = require()
-	local buf = Bitbuf.new()
-	b:ResetTimer()
-	for i = 1, b.N do
-		buf:SetIndex(0)
-		buf:WriteInt(32, sample.signed)
-	end
-end
-
-function T.BenchmarkReadInt(b, require)
-	local Bitbuf = require()
-	local buf = Bitbuf.new()
-	buf:WriteInt(32, sample.signed)
-	b:ResetTimer()
-	for i = 1, b.N do
-		buf:SetIndex(0)
-		local _ = buf:ReadInt(32)
-	end
-end
-
-function T.BenchmarkWriteFloat32(b, require)
-	local Bitbuf = require()
-	local buf = Bitbuf.new()
-	b:ResetTimer()
-	for i = 1, b.N do
-		buf:SetIndex(0)
-		buf:WriteFloat(32, sample.float32)
-	end
-end
-
-function T.BenchmarkReadFloat32(b, require)
-	local Bitbuf = require()
-	local buf = Bitbuf.new()
-	buf:WriteFloat(32, sample.float32)
-	b:ResetTimer()
-	for i = 1, b.N do
-		buf:SetIndex(0)
-		local _ = buf:ReadFloat(32)
-	end
-end
-
-function T.BenchmarkWriteFloat64(b, require)
-	local Bitbuf = require()
-	local buf = Bitbuf.new()
-	b:ResetTimer()
-	for i = 1, b.N do
-		buf:SetIndex(0)
-		buf:WriteFloat(64, sample.float64)
-	end
-end
-
-function T.BenchmarkReadFloat64(b, require)
-	local Bitbuf = require()
-	local buf = Bitbuf.new()
-	buf:WriteFloat(64, sample.float64)
-	b:ResetTimer()
-	for i = 1, b.N do
-		buf:SetIndex(0)
-		buf:ReadFloat(64)
-	end
-end
-
-local function benchmarkWriteString(n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.WriteInt" (function()
 		local buf = Bitbuf.new()
-		local s = string.sub(sample.string, 1, n)
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
+			buf:SetIndex(0)
+			buf:WriteInt(32, sample.signed)
+		end)
+	end, "Buffer.WriteInt")
+
+	measure "Buffer.ReadInt" (function()
+		local buf = Bitbuf.new()
+		buf:WriteInt(32, sample.signed)
+		operation(function()
+			buf:SetIndex(0)
+			local _ = buf:ReadInt(32)
+		end)
+	end, "Buffer.ReadInt")
+
+	measure "Buffer.WriteFloat32" (function()
+		local buf = Bitbuf.new()
+		operation(function()
+			buf:SetIndex(0)
+			buf:WriteFloat(32, sample.float32)
+		end)
+	end, "Buffer.WriteFloat32")
+
+	measure "Buffer.ReadFloat32" (function()
+	local buf = Bitbuf.new()
+		buf:WriteFloat(32, sample.float32)
+		operation(function()
+			buf:SetIndex(0)
+			local _ = buf:ReadFloat(32)
+		end)
+	end, "Buffer.ReadFloat32")
+
+	measure "Buffer.WriteFloat64" (function()
+		local buf = Bitbuf.new()
+		operation(function()
+			buf:SetIndex(0)
+			buf:WriteFloat(64, sample.float64)
+		end)
+	end, "Buffer.WriteFloat64")
+
+	measure "Buffer.ReadFloat64" (function()
+		local buf = Bitbuf.new()
+		buf:WriteFloat(64, sample.float64)
+		operation(function()
+			buf:SetIndex(0)
+			buf:ReadFloat(64)
+		end)
+	end, "Buffer.ReadFloat64")
+
+	measure "Buffer.WriteString (L=%6d)" (function(length)
+		local s = string.sub(sample.string, 1, length)
+		local buf = Bitbuf.new()
+		operation(function()
 			buf:SetIndex(0)
 			buf:WriteUint(32, #s)
 			buf:WriteBytes(s)
-		end
-	end
-end
-T.BenchmarkWriteString_L1 = benchmarkWriteString(1)
-T.BenchmarkWriteString_L10 = benchmarkWriteString(10)
-T.BenchmarkWriteString_L100 = benchmarkWriteString(100)
-T.BenchmarkWriteString_L1000 = benchmarkWriteString(1000)
-T.BenchmarkWriteString_L10000 = benchmarkWriteString(10000)
-T.BenchmarkWriteString_L100000 = benchmarkWriteString(100000)
+		end)
+	end, length, "Buffer.WriteString")
 
-local function benchmarkReadString(n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.ReadString (L=%6d)" (function(length)
+		local s = string.sub(sample.string, 1, length)
 		local buf = Bitbuf.new()
-		local s = string.sub(sample.string, 1, n)
 		buf:WriteUint(32, #s)
 		buf:WriteBytes(s)
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			buf:SetIndex(0)
 			local n = buf:ReadUint(32)
 			local _ = buf:ReadBytes(n)
-		end
-	end
-end
-T.BenchmarkReadString_L1 = benchmarkReadString(1)
-T.BenchmarkReadString_L10 = benchmarkReadString(10)
-T.BenchmarkReadString_L100 = benchmarkReadString(100)
-T.BenchmarkReadString_L1000 = benchmarkReadString(1000)
-T.BenchmarkReadString_L10000 = benchmarkReadString(10000)
-T.BenchmarkReadString_L100000 = benchmarkReadString(100000)
+		end)
+	end, length, "Buffer.ReadString")
 
-local function benchmarkWriteString_Unaligned(n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.WriteString (L=%6d, unaligned)" (function(length)
+		local s = string.sub(sample.string, 1, length)
 		local buf = Bitbuf.new()
-		local s = string.sub(sample.string, 1, n)
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			buf:SetIndex(0)
 			buf:WriteBool(true)
 			buf:WriteUint(32, #s)
 			buf:WriteBytes(s)
-		end
-	end
-end
-T.BenchmarkWriteString_Unaligned_L1 = benchmarkWriteString_Unaligned(1)
-T.BenchmarkWriteString_Unaligned_L10 = benchmarkWriteString_Unaligned(10)
-T.BenchmarkWriteString_Unaligned_L100 = benchmarkWriteString_Unaligned(100)
-T.BenchmarkWriteString_Unaligned_L1000 = benchmarkWriteString_Unaligned(1000)
-T.BenchmarkWriteString_Unaligned_L10000 = benchmarkWriteString_Unaligned(10000)
-T.BenchmarkWriteString_Unaligned_L100000 = benchmarkWriteString_Unaligned(100000)
+		end)
+	end, length, "Buffer.WriteString")
 
-local function benchmarkReadString_Unaligned(n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.ReadString (L=%6d, unaligned)" (function(length)
+		local s = string.sub(sample.string, 1, length)
 		local buf = Bitbuf.new()
-		local s = string.sub(sample.string, 1, n)
 		buf:WriteBool(true)
 		buf:WriteUint(32, #s)
 		buf:WriteBytes(s)
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			buf:SetIndex(0)
 			buf:ReadBool()
 			local n = buf:ReadUint(32)
 			local _ = buf:ReadBytes(n)
-		end
-	end
-end
-T.BenchmarkReadString_Unaligned_L1 = benchmarkReadString_Unaligned(1)
-T.BenchmarkReadString_Unaligned_L10 = benchmarkReadString_Unaligned(10)
-T.BenchmarkReadString_Unaligned_L100 = benchmarkReadString_Unaligned(100)
-T.BenchmarkReadString_Unaligned_L1000 = benchmarkReadString_Unaligned(1000)
-T.BenchmarkReadString_Unaligned_L10000 = benchmarkReadString_Unaligned(10000)
-T.BenchmarkReadString_Unaligned_L100000 = benchmarkReadString_Unaligned(100000)
+		end)
+	end, length, "Buffer.ReadString")
 
-local function benchmarkString(n)
-	local s = string.sub(sample.string, 1, n)
-	return function(b, require)
-		local Bitbuf = require()
+	measure "Buffer.String (L=%6d)" (function(length)
+		local s = string.sub(sample.string, 1, length)
 		local buf = Bitbuf.new()
 		buf:WriteBytes(s)
-		b:ResetTimer()
-		for i = 1, b.N do
+		operation(function()
 			local _ = buf:String()
-		end
-	end
-end
-T.BenchmarkString_L1 = benchmarkString(1)
-T.BenchmarkString_L10 = benchmarkString(10)
-T.BenchmarkString_L100 = benchmarkString(100)
-T.BenchmarkString_L1000 = benchmarkString(1000)
-T.BenchmarkString_L10000 = benchmarkString(10000)
-T.BenchmarkString_L100000 = benchmarkString(100000)
+		end)
+	end, length, "Buffer.String")
 
-local function benchmarkFromString(n)
-	local s = string.sub(sample.string, 1, n)
-	return function(b, require)
-		local Bitbuf = require()
-		b:ResetTimer()
-		for i = 1, b.N do
+	measure "Bitbuf.fromString (L=%6d)" (function(length)
+		local s = string.sub(sample.string, 1, length)
+		operation(function()
 			local _ = Bitbuf.fromString(s)
-		end
-	end
+		end)
+	end, length, "Bitbuf.fromString")
 end
-T.BenchmarkFromString_L1 = benchmarkFromString(1)
-T.BenchmarkFromString_L10 = benchmarkFromString(10)
-T.BenchmarkFromString_L100 = benchmarkFromString(100)
-T.BenchmarkFromString_L1000 = benchmarkFromString(1000)
-T.BenchmarkFromString_L10000 = benchmarkFromString(10000)
-T.BenchmarkFromString_L100000 = benchmarkFromString(100000)
-
-return T
