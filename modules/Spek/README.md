@@ -698,14 +698,15 @@ type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed & BenchmarkFlagged
 ```
 
 Variation of [FlagClause][FlagClause] for benchmarks, which receives a
-[Benchmark][Benchmark] and a variable number of specific
-[Parameter][Parameter] values.
+[Benchmark][Benchmark] and a variable number of [Parameter][Parameter] or
+string values. Each string passed adds the benchmark to the category
+indicated by the value.
 
 ```lua
-clause(benchmark, ...Parameter)
-clause (flags...) (benchmark, ...Parameter)
-clause (description) (benchmark, ...Parameter)
-clause (description) (flags...) (benchmark, ...Parameter)
+clause(benchmark, ...Parameter|string)
+clause (flags...) (benchmark, ...Parameter|string)
+clause (description) (benchmark, ...Parameter|string)
+clause (description) (flags...) (benchmark, ...Parameter|string)
 ```
 
 # Clause
@@ -836,11 +837,11 @@ For a node or plan result, contains aggregated measurements of all sub-units.
 # Parameter
 [Parameter]: #parameter
 ```
-type Parameter = unknown
+type Parameter = {type: "parameter"}
 ```
 
-An opaque parameter to be passed to a
-[BenchmarkClause][BenchmarkClause].
+An opaque parameter returned by [T.parameter][T.parameter] to be passed
+to a [BenchmarkClause][BenchmarkClause].
 
 # ParameterClause
 [ParameterClause]: #parameterclause

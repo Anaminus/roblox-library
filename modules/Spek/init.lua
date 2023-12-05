@@ -726,6 +726,8 @@ type Node = {
 		Iterations: number,
 		-- Total duration of all iterations of the unit.
 		Duration: number,
+		-- Benchmark categories.
+		Categories: {string}?,
 	},
 	-- Marks data has having changed.
 	Pending: {
@@ -1605,17 +1607,18 @@ export type Assertion = () -> (any, any?)
 --@sec: BenchmarkClause
 --@def: type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed & BenchmarkFlagged
 --@doc: Variation of [FlagClause][FlagClause] for benchmarks, which receives a
--- [Benchmark][Benchmark] and a variable number of specific
--- [Parameter][Parameter] values.
+-- [Benchmark][Benchmark] and a variable number of [Parameter][Parameter] or
+-- string values. Each string passed adds the benchmark to the category
+-- indicated by the value.
 --
 -- ```lua
--- clause(benchmark, ...Parameter)
--- clause (flags...) (benchmark, ...Parameter)
--- clause (description) (benchmark, ...Parameter)
--- clause (description) (flags...) (benchmark, ...Parameter)
+-- clause(benchmark, ...Parameter|string)
+-- clause (flags...) (benchmark, ...Parameter|string)
+-- clause (description) (benchmark, ...Parameter|string)
+-- clause (description) (flags...) (benchmark, ...Parameter|string)
 -- ```
 export type BenchmarkClause = BenchmarkStatement & BenchmarkDetailed & BenchmarkFlagged
-export type BenchmarkStatement = (Benchmark, ...Parameter) -> ()
+export type BenchmarkStatement = (Benchmark, ...Parameter|string) -> ()
 export type BenchmarkDetailed = (description: string) -> (BenchmarkStatement & BenchmarkFlagged)
 export type BenchmarkFlagged = (...Flag) -> BenchmarkStatement
 
@@ -2003,10 +2006,16 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 		-- If the given description cannot be formatted according to the given
 		-- parameters, then only one benchmark is generated.
 		local function generateBenchmarks(key: string?, flags: Flags, benchmark: Benchmark, ...: Parameter|string)
+			local categories: {string} = {}
 			local parameters: {_Parameter<any>} = {}
 			for i = 1, select("#", ...) do
 				local arg = select(i, ...)
-				if type(arg) == "table" then
+				if type(arg) == "string" then
+					if not table.find(categories, arg) then
+						table.insert(categories, arg)
+					end
+					continue
+				elseif type(arg) == "table" then
 					if arg.type == "parameter"
 					and type(arg._name) == "string"
 					and type(arg._variations) == "table"
@@ -2017,6 +2026,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				end
 				error(string.format("invalid benchmark parameter #%d", i))
 			end
+			table.freeze(categories)
 			table.freeze(parameters)
 
 			-- List of first variation of each parameter.
@@ -2039,6 +2049,9 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 					state:CreateNode("benchmark", formatted, flags, function()
 						benchmark(table.unpack(values, 1, values.n))
 					end)
+					if #categories > 0 then
+						state:PeekNode().Data.Categories = categories
+					end
 					state:PopNode()
 				end)
 			else
@@ -2047,6 +2060,9 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				state:CreateNode("benchmark", key, flags, function()
 					benchmark(table.unpack(firsts, 1, firsts.n))
 				end)
+				if #categories > 0 then
+					state:PeekNode().Data.Categories = categories
+				end
 				state:PopNode()
 			end
 		end
@@ -2063,7 +2079,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 					elseif isFlag(...) then
 						-- clause (description) (flags...) (benchmark, parameters...)
 						local flags = parseFlags(...)
-						return function(benchmark: Benchmark, ...: Parameter)
+						return function(benchmark: Benchmark, ...: Parameter|string)
 							assert(type(benchmark) == "function", "function expected")
 							generateBenchmarks(description, flags, benchmark, ...)
 						end
@@ -2079,7 +2095,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			elseif isFlag(...) then
 				-- clause (flags...) (benchmark, parameters...)
 				local flags = parseFlags(...)
-				return function(benchmark: Benchmark, ...: Parameter)
+				return function(benchmark: Benchmark, ...: Parameter|string)
 					generateBenchmarks(nil, flags, benchmark, ...)
 				end
 			else
