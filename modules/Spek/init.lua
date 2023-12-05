@@ -2522,6 +2522,7 @@ function Table.__tostring(self: Table): string
 	--TODO: character-based width.
 	local headers = table.clone(self.Headers)
 	local widths = table.create(#headers, 0)
+	local alignment = table.create(#headers, 0)
 	for i, header in headers do
 		local s = tostring(header)
 		if #s > widths[i] then
@@ -2533,7 +2534,21 @@ function Table.__tostring(self: Table): string
 	for _, row in self.Rows do
 		local fmtRow = table.create(#headers, "")
 		for i, cell in row do
+			if i == 1 then
+				continue
+			end
 			local s = tostring(cell)
+			local a = string.find(s, ".", 1, true) or #s + 1
+			if a > alignment[i] then
+				alignment[i] = a
+			end
+		end
+		for i, cell in row do
+			local s = tostring(cell)
+			if i > 1 then
+				local a = string.find(s, ".", 1, true) or #s + 1
+				s = string.rep(" ", alignment[i]-a) .. s
+			end
 			if #s > widths[i] then
 				widths[i] = #s
 			end
@@ -2544,7 +2559,7 @@ function Table.__tostring(self: Table): string
 
 	local rowFormatCon = {`%-{tostring(widths[1])}s`}
 	for i = 2, #widths do
-		table.insert(rowFormatCon, `%{tostring(widths[i])}s`)
+		table.insert(rowFormatCon, `%-{tostring(widths[i])}s`)
 	end
 	local rowFormat = `| {table.concat(rowFormatCon, " | ")} |`
 
