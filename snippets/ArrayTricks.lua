@@ -67,3 +67,21 @@ local function Truncate(a: {any}, length: number): {any}
 	end
 	return table.move({}, 1, #a-length, length+1, a)
 end
+
+-- Compact removes duplicate adjacent elements from *a*. If *a* has been sorted,
+-- then it will contain only unique elements.
+local function Compact(a: {any}): {any}
+	if #a < 2 then
+		return a
+	end
+	local i = 2
+	for j = 2, #a do
+		if a[j] ~= a[j-1] then
+			if i ~= j then
+				a[i] = a[j]
+			end
+			i += 1
+		end
+	end
+	return table.move({}, 1, #a-i+1, i, a)
+end
