@@ -1633,10 +1633,15 @@ export type Benchmark = (...any) -> ()
 export type ParameterClause = (name: string) -> (...any) -> Parameter
 
 --@sec: Parameter
---@def: type Parameter = unknown
---@doc: An opaque parameter to be passed to a
--- [BenchmarkClause][BenchmarkClause].
-export type Parameter = unknown
+--@def: type Parameter = {type: "parameter"}
+--@doc: An opaque parameter returned by [T.parameter][T.parameter] to be passed
+-- to a [BenchmarkClause][BenchmarkClause].
+export type Parameter = {type: "parameter"}
+
+type _Parameter<X> = Parameter & {
+	_name: string,
+	_variations: {[number]: X, n: number},
+}
 
 -- Returns a clause function that can be called in one of two ways:
 --
@@ -1969,6 +1974,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			end
 			return function(...: X): Parameter
 				return table.freeze{
+					type = "parameter" :: "parameter",
 					_name = name,
 					_variations = table.freeze(table.pack(...)),
 				}
@@ -1977,7 +1983,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 
 		-- Visit each permutation of parameter variations.
 		local function permuteParameters(
-			params: {{_variations:{any}}},
+			params: {_Parameter<any>},
 			visit: (...any)->(),
 			n: number?,
 			...: any
@@ -1996,22 +2002,38 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 		-- Generates a benchmark unit for each permutation of the given parameters.
 		-- If the given description cannot be formatted according to the given
 		-- parameters, then only one benchmark is generated.
-		local function generateBenchmarks(key: string?, flags: Flags, benchmark: Benchmark, ...: Parameter)
-			-- List of first variation of each parameter.
-			local firsts: {n: number, [number]: any} = table.pack(...)
-			for i, param in ipairs(firsts) do
-				firsts[i] = (param::any)._variations[1]
+		local function generateBenchmarks(key: string?, flags: Flags, benchmark: Benchmark, ...: Parameter|string)
+			local parameters: {_Parameter<any>} = {}
+			for i = 1, select("#", ...) do
+				local arg = select(i, ...)
+				if type(arg) == "table" then
+					if arg.type == "parameter"
+					and type(arg._name) == "string"
+					and type(arg._variations) == "table"
+					and type(arg._variations.n) == "number" then
+						table.insert(parameters, arg)
+					end
+					continue
+				end
+				error(string.format("invalid benchmark parameter #%d", i))
 			end
+			table.freeze(parameters)
+
+			-- List of first variation of each parameter.
+			local firsts: {n: number, [number]: any} = table.create(#parameters) :: any
+			for i, param in parameters do
+				firsts[i] = param._variations[1]
+			end
+			firsts.n = #parameters
 			table.freeze(firsts)
 
 			-- Verify that key can be used to format parameters.
-			local ok = pcall(function(...: Parameter)
+			local ok = pcall(function()
 				string.format(key::any, table.unpack(firsts, 1, firsts.n))
-			end, ...)
+			end)
 
 			if ok then
-				local parameters = table.freeze(table.pack(...))
-				permuteParameters(parameters::any, function(...)
+				permuteParameters(parameters, function(...)
 					local formatted = string.format(assert(key, "key expected"), ...)
 					local values = table.freeze(table.pack(...))
 					state:CreateNode("benchmark", formatted, flags, function()
