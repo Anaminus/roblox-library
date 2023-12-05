@@ -2901,6 +2901,7 @@ local function runBenchmark(node: Node, ctxm: ContextManager<T>, config: Config)
 	end
 	ctxm:While("benchmarking", context, function()
 		runUnit(node, state)
+		task.wait()
 	end)
 end
 
