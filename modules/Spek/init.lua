@@ -1,4 +1,5 @@
 --!strict
+--!optimize 2
 
 local VERSION = "0.0.0"
 
