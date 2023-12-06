@@ -2533,11 +2533,8 @@ function Table.__tostring(self: Table): string
 	local fmtRows = table.create(#self.Rows)
 	for _, row in self.Rows do
 		local fmtRow = table.create(#headers, "")
-		for i, cell in row do
-			if i == 1 then
-				continue
-			end
-			local s = tostring(cell)
+		for i = 2, #row do
+			local s = tostring(row[i])
 			local a = string.find(s, ".", 1, true) or #s + 1
 			if a > alignment[i] then
 				alignment[i] = a
