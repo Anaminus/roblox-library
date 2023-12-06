@@ -2009,7 +2009,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 		-- parameters, then only one benchmark is generated.
 		local function generateBenchmarks(key: string?, flags: Flags, benchmark: Benchmark, ...: Parameter|string)
 			local hasCategories = false
-			local categories: {[string]: true} = {}
+			local categories: {[string]: boolean} = {}
 			local parameters: {_Parameter<any>} = {}
 			for i = 1, select("#", ...) do
 				local arg = select(i, ...)
@@ -2028,7 +2028,6 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				end
 				error(string.format("invalid benchmark parameter #%d", i))
 			end
-			table.freeze(categories)
 			table.freeze(parameters)
 
 			-- List of first variation of each parameter.
@@ -2039,21 +2038,43 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 			firsts.n = #parameters
 			table.freeze(firsts)
 
-			-- Verify that key can be used to format parameters.
+			for category in categories do
+				-- Value in categories indicates whether category can be used to
+				-- format parameters.
+				categories[category] = pcall(function()
+					string.format(category::any, table.unpack(firsts, 1, firsts.n))
+				end)
+			end
+			table.freeze(categories)
+
+			-- Set the categories of the current node in state.
+			local function setCategories(...)
+				if hasCategories then
+					local cats: {[string]: true} = {}
+					for cat, ok in categories do
+						if ok then
+							cat = string.format(cat, ...)
+						end
+						cats[cat] = true
+					end
+					table.freeze(cats)
+					state:PeekNode().Data.Categories = cats
+				end
+			end
+
+			-- Check whether key can be used to format parameters.
 			local ok = pcall(function()
 				string.format(key::any, table.unpack(firsts, 1, firsts.n))
 			end)
-
 			if ok then
+				-- Generate a benchmark for each permutation of parameters.
 				permuteParameters(parameters, function(...)
 					local formatted = string.format(assert(key, "key expected"), ...)
 					local values = table.freeze(table.pack(...))
 					state:CreateNode("benchmark", formatted, flags, function()
 						benchmark(table.unpack(values, 1, values.n))
 					end)
-					if hasCategories then
-						state:PeekNode().Data.Categories = categories
-					end
+					setCategories(...)
 					state:PopNode()
 				end)
 			else
@@ -2062,9 +2083,7 @@ local function planContext(ctxm: ContextManager<T>, tree: Tree, parent: Node): (
 				state:CreateNode("benchmark", key, flags, function()
 					benchmark(table.unpack(firsts, 1, firsts.n))
 				end)
-				if hasCategories then
-					state:PeekNode().Data.Categories = categories
-				end
+				setCategories(table.unpack(firsts, 1, firsts.n))
 				state:PopNode()
 			end
 		end
