@@ -1371,7 +1371,7 @@ return function(t: Spek.T)
 		end)
 	end, "ReadBool (N=%d)", count)
 
-	measure "Buffer.WriteUint (N=%d)" (function(count)
+	measure "Buffer.WriteUint(32) (N=%d)" (function(count)
 		local buf = Bitbuf.new()
 		operation(function()
 			buf:SetIndex(0)
@@ -1381,7 +1381,7 @@ return function(t: Spek.T)
 		end)
 	end, "WriteUint (N=%d)", count)
 
-	measure "Buffer.WriteUint (N=%d, unaligned)" (function(count)
+	measure "Buffer.WriteUint(32) (N=%d, unaligned)" (function(count)
 		local buf = Bitbuf.new()
 		operation(function()
 			buf:SetIndex(0)
@@ -1392,7 +1392,7 @@ return function(t: Spek.T)
 		end)
 	end, "WriteUint (N=%d)", count)
 
-	measure "Buffer.ReadUint (N=%d)" (function(count)
+	measure "Buffer.ReadUint(32) (N=%d)" (function(count)
 		local buf = Bitbuf.new()
 		for j = 1, count do
 			buf:WriteUint(32, sample.unsigned)
@@ -1405,7 +1405,7 @@ return function(t: Spek.T)
 		end)
 	end, "ReadUint (N=%d)", count)
 
-	measure "Buffer.ReadUint (N=%d, unaligned)" (function(count)
+	measure "Buffer.ReadUint(32) (N=%d, unaligned)" (function(count)
 		local buf = Bitbuf.new()
 		buf:WriteBool(true)
 		for j = 1, count do
@@ -1420,7 +1420,7 @@ return function(t: Spek.T)
 		end)
 	end, "ReadUint (N=%d)", count)
 
-	measure "Buffer.WriteInt" (function()
+	measure "Buffer.WriteInt(32)" (function()
 		local buf = Bitbuf.new()
 		operation(function()
 			buf:SetIndex(0)
@@ -1428,12 +1428,78 @@ return function(t: Spek.T)
 		end)
 	end, "WriteInt")
 
-	measure "Buffer.ReadInt" (function()
+	measure "Buffer.ReadInt(32)" (function()
 		local buf = Bitbuf.new()
 		buf:WriteInt(32, sample.signed)
 		operation(function()
 			buf:SetIndex(0)
 			local _ = buf:ReadInt(32)
+		end)
+	end, "ReadInt")
+
+	measure "Buffer.WriteUint(8) (N=%d)" (function(count)
+		local buf = Bitbuf.new()
+		operation(function()
+			buf:SetIndex(0)
+			for i = 1, count do
+				buf:WriteUint(8, sample.unsigned)
+			end
+		end)
+	end, "WriteUint (N=%d)", count)
+
+	measure "Buffer.WriteUint(8) (N=%d, unaligned)" (function(count)
+		local buf = Bitbuf.new()
+		operation(function()
+			buf:SetIndex(0)
+			buf:WriteBool(true)
+			for j = 1, count do
+				buf:WriteUint(8, sample.unsigned)
+			end
+		end)
+	end, "WriteUint (N=%d)", count)
+
+	measure "Buffer.ReadUint(8) (N=%d)" (function(count)
+		local buf = Bitbuf.new()
+		for j = 1, count do
+			buf:WriteUint(8, sample.unsigned)
+		end
+		operation(function()
+			buf:SetIndex(0)
+			for j = 1, count do
+				local _ = buf:ReadUint(8)
+			end
+		end)
+	end, "ReadUint (N=%d)", count)
+
+	measure "Buffer.ReadUint(8) (N=%d, unaligned)" (function(count)
+		local buf = Bitbuf.new()
+		buf:WriteBool(true)
+		for j = 1, count do
+			buf:WriteUint(8, sample.unsigned)
+		end
+		operation(function()
+			buf:SetIndex(0)
+			local _ = buf:ReadBool()
+			for j = 1, count do
+				local _ = buf:ReadUint(8)
+			end
+		end)
+	end, "ReadUint (N=%d)", count)
+
+	measure "Buffer.WriteInt(8)" (function()
+		local buf = Bitbuf.new()
+		operation(function()
+			buf:SetIndex(0)
+			buf:WriteInt(8, sample.signed)
+		end)
+	end, "WriteInt")
+
+	measure "Buffer.ReadInt(8)" (function()
+		local buf = Bitbuf.new()
+		buf:WriteInt(8, sample.signed)
+		operation(function()
+			buf:SetIndex(0)
+			local _ = buf:ReadInt(8)
 		end)
 	end, "ReadInt")
 
