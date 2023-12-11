@@ -2486,8 +2486,13 @@ local function newTable(runner: _Runner, benchmarks: {Node}, timeUnit: "s"|"ms"|
 			local value = metrics.iterations/metrics.duration
 			-- Selects the magnitude that best fits the calculated value between
 			-- 0 and FACTOR.
-			local magnitude = math.modf(math.log(value, FACTOR))
-			local index = math.clamp(magnitude+1, 1, #units)
+			local index
+			if value == value then
+				local magnitude = math.modf(math.log(value, FACTOR))
+				index = math.clamp(magnitude+1, 1, #units)
+			else
+				index = 1
+			end
 			tally[index] += 1
 		end
 		-- Select unit with greatest number of fitting values, preferring the
