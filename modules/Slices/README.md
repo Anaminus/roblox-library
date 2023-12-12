@@ -67,6 +67,8 @@ f64     | 64-bit floating point number
 boolean | Boolean truth value, one per byte
 Vector3 | Vector3 value
 
+Each constructor is a [Make][Make] function.
+
 ```lua
 local sliceU8 = Slices.make.u8(3) -- Slice of 3 8-bit unsigned integers.
 local sliceV3 = Slices.make.Vector3(4) -- Slice of 4 Vector3 values.
@@ -99,7 +101,10 @@ slice = Slices.append(slice, 1, 2, 3)
 function Slices.cap<T>(self: Slice<T>): number
 ```
 
-Returns the underlying capacity of the slice.
+Returns the capacity of the slice. The capacity is the number of
+elements that the underlying array can contain. Having a capacity that is
+larger than the length allows a slice to grow without having to reallocate
+memory.
 
 ```lua
 local capacity = Slices.cap(slice)
@@ -367,7 +372,9 @@ As an example, the following definition implements the Vector3 type:
 type Make<T> = (len: number?, cap: number?) -> Slice<T>
 ```
 
-A function that returns a new slice of type T.
+A function that returns a new slice of length *len* with elements of
+type T. *len* defaults to 0. *cap* optionally defines the capacity of the
+slice, defaulting to the length.
 
 # Next
 [Next]: #next

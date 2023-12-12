@@ -74,7 +74,9 @@ type typedef<T> = Definition<T> & {
 
 --@sec: Make
 --@def: type Make<T> = (len: number?, cap: number?) -> Slice<T>
---@doc: A function that returns a new slice of type T.
+--@doc: A function that returns a new slice of length *len* with elements of
+-- type T. *len* defaults to 0. *cap* optionally defines the capacity of the
+-- slice, defaulting to the length.
 export type Make<T> = (len: number?, cap: number?) -> Slice<T>
 
 local MAX_ALLOC = 2^30 -- Maximum buffer length.
@@ -294,7 +296,10 @@ end
 
 --@sec: Slices.cap
 --@def: function Slices.cap<T>(self: Slice<T>): number
---@doc: Returns the underlying capacity of the slice.
+--@doc: Returns the capacity of the slice. The capacity is the number of
+-- elements that the underlying array can contain. Having a capacity that is
+-- larger than the length allows a slice to grow without having to reallocate
+-- memory.
 --
 -- ```lua
 -- local capacity = Slices.cap(slice)
@@ -746,6 +751,8 @@ end
 -- f64     | 64-bit floating point number
 -- boolean | Boolean truth value, one per byte
 -- Vector3 | Vector3 value
+--
+-- Each constructor is a [Make][Make] function.
 --
 -- ```lua
 -- local sliceU8 = Slices.make.u8(3) -- Slice of 3 8-bit unsigned integers.
