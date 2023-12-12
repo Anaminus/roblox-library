@@ -68,6 +68,10 @@ export type Definition<T> = {
 	write: writer<T>,
 }
 
+type typedef<T> = Definition<T> & {
+	make: Make<T>,
+}
+
 --@sec: Make
 --@def: type Make<T> = (len: number?, cap: number?) -> Slice<T>
 --@doc: A function that returns a new slice of type T.
@@ -99,7 +103,11 @@ end
 -- common operations.
 local Slice = {}
 
-export type Next<T> = (self: Slice<T>, index: number) -> (number?, T?)
+--@sec: Next
+--@def: type Next<T> = (self: Slice<T>, index: number?) -> (number?, T?)
+--@doc: A function that iterates over the elements of a slice, suitable for use
+-- with a generic for loop. Returned by [Slices.iter][Slices.iter].
+export type Next<T> = (self: Slice<T>, index: number?) -> (number?, T?)
 
 export type Slice<T> = typeof(setmetatable({}, {
 	__len = (nil::any) :: (self: Slice<T>) -> number,
@@ -114,7 +122,7 @@ export type Slice<T> = typeof(setmetatable({}, {
 -- interchangeable through the to_slice and from_slice functions.
 type slice<T> = {
 	-- Type information shared by all slices of the type.
-	_type: Definition<T>,
+	_type: typedef<T>,
 	-- The underlying buffer.
 	_array: buffer,
 	-- Buffer offset, in buffer units. Since there are no pointers to work with,
@@ -188,6 +196,10 @@ end
 --@doc: Returns the number of elements in the slice.
 --
 -- Shorthand for [`Slices.len(self)`][Slices.len].
+--
+-- ```lua
+-- local length = #slice
+-- ```
 function Slice.__len<T>(self: Slice<T>): number
 	return export.len(self)
 end
@@ -197,6 +209,10 @@ end
 --@doc: Returns the value at *index* in the slice.
 --
 -- Shorthand for [`Slices.read(self, index)`][Slices.read].
+--
+-- ```lua
+-- local value = slice[index]
+-- ```
 function Slice.__index<T>(self: Slice<T>, index: number): T
 	return export.read(self, index)
 end
@@ -206,6 +222,10 @@ end
 --@doc: Sets *value* to *index* in the slice.
 --
 -- Shorthand for [`Slices.write(self, index, value)`][Slices.write].
+--
+-- ```lua
+-- slice[index] = value
+-- ```
 function Slice.__newindex<T>(self: Slice<T>, index: number, value: T)
 	export.write(self, index, value)
 end
@@ -215,18 +235,29 @@ end
 --@doc: Returns a sub-slice of the slice.
 --
 -- Shorthand for [`Slices.slice(self, low, high, max)`][Slices.slice].
+--
+-- ```lua
+-- local sub = slice(low, high, max)
+-- ```
 function Slice.__call<T>(self: Slice<T>, low: number?, high: number?, max: number?): Slice<T>
 	return export.slice(self, low, high, max)
 end
 
 --@sec: Slice.__iter
 --@def: function Slice.__iter<T>(self: Slice<T>): (Next<T>, Slice<T>)
---@doc: Implements an iterator that reads each element of the slice in the range
---`[0, len)`.
+--@doc: Implements an iterator over each element of the slice.
+--
+-- Shorthand for [`Slices.iter(self)`][Slices.iter].
+--
+-- ```lua
+-- for index, value in slice do
+-- 	print(index, value)
+-- end
+-- ```
 function Slice.__iter<T>(self: Slice<T>): (Next<T>, Slice<T>)
-	return function(self: Slice<T>, index: number): (number?, T?)
+	return function(self: Slice<T>, index: number?): (number?, T?)
 		local self = (self::any)::slice<T>
-		index = (index or -1) + 1
+		local index = (index or -1) + 1
 		if index >= self._len then
 			return nil
 		end
@@ -239,6 +270,12 @@ table.freeze(Slice)
 --@sec: Slices.is
 --@def: function Slices.is(value: unknown): boolean
 --@doc: Returns whether *value* is a valid slice.
+--
+-- ```lua
+-- if Slices.is(slice) then
+-- 	print(slice)
+-- end
+-- ```
 function export.is(value: unknown): boolean
 	return getmetatable(value::any) == Slice
 end
@@ -246,6 +283,10 @@ end
 --@sec: Slices.len
 --@def: function Slices.len<T>(self: Slice<T>): number
 --@doc: Returns the length of the slice.
+--
+-- ```lua
+-- local length = Slices.len(slice)
+-- ```
 function export.len<T>(self: Slice<T>): number
 	local self = to_slice(self)
 	return self._len
@@ -254,14 +295,44 @@ end
 --@sec: Slices.cap
 --@def: function Slices.cap<T>(self: Slice<T>): number
 --@doc: Returns the underlying capacity of the slice.
+--
+-- ```lua
+-- local capacity = Slices.cap(slice)
+-- ```
 function export.cap<T>(self: Slice<T>): number
 	local self = to_slice(self)
 	return self._cap
 end
 
+--@sec: Slices.iter
+--@def: function Slices.iter<T>(self: Slice<T>): (Next<T>, Slice<T>)
+--@doc: Returns a function that iterates over the elements of the slice,
+-- suitable for passing to a generic for loop.
+--
+-- ```lua
+-- for index, value in Slices.iter(slice) do
+-- 	print(index, value)
+-- end
+-- ```
+function export.iter<T>(self: Slice<T>): (Next<T>, Slice<T>)
+	to_slice(self)
+	return function(self: Slice<T>, index: number?): (number?, T?)
+		local self = (self::any)::slice<T>
+		local index = (index or -1) + 1
+		if index >= self._len then
+			return nil
+		end
+		return index, self._type.read(self._array, index*self._type.size + self._ptr)
+	end, self
+end
+
 --@sec: Slices.read
 --@def: function Slices.read<T>(self: Slice<T>, index: number): T
 --@doc: Returns the value at *index*.
+--
+-- ```lua
+-- local value = Slices.read(slice, index)
+-- ```
 function export.read<T>(self: Slice<T>, index: number): T
 	local self = to_slice(self)
 	assert(type(index) == "number", "index must be a number")
@@ -272,6 +343,10 @@ end
 --@sec: Slices.write
 --@def: function Slices.write<T>(self: Slice<T>, index: number, value: T)
 --@doc: Sets *index* in the slice to *value*.
+--
+-- ```lua
+-- Slices.write(slice, index, value)
+-- ```
 function export.write<T>(self: Slice<T>, index: number, value: T)
 	local self = to_slice(self)
 	assert(type(index) == "number", "index must be a number")
@@ -292,6 +367,10 @@ end
 --
 -- The arguments must satisfy `0 <= low <= high <= max <= cap(self)`, or else
 -- they are considered out of range.
+--
+-- ```lua
+-- local sub = Slices.slice(slice, low, high, max)
+-- ```
 function export.slice<T>(self: Slice<T>, low: number?, high: number?, max: number?): Slice<T>
 	local self = to_slice(self)
 	local low = (low or 0) // 1
@@ -315,7 +394,11 @@ end
 --@sec: Slices.clear
 --@def: function Slices.clear<T>(self: Slice<T>): Slice<T>
 --@doc: Sets each element of the slice to its binary zero. The implementation
--- may not use the type's writer.
+-- may not use the type's writer. Returns *self*.
+--
+-- ```lua
+-- Slices.clear(slice)
+-- ```
 function export.clear<T>(self: Slice<T>): Slice<T>
 	local self = to_slice(self)
 	buffer.fill(self._array, self._ptr, 0, self._len*self._type.size)
@@ -325,7 +408,11 @@ end
 --@sec: Slices.fill
 --@def: function Slices.fill<T>(self: Slice<T>, value: T): Slice<T>
 --@doc: Sets each element of the slice to *value*. Guaranteed to use the type's
--- writer.
+-- writer. Returns *self*.
+--
+-- ```lua
+-- Slices.fill(slice, 1) -- Fill with all ones.
+-- ```
 function export.fill<T>(self: Slice<T>, value: T): Slice<T>
 	local self = to_slice(self)
 	for i = 0, self._len-1 do
@@ -339,6 +426,10 @@ end
 --@doc: Copies elements from *src* to *dst*, returning the number of elements
 -- copied. The number of elements copied is the minimum of the lengths of *dst*
 -- and *src*.
+--
+-- ```lua
+-- local count = Slices.copy(dst, src)
+-- ```
 function export.copy<T>(dst: Slice<T>, src: Slice<T>): number
 	local dst = to_slice(dst, "destination must be a slice")
 	local src = to_slice(src, "source must be a slice")
@@ -369,6 +460,10 @@ end
 --@sec: Slices.to
 --@def: function Slices.elements<T>(self: Slice<T>): ...T
 --@doc: Returns the unpacked elements of the slice.
+--
+-- ```lua
+-- local a, b, c, d = Slices.to(slice)
+-- ```
 function export.to<T>(self: Slice<T>): ...T
 	local self = to_slice(self)
 	local elements = table.create(self._len)
@@ -381,6 +476,10 @@ end
 --@sec: Slices.toTable
 --@def: function Slices.toTable<T>(self: Slice<T>): {T}
 --@doc: Returns the elements of the slice in a table.
+--
+-- ```lua
+-- local t = Slices.toTable(slice)
+-- ```
 function export.toTable<T>(self: Slice<T>): {T}
 	local self = to_slice(self)
 	local elements = table.create(self._len)
@@ -487,6 +586,10 @@ end
 --@sec: Slices.join
 --@def: function Slices.join<T>(self: Slice<T>, ...: Slice<T>): Slice<T>
 --@doc: Appends to *self* each element from the remaining arguments.
+--
+-- ```lua
+-- local slice = Slices.join(sliceA, sliceB, sliceC)
+-- ```
 function export.join<T>(self: Slice<T>, ...: Slice<T>): Slice<T>
 	local self = to_slice(self)
 	local count = select("#", ...)
@@ -525,6 +628,10 @@ end
 --@def: function Slices.from<T>(make: Make<T>, ...: T): Slice<T>
 --@doc: Returns a slice according to *make*, containing elements from the
 -- remaining arguments.
+--
+-- ```lua
+-- local slice = Slices.from(Slices.make.u8, 1, 2, 3, 4)
+-- ```
 function export.from<T>(make: Make<T>, ...: T): Slice<T>
 	assert(type(make) == "function", "make must be a function")
 
@@ -542,6 +649,10 @@ end
 --@sec: Slices.fromTable
 --@def: function Slices.fromTable<T>(make: Make<T>, t: {T}): Slice<T>
 --@doc: Returns a slice according to *make*, containing elements from *t*.
+--
+-- ```lua
+-- local slice = Slices.fromTable(Slices.make.u8, {1, 2, 3, 4})
+-- ```
 function export.fromTable<T>(make: Make<T>, t: {T}): Slice<T>
 	assert(type(make) == "function", "make must be a function")
 	assert(type(t) == "table", "t must be a table")
@@ -560,6 +671,19 @@ end
 --@def: function Slices.maker<T>(def: Definition<T>): Make<T>
 --@doc: Returns a [make][Make] function that creates a slice of the type defined
 --by [def][Definition].
+--
+-- ```lua
+-- local makeU32 = export.maker({
+-- 	name = "u32",
+-- 	size = 4,
+-- 	read = function(a: buffer, index: number): number
+-- 		return buffer.readu32(a, index)
+-- 	end,
+-- 	write = function(a: buffer, index: number, value: number)
+-- 		buffer.writeu32(a, index, value)
+-- 	end,
+-- })
+-- ```
 function export.maker<T>(def: Definition<T>): Make<T>
 	local name = def.name
 	assert(type(name) == "string", "name must be a string")
@@ -575,34 +699,68 @@ function export.maker<T>(def: Definition<T>): Make<T>
 	local write = def.write
 	assert(type(write) == "function", "write must be a function")
 
-	local typedef = table.freeze({
+	local typedef: typedef<T>
+	typedef = table.freeze({
 		name = name,
 		size = size,
 		read = read,
 		write = write,
+		make = function(len: number?, cap: number?): Slice<T>
+			local len = (len or 0) // 1
+			local cap = (cap or len) // 1
+			local mem, overflow = multiply_ptr(size, cap)
+			if overflow or mem > MAX_ALLOC or len < 0 or len > cap then
+				local mem, overflow = multiply_ptr(size, len)
+				if overflow or mem > MAX_ALLOC or len < 0 then
+					error("length out of range", 2)
+				end
+				error("capacity out of range", 2)
+			end
+			local array
+			if mem == 0 then
+				array = ZERO_BASE
+			else
+				array = buffer.create(mem)
+			end
+			return from_slice(newSlice(array, typedef, 0, len, cap))
+		end,
 	})
 
-	return function(len: number?, cap: number?): Slice<T>
-		local len = (len or 0) // 1
-		local cap = (cap or len) // 1
-		local mem, overflow = multiply_ptr(size, cap)
-		if overflow or mem > MAX_ALLOC or len < 0 or len > cap then
-			local mem, overflow = multiply_ptr(size, len)
-			if overflow or mem > MAX_ALLOC or len < 0 then
-				error("length out of range", 2)
-			end
-			error("capacity out of range", 2)
-		end
-		local array
-		if mem == 0 then
-			array = ZERO_BASE
-		else
-			array = buffer.create(mem)
-		end
-		return from_slice(newSlice(array, typedef, 0, len, cap))
-	end
+export.make.u8 = export.maker({
+	name = "u8",
+	size = 1,
+	read = function(a: buffer, index: number): number
+		return buffer.readu8(a, index)
+	end,
+	write = function(a: buffer, index: number, value: number)
+		buffer.writeu8(a, index, value)
+	end,
+})
+	return typedef.make
 end
 
+--@sec: Slices.make
+--@ord: -1
+--@doc: Contains constructors for creating new slices of specific types. The
+-- following types are included:
+--
+-- Name    | Element type
+-- --------|-------------
+-- i8      | 8-bit signed integer
+-- u8      | 8-bit unsigned integer
+-- i16     | 16-bit signed integer
+-- u16     | 16-bit unsigned integer
+-- i32     | 32-bit signed integer
+-- u32     | 32-bit unsigned integer
+-- f32     | 32-bit floating point number
+-- f64     | 64-bit floating point number
+-- boolean | Boolean truth value
+-- Vector3 | Vector3 value
+--
+-- ```lua
+-- local sliceU8 = Slices.make.u8(3) -- Slice of 3 8-bit unsigned integers.
+-- local sliceV3 = Slices.make.Vector3(4) -- Slice of 4 Vector3 values.
+-- ```
 export.make = {}
 
 export.make.i8 = export.maker({

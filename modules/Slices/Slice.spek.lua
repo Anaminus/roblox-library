@@ -218,6 +218,22 @@ return function(t: Spek.T)
 		end)
 	end)
 
+	describe "iter" (function()
+		it "should fail when first argument is not a slice" (function()
+			expect_error(function()
+				(Slices.iter::any)()
+			end)
+		end)
+		it "should enable iteration over a slice" (function()
+			local s = range(10)
+			for i, v in Slices.iter(s) do
+				expect(function()
+					return v == i
+				end)
+			end
+		end)
+	end)
+
 	describe "read" (function()
 		it "should fail when first argument is not a slice" (function()
 			expect_error(function()
