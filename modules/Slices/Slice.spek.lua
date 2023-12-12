@@ -656,7 +656,7 @@ return function(t: Spek.T)
 	describe "Slice.__index" (function()
 		it "should fail when index is not a number" (function()
 			expect_error(function()
-				local _ = make()[""]
+				local _ = (make()::any)[""]
 			end)
 		end)
 		it "should fail when index is less than zero" (function()
@@ -685,7 +685,7 @@ return function(t: Spek.T)
 	describe "Slice.__newindex" (function()
 		it "should fail when index is not a number" (function()
 			expect_error(function()
-				make(1)[""] = 0
+				(make(1)::any)[""] = 0
 			end)
 		end)
 		it "should fail when index is less than zero" (function()
