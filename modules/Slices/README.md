@@ -64,7 +64,7 @@ i32     | 32-bit signed integer
 u32     | 32-bit unsigned integer
 f32     | 32-bit floating point number
 f64     | 64-bit floating point number
-boolean | Boolean truth value
+boolean | Boolean truth value, one per byte
 Vector3 | Vector3 value
 
 ```lua
