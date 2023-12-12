@@ -726,16 +726,6 @@ function export.maker<T>(def: Definition<T>): Make<T>
 		end,
 	})
 
-export.make.u8 = export.maker({
-	name = "u8",
-	size = 1,
-	read = function(a: buffer, index: number): number
-		return buffer.readu8(a, index)
-	end,
-	write = function(a: buffer, index: number, value: number)
-		buffer.writeu8(a, index, value)
-	end,
-})
 	return typedef.make
 end
 
