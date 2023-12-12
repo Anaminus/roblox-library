@@ -10,6 +10,8 @@ return function(t: Spek.T)
 	local it = t.it
 	local expect = t.expect
 	local expect_error = t.expect_error
+	local measure = t.measure
+	local operation = t.operation
 
 	describe "maker" (function()
 		it "should return a function with a valid Definition" (function()
@@ -938,4 +940,103 @@ return function(t: Spek.T)
 			end)
 		end
 	end)
+
+	measure "table index" (function()
+		local a = {42}
+		operation(function()
+			local _ = a[1]
+		end)
+	end, "Read")
+
+	measure "slice index u8" (function()
+		local a = Slices.from(Slices.make.u8, 42)
+		operation(function()
+			local _ = a[0]
+		end)
+	end, "Read")
+
+	measure "slice read u8" (function()
+		local a = Slices.from(Slices.make.u8, 42)
+		operation(function()
+			local _ = Slices.read(a, 0)
+		end)
+	end, "Read")
+
+	measure "slice index f64" (function()
+		local a = Slices.from(Slices.make.f64, 42)
+		operation(function()
+			local _ = a[0]
+		end)
+	end, "Read")
+
+	measure "slice read f64" (function()
+		local a = Slices.from(Slices.make.f64, 42)
+		operation(function()
+			local _ = Slices.read(a, 0)
+		end)
+	end, "Read")
+
+	measure "slice index Vector3" (function()
+		local a = Slices.from(Slices.make.Vector3, Vector3.one)
+		operation(function()
+			local _ = a[0]
+		end)
+	end, "Read")
+
+	measure "slice read Vector3" (function()
+		local a = Slices.from(Slices.make.Vector3, Vector3.one)
+		operation(function()
+			local _ = Slices.read(a, 0)
+		end)
+	end, "Read")
+
+
+	measure "table write" (function()
+		local a = {42}
+		operation(function()
+			a[0] = math.random(10)
+		end)
+	end, "Write")
+
+	measure "slice newindex u8" (function()
+		local a = Slices.from(Slices.make.u8, 42)
+		operation(function()
+			a[0] = math.random(10)
+		end)
+	end, "Write")
+
+	measure "slice write u8" (function()
+		local a = Slices.from(Slices.make.u8, 42)
+		operation(function()
+			Slices.write(a, 0, math.random(10))
+		end)
+	end, "Write")
+
+	measure "slice newindex f64" (function()
+		local a = Slices.from(Slices.make.f64, 42)
+		operation(function()
+			a[0] = math.random(10)
+		end)
+	end, "Write")
+
+	measure "slice write f64" (function()
+		local a = Slices.from(Slices.make.f64, 42)
+		operation(function()
+			Slices.write(a, 0, math.random(10))
+		end)
+	end, "Write")
+
+	measure "slice newindex Vector3" (function()
+		local a = Slices.from(Slices.make.Vector3, Vector3.one)
+		operation(function()
+			a[0] = Vector3.new(math.random(10))
+		end)
+	end, "Write")
+
+	measure "slice write Vector3" (function()
+		local a = Slices.from(Slices.make.Vector3, Vector3.one)
+		operation(function()
+			Slices.write(a, 0, Vector3.new(math.random(10)))
+		end)
+	end, "Write")
 end
